@@ -18,6 +18,12 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
+            "name": "FS"
+        },
+        {
+            "name": "Wire"
+        },
+        {
             "name": "ArduinoJson",
             "owner": "bblanchon",
             "platforms": "espressif32",
