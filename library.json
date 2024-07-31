@@ -18,10 +18,13 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
-            "name": "ESP Async WebServer",
-            "owner": "me-no-dev",
-            "version": "~1.2.4",
-            "platforms": "espressif32"
+            "name": "AsyncTCP"
+        },
+        {
+            "name": "LittleFS_esp32"
+        },
+        {
+            "name": "ESP Async WebServer"
         },
         {
             "name": "ArduinoJson",
