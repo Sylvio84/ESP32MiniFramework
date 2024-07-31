@@ -19,11 +19,13 @@
     "dependencies": [
         {
             "name": "AsyncTCP",
+            "owner": "me-no-dev",
             "platforms": "espressif32",
             "frameworks": "arduino"
         },
         {
             "name": "ESP Async WebServer",
+            "owner": "me-no-dev",
             "platforms": "espressif32",
             "frameworks": "arduino"
         },
