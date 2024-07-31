@@ -51,7 +51,7 @@
         {
             "name": "ESP Async WebServer",
             "owner": "me-no-dev",
-            "frameworks": "arduino",
+            "frameworks": "arduino"
         },
         {
             "name": "ArduinoJson",
