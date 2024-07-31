@@ -18,7 +18,14 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
+            "name": "AsyncTCP",
+            "owner": "me-no-dev",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
+        },        
+        {
             "name": "ESPAsyncWebServer",
+            "owner": "me-no-dev",
             "platforms": "espressif32",
             "frameworks": "arduino"
         },
@@ -52,10 +59,6 @@
             "name": "SPI",
             "platforms": "espressif32",
             "frameworks": "arduino"
-        },
-        {
-            "name": "AsyncTCP",
-            "owner": "me-no-dev"
         },
         {
             "name": "ESPUI",
