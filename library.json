@@ -18,18 +18,6 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
-            "name": "Wifi",
-            "frameworks": "arduino"
-        },
-        {
-            "name": "Wire",
-            "frameworks": "arduino"
-        },
-        {
-            "name": "SPI",
-            "frameworks": "arduino"
-        },        
-        {
             "name": "FS",
             "frameworks": "arduino"
         },
@@ -37,11 +25,6 @@
             "name": "LittleFS",
             "frameworks": "arduino"
         },
-        {
-            "name": "AsyncTCP",
-            "owner": "me-no-dev",
-            "frameworks": "arduino"
-        },        
         {
             "name": "ESP Async WebServer",
             "owner": "me-no-dev",
