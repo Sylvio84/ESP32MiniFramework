@@ -26,13 +26,11 @@
         {
             "name": "ESP Async WebServer",
             "owner": "me-no-dev",
-            "platforms": "espressif32",
             "frameworks": "arduino"
         },
         {
             "name": "ArduinoJson",
             "owner": "bblanchon",
-            "platforms": "espressif32",
             "frameworks": "arduino"
         },        
         {
