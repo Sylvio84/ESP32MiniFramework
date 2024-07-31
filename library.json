@@ -18,34 +18,7 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
-            "name": "AsyncTCP",
-            "owner": "me-no-dev",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
-        },        
-        {
-            "name": "ESP Async WebServer",
-            "owner": "me-no-dev",
-            "frameworks": "arduino",
-            "url": "https://github.com/me-no-dev/ESPAsyncWebServer.git"
-        },
-        {
-            "name": "ArduinoJson",
-            "owner": "bblanchon",
-            "frameworks": "arduino"
-        },        
-        {
             "name": "Wifi",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
-        },
-        {
-            "name": "FS",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
-        },
-        {
-            "name": "LittleFS",
             "platforms": "espressif32",
             "frameworks": "arduino"
         },
@@ -58,7 +31,33 @@
             "name": "SPI",
             "platforms": "espressif32",
             "frameworks": "arduino"
+        },        
+        {
+            "name": "FS",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
         },
+        {
+            "name": "LittleFS",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
+        },
+        {
+            "name": "AsyncTCP",
+            "owner": "me-no-dev",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
+        },        
+        {
+            "name": "ESP Async WebServer",
+            "owner": "me-no-dev",
+            "frameworks": "arduino",
+        },
+        {
+            "name": "ArduinoJson",
+            "owner": "bblanchon",
+            "frameworks": "arduino"
+        },        
         {
             "name": "ESPUI",
             "owner": "s00500",
