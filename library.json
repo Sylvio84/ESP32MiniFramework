@@ -30,10 +30,6 @@
             "frameworks": "arduino"
         },
         {
-            "name": "SPI",
-            "frameworks": "arduino"
-        },
-        {
             "name": "FS",
             "frameworks": "arduino"
         },
