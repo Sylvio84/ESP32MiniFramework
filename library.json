@@ -18,7 +18,9 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
-            "name": "ESPAsyncWebServer"
+            "name": "ESPAsyncWebServer",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
         },
         {
             "name": "ArduinoJson",
@@ -27,19 +29,29 @@
             "frameworks": "arduino"
         },        
         {
-            "name": "Wifi"
+            "name": "Wifi",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
         },
         {
-            "name": "FS"
+            "name": "FS",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
         },
         {
-            "name": "LittleFS"
+            "name": "LittleFS",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
         },
         {
-            "name": "Wire"
+            "name": "Wire",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
         },
         {
-            "name": "SPI"
+            "name": "SPI",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
         },
         {
             "name": "AsyncTCP",
