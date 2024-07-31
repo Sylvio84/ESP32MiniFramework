@@ -24,7 +24,7 @@
             "frameworks": "arduino"
         },        
         {
-            "name": "ESPAsyncWebServer",
+            "name": "ESP Async WebServer",
             "owner": "me-no-dev",
             "platforms": "espressif32",
             "frameworks": "arduino"
