@@ -18,11 +18,28 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
+            "name": "WiFi",
+            "frameworks": "arduino"
+        },
+        {
+            "name": "Wire",
+            "frameworks": "arduino"
+        },
+        {
+            "name": "SPI",
+            "frameworks": "arduino"
+        },
+        {
             "name": "FS",
             "frameworks": "arduino"
         },
         {
             "name": "LittleFS",
+            "frameworks": "arduino"
+        },
+        {
+            "name": "AsyncTCP",
+            "owner": "me-no-dev",
             "frameworks": "arduino"
         },
         {
@@ -35,7 +52,7 @@
             "name": "ArduinoJson",
             "owner": "bblanchon",
             "frameworks": "arduino"
-        },        
+        },
         {
             "name": "ESPUI",
             "owner": "s00500",
