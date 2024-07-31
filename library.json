@@ -42,11 +42,6 @@
             "frameworks": "arduino"
         },
         {
-            "name": "AsyncTCP",
-            "owner": "me-no-dev",
-            "frameworks": "arduino"
-        },
-        {
             "name": "ESP Async WebServer",
             "owner": "me-no-dev",
             "authors": "Hristo Gochkov",
