@@ -26,11 +26,11 @@
             "frameworks": "arduino"
         },
         {
-            "name": "FS",
+            "name": "Wire",
             "frameworks": "arduino"
         },
         {
-            "name": "LittleFS",
+            "name": "FS",
             "frameworks": "arduino"
         },
         {
