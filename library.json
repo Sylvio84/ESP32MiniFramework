@@ -18,13 +18,23 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
+            "name": "Wifi",
+            "frameworks": "arduino"
+        },
+        {
+            "name": "Wire",
+            "frameworks": "arduino"
+        },
+        {
+            "name": "SPI",
+            "frameworks": "arduino"
+        },        
+        {
             "name": "FS",
-            "platforms": "espressif32",
             "frameworks": "arduino"
         },
         {
             "name": "LittleFS",
-            "platforms": "espressif32",
             "frameworks": "arduino"
         },
         {
