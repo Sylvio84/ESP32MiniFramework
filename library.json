@@ -18,6 +18,11 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
+            "name": "LittleFS_esp32",
+            "owner": "lorol",
+            "version": "~1.0.6"
+        },
+        {
             "name": "ESP Async WebServer",
             "owner": "me-no-dev",
             "version": "~1.2.4",
