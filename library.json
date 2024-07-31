@@ -18,6 +18,18 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
+            "name": "ESPAsyncWebServer"
+        },
+        {
+            "name": "ArduinoJson",
+            "owner": "bblanchon",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
+        },        
+        {
+            "name": "Wifi"
+        },
+        {
             "name": "FS"
         },
         {
@@ -27,10 +39,11 @@
             "name": "Wire"
         },
         {
-            "name": "ArduinoJson",
-            "owner": "bblanchon",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
+            "name": "SPI"
+        },
+        {
+            "name": "AsyncTCP",
+            "owner": "me-no-dev"
         },
         {
             "name": "ESPUI",
