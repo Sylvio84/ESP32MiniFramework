@@ -18,39 +18,14 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
-            "name": "Wifi",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
-        },
-        {
-            "name": "Wire",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
-        },
-        {
-            "name": "SPI",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
-        },        
-        {
-            "name": "FS",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
-        },
-        {
-            "name": "LittleFS",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
-        },
-        {
             "name": "ESP Async WebServer",
+            "owner": "me-no-dev",
             "authors": "Hristo Gochkov",
             "frameworks": "arduino"
         },
         {
             "name": "ArduinoJson",
             "owner": "bblanchon",
-            "authors": "Benoit Blanchon",
             "frameworks": "arduino"
         },        
         {
