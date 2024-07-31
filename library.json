@@ -18,21 +18,13 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
-            "name": "AsyncTCP",
-            "owner": "me-no-dev",
-            "platforms": "espressif32",
-            "frameworks": "arduino"
-        },
-        {
             "name": "ESP Async WebServer",
-            "owner": "me-no-dev",
-            "platforms": "espressif32",
+            "authors": "Hristo Gochkov",
             "frameworks": "arduino"
         },
         {
             "name": "ArduinoJson",
             "owner": "bblanchon",
-            "version": "~7.1.0",
             "platforms": "espressif32",
             "frameworks": "arduino"
         },
