@@ -18,6 +18,21 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
+            "name": "FS",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
+        },
+        {
+            "name": "LittleFS",
+            "platforms": "espressif32",
+            "frameworks": "arduino"
+        },
+        {
+            "name": "AsyncTCP",
+            "owner": "me-no-dev",
+            "frameworks": "arduino"
+        },        
+        {
             "name": "ESP Async WebServer",
             "owner": "me-no-dev",
             "authors": "Hristo Gochkov",
