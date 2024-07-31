@@ -18,6 +18,10 @@
     "homepage": "https://www.helloworld.org/",
     "dependencies": [
         {
+            "name": "Preferences",
+            "frameworks": "arduino"
+        },
+        {
             "name": "WiFi",
             "frameworks": "arduino"
         },
