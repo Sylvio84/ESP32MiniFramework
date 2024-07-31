@@ -45,7 +45,6 @@
         {
             "name": "AsyncTCP",
             "owner": "me-no-dev",
-            "platforms": "espressif32",
             "frameworks": "arduino"
         },        
         {
@@ -62,7 +61,6 @@
             "name": "ESPUI",
             "owner": "s00500",
             "version": "~2.2.4",
-            "platforms": "espressif32",
             "frameworks": "arduino"
         },
         {
