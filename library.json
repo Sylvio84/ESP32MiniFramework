@@ -30,6 +30,10 @@
             "frameworks": "arduino"
         },
         {
+            "name": "FS",
+            "frameworks": "arduino"
+        },
+        {
             "name": "LittleFS",
             "frameworks": "arduino"
         },
