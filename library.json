@@ -1,0 +1,55 @@
+{
+    "name": "ESP32 Mini Framework",
+    "version": "1.0.0",
+    "description": "ESP32 Mini Framework for IOT Projects using C++ OOP",
+    "keywords": "ESP32, Framework, IOT, C++, OOP",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Sylvio84/ESP32MiniFramework.git"
+    },
+    "authors": [
+        {
+            "name": "Sylvio84",
+            "url": "https://github.com/Sylvio84",
+            "maintainer": true
+        }
+    ],
+    "license": "GNU AFFERO GENERAL PUBLIC LICENSE",
+    "homepage": "https://www.helloworld.org/",
+    "dependencies": [
+        {
+            "name": "ESP Async WebServer",
+            "owner": "me-no-dev",
+            "version": "~1.2.4",
+            "platforms": "espressif32"
+        },
+        {
+            "name": "ArduinoJson",
+            "owner": "bblanchon",
+            "version": "~7.1.0",
+            "platforms": "espressif32"
+        },
+        {
+            "name": "ESPUI",
+            "owner": "s00500",
+            "version": "~2.2.4",
+            "platforms": "espressif32"
+        },
+        {
+            "name": "LiquidCrystal_I2C",
+            "owner": "marcoschwartz",
+            "version": "~1.1.4",
+            "platforms": "espressif32"
+        },
+        {
+            "name": "PubSubClient",
+            "owner": "knolleary",
+            "version": "~2.8",
+            "platforms": "espressif32"
+        }
+    ],
+    "frameworks": "arduino",
+    "platforms": [
+        "espressif32"
+    ]
+}
