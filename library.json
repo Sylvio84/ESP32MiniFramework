@@ -26,10 +26,6 @@
             "frameworks": "arduino"
         },
         {
-            "name": "Wire",
-            "frameworks": "arduino"
-        },
-        {
             "name": "FS",
             "frameworks": "arduino"
         },
