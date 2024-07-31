@@ -21,9 +21,6 @@
             "name": "AsyncTCP"
         },
         {
-            "name": "LittleFS_esp32"
-        },
-        {
             "name": "ESP Async WebServer"
         },
         {
