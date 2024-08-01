@@ -300,7 +300,7 @@ void MainController::processEvent(String type, String action, std::vector<String
         {
             Serial.println("Connected to WiFi: " + params[0]);
             Serial.println("IP address: " + params[1]);
-            timeManager.init();
+            timeManager.update();
         }
     }
     else if (type == "System")
