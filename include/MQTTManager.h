@@ -4,7 +4,9 @@
 #include <Arduino.h>
 #include <vector>
 #include <PubSubClient.h>
-#include <WiFiManager.h>
+//#include <WiFiManager.h>
+#include <WiFi.h>
+#include <Configuration.h>
 #include <Preferences.h>
 #include <EventManager.h>
 

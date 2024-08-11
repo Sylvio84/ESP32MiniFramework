@@ -10,18 +10,16 @@ DisplayManager::DisplayManager(Configuration config) : lcd(config.LCD_ADDRESS, c
     this->lcdAddress = config.LCD_ADDRESS;
 }
 
-// Initialize the LCD
 bool DisplayManager::init()
 {
-    Serial.println("Initializing I2C...");
+    Serial.println("DisplayManager init...");
     Wire.begin(sdaPin, sclPin); // Initialize I2C with specific SDA and SCL pins
-    Serial.println("I2C initialized");
     if (!this->i2CAddrTest(lcdAddress))
     {
         Serial.println("LCD not found");
         return false;
     }
-    Serial.println("LCD initializing...");
+    isInitialized = true;
     lcd.init();
     lcd.backlight();
     lcd.setCursor(0, 0);
@@ -42,12 +40,20 @@ bool DisplayManager::i2CAddrTest(uint8_t addr)
 // Clear the display
 void DisplayManager::clear()
 {
+    if (!isInitialized)
+    {
+        return;
+    }
     lcd.clear();
 }
 
 // Print text at a specific position
 void DisplayManager::printText(uint8_t row, uint8_t col, const char *text)
 {
+    if (!isInitialized)
+    {
+        return;
+    }
     lcd.setCursor(col, row);
     lcd.print(text);
 }
@@ -55,6 +61,10 @@ void DisplayManager::printText(uint8_t row, uint8_t col, const char *text)
 // Print a single line, overwriting it
 void DisplayManager::printLine(uint8_t row, const char *text)
 {
+    if (!isInitialized)
+    {
+        return;
+    }
     lcd.setCursor(0, row);
     lcd.print(text);
     // Clear the rest of the line if text is shorter than the line length
@@ -66,6 +76,10 @@ void DisplayManager::printLine(uint8_t row, const char *text)
 
 void DisplayManager::printLine(uint8_t row, String& text)
 {
+    if (!isInitialized)
+    {
+        return;
+    }
     lcd.setCursor(0, row);
     lcd.print(text);
     // Clear the rest of the line if text is shorter than the line length

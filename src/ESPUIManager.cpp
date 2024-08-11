@@ -14,7 +14,7 @@ uint16_t ESPUIManager::mqttPasswordInput = 0;
 
 void ESPUIManager::init()
 {
-    // espui.init();
+    Serial.println("ESPUIManager init...");
     ESPUI.setVerbosity(Verbosity::Quiet);
 
     ESPUI.begin(hostname);

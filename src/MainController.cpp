@@ -1,13 +1,13 @@
 #include "../include/MainController.h"
 
-MainController::MainController(Configuration& config) : config(&config),
+MainController::MainController(Configuration &config) : config(&config),
                                                         displayManager(config),
                                                         wiFiManager(config, eventManager),
                                                         mqttManager(config, eventManager),
                                                         timeManager(config),
                                                         espUIManager(config, eventManager)
 {
-    //this->config = &config;
+    // this->config = &config;
     this->hostname = config.HOSTNAME;
 
     eventManager.registerCallback("ESPUI", [this](String action, std::vector<String> params)
@@ -24,11 +24,10 @@ MainController::MainController(Configuration& config) : config(&config),
 
 void MainController::init()
 {
+    delay(500);
     Serial.begin(115200);
     Serial.println();
     displayManager.init();
-    delay(1000);
-    Serial.println("Init...");
     wiFiManager.init();
     timeManager.init();
     mqttManager.init();
@@ -51,7 +50,11 @@ void MainController::init()
 void MainController::loop()
 {
     timeManager.loop();
-    mqttManager.loop();
+    wiFiManager.loop();
+    if (wiFiManager.isConnected())
+    {
+        mqttManager.loop();
+    }
     readSerialCommand();
 }
 
@@ -164,92 +167,116 @@ void MainController::processUI(String action, std::vector<String> params)
 
 void MainController::processCommand(String command, std::vector<String> params)
 {
-    /* Serial.println("Processing Command: " + command);
+    /*
+    Serial.println("Processing Command: " + command);
     for (const auto &param : params)
     {
         Serial.println("Param: " + param);
     }
     */
+
     // myESPUI.print(serialLabelId, command);
 
-    if (command == "ssid")
+    if (command == "wifi")
     {
-        wiFiManager.saveSSID(params[0]);
-        Serial.println("SSID: " + params[0]);
-    }
-    else if (command == "password")
-    {
-        wiFiManager.savePassword(params[0]);
-        Serial.println("Password: " + params[0]);
-    }
-    else if (command == "wifi")
-    {
-        if (params[0] == "connect")
+        if (params[0] == "ssid")
+        {
+            wiFiManager.saveSSID(params[1]);
+            Serial.println("SSID: " + params[1]);
+        }
+        else if (params[0] == "password")
+        {
+            wiFiManager.savePassword(params[1]);
+            Serial.println("Password: " + params[1]);
+        }
+        else if (params[0] == "reset")
+        {
+            wiFiManager.saveSSID("");
+            wiFiManager.savePassword("");
+            Serial.println("WiFi settings reset");
+        }
+        else if (params[0] == "keep")
+        {
+            if (wiFiManager.keepConnection())
+            {
+                Serial.println("Keep connection: ON");
+            }
+            else
+            {
+                Serial.println("Keep connection: OFF");
+            }
+        }
+        else if (params[0] == "connect")
         {
             wiFiManager.connect();
         }
-        if (params[0] == "disconnect")
+        else if (params[0] == "disconnect")
         {
             wiFiManager.disconnect();
         }
-        if (params[0] == "hotspot")
+        else if (params[0] == "hotspot")
         {
             wiFiManager.startAccessPoint();
         }
-        if (params[0] == "autoconnect")
+        else if (params[0] == "autoconnect")
         {
             wiFiManager.autoConnect();
         }
-        if (params[0] == "status")
+        else if (params[0] == "status")
         {
+            Serial.println("Status: " + wiFiManager.getStatus());
             Serial.println("Connected: " + String(wiFiManager.isConnected()));
             Serial.println("SSID: " + wiFiManager.retrieveSSID());
             Serial.println("IP: " + wiFiManager.retrieveIP());
         }
-        if (params[0] == "debug")
+        else if (params[0] == "debug")
         {
             Serial.println(wiFiManager.getDebugInfos());
         }
-    }
-    else if (command == "mqttserver")
-    {
-        mqttManager.saveServer(params[0]);
-    }
-    else if (command == "mqttport")
-    {
-        mqttManager.savePort(params[0].toInt());
-    }
-    else if (command == "mqttuser")
-    {
-        mqttManager.saveUsername(params[0]);
-    }
-    else if (command == "mqttpass")
-    {
-        mqttManager.savePassword(params[0]);
+        else
+        {
+            Serial.println("Unknown wifi command: " + command + " " + params[0]);
+        }
     }
     else if (command == "mqtt")
     {
-        if (params[0] == "status")
+        if (params[0] == "server")
+        {
+            mqttManager.saveServer(params[1]);
+        }
+        else if (params[0] == "port")
+        {
+            mqttManager.savePort(params[1].toInt());
+        }
+        else if (params[0] == "user")
+        {
+            mqttManager.saveUsername(params[1]);
+        }
+        else if (params[0] == "pass")
+        {
+            mqttManager.savePassword(params[1]);
+        }
+        else if (params[0] == "status")
         {
             Serial.println("Connected: " + String(mqttManager.isConnected()));
         }
-        if (params[0] == "connect")
+        else if (params[0] == "connect")
         {
             mqttManager.reconnect();
         }
-        if (params[0] == "subscribe")
+        else if (params[0] == "subscribe")
         {
             mqttManager.subscribe(params[1]);
         }
-        if (params[0] == "unsubscribe")
+        else if (params[0] == "unsubscribe")
         {
             mqttManager.unsubscribe(params[1]);
         }
-        if (params[0] == "publish")
+        else if (params[0] == "publish")
         {
             mqttManager.publish(params[1], params[2]);
         }
-        if (params[0] == "debug")
+        else if (params[0] == "debug")
         {
             Serial.println(mqttManager.getDebugInfos());
         }
@@ -283,6 +310,10 @@ void MainController::processCommand(String command, std::vector<String> params)
     else if (command == "restart")
     {
         ESP.restart();
+    }
+    else
+    {
+        Serial.println("Unknown command: " + command);
     }
 }
 

@@ -16,6 +16,8 @@ private:
     uint8_t sclPin;
     uint8_t lcdAddress;
 
+    bool isInitialized = false;
+
 public:
     DisplayManager(Configuration config);
 

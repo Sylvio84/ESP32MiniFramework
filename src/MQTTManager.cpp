@@ -3,12 +3,20 @@
 EventManager* MQTTManager::eventManager = nullptr;
 
 void MQTTManager::init() {
+    Serial.println("MQTTManager init...");
     prefs.begin("mqtt", false);
     this->server = prefs.getString("server", "");
     this->port = prefs.getInt("port", 1883);
     this->username = prefs.getString("username", "");
     this->password = prefs.getString("password", "");
 
+    if (server == "") {
+        Serial.println("No MQTT server configured");
+        return;
+    }
+    if (username == "") {
+        Serial.println("Warning: No MQTT username configured");
+    }
     mqttClient.setServer(server.c_str(), port);
     mqttClient.setCallback([this](char* topic, byte* payload, unsigned int length) {
         eventManager->triggerEvent("MQTT", "Message", {topic, String((char*)payload, length)});
@@ -16,6 +24,10 @@ void MQTTManager::init() {
 }
 
 void MQTTManager::loop() {
+    /*if (!wifiClient.available()) {
+        Serial.println("No WiFi connection, MQTT disabled");
+        return;
+    }*/
     if (!mqttClient.connected()) {
         reconnect();
     }

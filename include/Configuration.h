@@ -21,6 +21,16 @@ public:
     const char *DATE_FORMAT = "%d/%m/%Y";
     const char *TIME_FORMAT = "%H:%M:%S";
     const char *DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S";
+
+    static int getValue(const char *key, int defaultValue = 0)
+    {
+        return defaultValue;
+    }
+
+    static String getValue(const char *key, String defaultValue = "")
+    {
+        return defaultValue;
+    }
 };
 
 #endif

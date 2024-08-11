@@ -1,9 +1,10 @@
 #include "../include/WiFiManager.h"
 
-EventManager* WiFiManager::eventManager = nullptr;
+EventManager *WiFiManager::eventManager = nullptr;
 
 void WiFiManager::init(bool auto_connect)
 {
+    Serial.println("WiFiManager init...");
     prefs.begin("wifi", false);
     this->ssid = prefs.getString("ssid", "");
     this->password = prefs.getString("password", "");
@@ -13,60 +14,126 @@ void WiFiManager::init(bool auto_connect)
     }
 }
 
-bool WiFiManager::autoConnect()
+void WiFiManager::loop()
 {
-    if (this->ssid != "" && this->password != "")
+    static unsigned long lastMillis = 0;
+    unsigned long currentMillis = millis();
+
+    if (connectionStatus == 0)
     {
         this->connect();
-        if (this->connected)
-        {
-            return true;
-        }
+        lastMillis = currentMillis;
+        connectionStatus = 1;
     }
-    Serial.println("Starting Access Point");
-    this->startAccessPoint();
-    return false;
+
+    int wait = (tryCount +1) * checkDelay;
+
+    if (currentMillis - lastMillis >= wait)
+    {
+        if (connectionStatus == 1) // Connection in progress
+        {
+            if (WiFi.status() != WL_CONNECTED)
+            {
+                this->connected = false;
+                tryCount++;
+                std::vector<String> params;
+                params.push_back(String(tryCount));
+                eventManager->triggerEvent("WiFi", "ConnectionInProgress", params);
+                if (tryCount >= 10)
+                {
+                    tryCount = 0;
+                    if (keepConnected)
+                    {
+                        Serial.println("Connection failed, retrying");
+                    }
+                    else
+                    {
+                        connectionStatus = 2;
+                        Serial.println("Connection failed");
+                        eventManager->triggerEvent("WiFi", "ConnectionFailed", params);
+                        this->startAccessPoint();
+                    }
+                } else {
+                    Serial.print("*");
+                }
+            }
+            else
+            {
+                connected = true;
+                keepConnected = true;
+                connectionStatus = 10;
+                tryCount = 0;
+                std::vector<String> params;
+                params.push_back(WiFi.SSID());
+                params.push_back(WiFi.localIP().toString());
+                eventManager->triggerEvent("WiFi", "Connected", params);
+            }
+        }
+        else if (connectionStatus == 10) // Connected
+        {
+            if (WiFi.status() != WL_CONNECTED)
+            {
+                connectionStatus = 3;
+                this->connected = false;
+                Serial.println("Connection lost");
+                eventManager->triggerEvent("WiFi", "ConnectionLost", {});
+            }
+        }
+        else if (connectionStatus == 3) // Connection lost
+        {
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                connectionStatus = 10;
+                this->connected = true;
+                eventManager->triggerEvent("WiFi", "ConnectionRecovered", {});
+            }
+        }
+        lastMillis = currentMillis;
+    }
 }
 
-// Connect to WiFi
-bool WiFiManager::connect()
+bool WiFiManager::autoConnect()
 {
-    Serial.println("Connecting to: " + this->ssid);
-    WiFi.mode(WIFI_STA);
-
-    WiFi.begin(this->ssid.c_str(), this->password.c_str());
-    uint timeout = 0;
-    uint wait = 100;
-    while ((timeout <= CONNECTION_TIMEOUT) && (WiFi.status() != WL_CONNECTED))
+    if (WiFi.status() != WL_CONNECTED)
     {
-        delay(wait);
-        if (timeout < 1000)
+        Serial.println("WiFi AutoConnect...");
+        if (this->ssid == "")
         {
-            wait = 200;
+            Serial.println("No SSID, starting access point");
+            this->startAccessPoint();
+            return false;
         }
         else
         {
-            wait = 1000;
+            connectionStatus = 0;
+            connect();
+            return WiFi.status() == WL_CONNECTED;
         }
-        timeout += wait;
-        Serial.print(".");
-    }
-    if (WiFi.status() != WL_CONNECTED)
-    {
-        Serial.println("Connection failed");
-        this->connected = false;
-        return false;
     }
     else
     {
-        std::vector<String> params;
-        params.push_back(WiFi.SSID());
-        params.push_back(WiFi.localIP().toString());
-        //Serial.println("Connected to WiFi: " + WiFi.SSID());
-        //Serial.println("IP address: " + WiFi.localIP().toString());
-        this->connected = true;
-        eventManager->triggerEvent("WiFi", "Connected", params);
         return true;
+    }
+}
+
+bool WiFiManager::connect()
+{
+    connectionStatus = 1;
+    Serial.println("Connecting to: " + this->ssid + " password: " + this->password);
+    WiFi.mode(WIFI_STA);
+
+    WiFi.begin(this->ssid.c_str(), this->password.c_str());
+    delay(100);
+
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        this->connected = true;
+        connectionStatus = 10;
+        return true;
+    }
+    else
+    {
+        return false;
     }
 }
 
@@ -74,7 +141,8 @@ void WiFiManager::disconnect()
 {
     WiFi.disconnect();
     this->connected = false;
-    eventManager->triggerEvent("WiFi","Disconnected", {});
+    connectionStatus = 4;
+    eventManager->triggerEvent("WiFi", "Disconnected", {});
 }
 
 void WiFiManager::startAccessPoint()
@@ -85,43 +153,9 @@ void WiFiManager::startAccessPoint()
     delay(100);
     WiFi.softAPConfig(this->apIP, this->apIP, IPAddress(255, 255, 255, 0));
     WiFi.softAP(this->ApHostname);
+    connectionStatus = 5;
     eventManager->triggerEvent("WiFi", "AccessPointStarted", {});
 }
-
-/*bool WiFiManager::processCommand(String command)
-{
-    if (command.indexOf("ssid") > -1)
-    {
-        saveSSID(splitString(command, ' ', 1));
-        return true;
-    }
-    else if (command.indexOf("password") > -1)
-    {
-        savePassword(splitString(command, ' ', 1));
-        return true;
-    }
-    else if (command.indexOf("connect") > -1)
-    {
-        this->connect();
-        return true;
-    }
-    else if (command.indexOf("wifi") > -1)
-    {
-        Serial.println("WiFi status:" + String(this->connected));
-        Serial.println("IP: " + WiFi.localIP().toString());
-        Serial.println("SSID: \"" + this->ssid + "\"");
-        Serial.println("Password: \"" + this->password + "\"");
-        return true;
-    }
-    else if (command.indexOf("hotspot") > -1)
-    {
-        this->disconnect();
-        this->startAccessPoint();
-        return true;
-    }
-
-    return false;
-}*/
 
 String WiFiManager::getSSID()
 {
@@ -160,4 +194,33 @@ String WiFiManager::retrieveSSID()
 String WiFiManager::retrieveIP()
 {
     return WiFi.localIP().toString();
+}
+
+bool WiFiManager::keepConnection()
+{
+    keepConnected = !keepConnected;
+    return keepConnected;
+}
+
+String WiFiManager::getStatus()
+{
+    switch (connectionStatus)
+    {
+    case 0:
+        return "Init WiFi";
+    case 1:
+        return "Connection in progress";
+    case 2:
+        return "Initial connection failed";
+    case 3:
+        return "Connection lost";
+    case 4:
+        return "Disconnection";
+    case 5:
+        return "Access Point";
+    case 10:
+        return "Connected";
+    default:
+        return "Unknown";
+    }
 }

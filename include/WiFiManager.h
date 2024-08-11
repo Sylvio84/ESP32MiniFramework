@@ -15,6 +15,12 @@ private:
 
     Preferences prefs;
     bool connected = false;
+    bool keepConnected = false;
+    uint connectionStatus = 0; // 0 = start, 1 = connection in progress, 2 = initial connection failed, 3 = connection lost, 4 = disconnection, 5 = Access Point, 10 = connection success
+    uint timeout = 0;
+    uint checkDelay = 100;
+    uint tryCount = 0;
+
     IPAddress apIP;
     String ApHostname = "ESP32";
 
@@ -35,16 +41,19 @@ public:
     }
 
     void init(bool auto_connect = true);
+    void loop();
 
     bool autoConnect();
 
     bool connect();
 
+    bool keepConnection();
+
     void disconnect();
 
     void startAccessPoint();
 
-    //bool processCommand(String command);
+    String getStatus();
 
     String getSSID();
 
