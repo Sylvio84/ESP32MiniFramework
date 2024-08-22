@@ -63,14 +63,14 @@ void TimeManager::checkIntervals()
     }
 }
 
-int TimeManager::setInterval(std::function<void()> callback, unsigned long intervalTime)
+uint TimeManager::setInterval(std::function<void()> callback, unsigned long intervalTime)
 {
     Interval newInterval = {millis(), intervalTime, callback, true};
     intervals.push_back(newInterval);
     return intervals.size() - 1; // Retourner l'index comme ID d'intervalle
 }
 
-int TimeManager::setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime) {
+uint TimeManager::setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime) {
     Interval newInterval = {
         millis(),
         intervalTime,
@@ -81,7 +81,7 @@ int TimeManager::setIntervalObj(void* obj, std::function<void(void*)> callback, 
     return intervals.size() - 1;
 }
 
-void TimeManager::clearInterval(int id)
+void TimeManager::clearInterval(uint id)
 {
     if (id >= 0 && id < intervals.size())
     {
@@ -101,14 +101,14 @@ void TimeManager::checkTimeouts()
     }
 }
 
-int TimeManager::setTimeout(std::function<void()> callback, unsigned long delay)
+uint TimeManager::setTimeout(std::function<void()> callback, unsigned long delay)
 {
     Timeout newTimeout = {millis(), delay, callback, true};
     timeouts.push_back(newTimeout);
     return timeouts.size() - 1; // Retourner l'index comme ID de délai
 }
 
-int TimeManager::setTimeoutObj(void* obj, std::function<void(void*)> callback, unsigned long delay) {
+uint TimeManager::setTimeoutObj(void* obj, std::function<void(void*)> callback, unsigned long delay) {
     Timeout newTimeout = {
         millis(),
         delay,
@@ -119,7 +119,7 @@ int TimeManager::setTimeoutObj(void* obj, std::function<void(void*)> callback, u
     return timeouts.size() - 1;
 }
 
-void TimeManager::clearTimeout(int id)
+void TimeManager::clearTimeout(uint id)
 {
     if (id >= 0 && id < timeouts.size())
     {
@@ -157,21 +157,21 @@ void TimeManager::checkSchedulers()
     }
 }
 
-int TimeManager::setScheduler(std::function<void()> callback, int hour, int minute, const std::vector<int>& daysOfWeek)
+uint TimeManager::setScheduler(std::function<void()> callback, int hour, int minute, const std::vector<int>& daysOfWeek)
 {
     Scheduler newScheduler = {hour, minute, daysOfWeek, callback, true};
     schedulers.push_back(newScheduler);
     return schedulers.size() - 1; // Retourner l'index comme ID de planification
 }
 
-int TimeManager::setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, const std::vector<int>& daysOfWeek)
+uint TimeManager::setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, const std::vector<int>& daysOfWeek)
 {
     Scheduler newScheduler = {hour, minute, daysOfWeek, [obj, callback]() { callback(obj); }, true};
     schedulers.push_back(newScheduler);
     return schedulers.size() - 1; // Retourner l'index comme ID de planification
 }
 
-void TimeManager::clearScheduler(int id)
+void TimeManager::clearScheduler(uint id)
 {
     if (id >= 0 && id < schedulers.size())
     {

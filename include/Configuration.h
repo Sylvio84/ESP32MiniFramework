@@ -1,11 +1,18 @@
 #ifndef CONFIGURATION_H
 #define CONFIGURATION_H
 
+#include <Arduino.h>
+
+#ifdef ESP32
+#include <Preferences.h>
+#else
+#include <EEPROM.h>
+#include <ArduinoJson.h>
+#endif
+
 class Configuration
 {
 public:
-    Configuration() {}
-
     int CONNECTION_TIMEOUT = 10000;
 
     const char *HOSTNAME = "ESP32";
@@ -22,15 +29,42 @@ public:
     const char *TIME_FORMAT = "%H:%M:%S";
     const char *DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S";
 
-    static int getValue(const char *key, int defaultValue = 0)
-    {
-        return defaultValue;
-    }
+    Configuration();
 
-    static String getValue(const char *key, String defaultValue = "")
-    {
-        return defaultValue;
-    }
+    void init();
+
+    static int getValue(const char *key, int defaultValue = 0);
+
+    static String getValue(const char *key, String defaultValue = "");
+
+    bool setPreference(const char *key, int value);
+    bool setPreference(const char *key, String value);
+
+    int getPreference(const char *key, int defaultValue = 0);
+    String getPreference(const char *key, String defaultValue = "");
+
+#ifndef ESP32
+#define EEPROM_PREFERENCES_SIZE 4096
+    JsonDocument json_preferences;
+
+    void debugJsonPreferences();
+#endif
+
+private:
+#ifdef ESP32
+    Preferences prefs;
+#else
+    EEPROMClass eeprom;
+
+    bool readJsonPreferences();
+    bool writeJsonPreferences();
+
+    bool writeVariable(const char *key, int value);
+    bool writeVariable(const char *key, String value);
+    int readVariableInt(const char *key, int defaultValue = 0);
+    String readVariableString(const char *key, String defaultValue = "");
+
+#endif
 };
 
 #endif

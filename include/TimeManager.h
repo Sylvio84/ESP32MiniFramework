@@ -46,7 +46,7 @@ protected:
     void checkSchedulers(); // @todo: to test
 
 public:
-    TimeManager(Configuration config)
+    TimeManager(Configuration& config)
     {
         timezone = config.TIMEZONE;
         ntpServer = config.NTP_SERVER;
@@ -60,18 +60,18 @@ public:
     String getFormattedDateTime(const char *format);
 
 
-    int setTimeout(std::function<void()> callback, unsigned long delay);
-    int setTimeoutObj(void* obj, std::function<void(void*)> callback, unsigned long delay);
-    void clearTimeout(int id);
+    uint setTimeout(std::function<void()> callback, unsigned long delay);
+    uint setTimeoutObj(void* obj, std::function<void(void*)> callback, unsigned long delay);
+    void clearTimeout(uint id);
 
-    int setInterval(std::function<void()> callback, unsigned long intervalTime);
-    int setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime);
-    void clearInterval(int id);
+    uint setInterval(std::function<void()> callback, unsigned long intervalTime);
+    uint setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime);
+    void clearInterval(uint id);
     
     // @todo: to test
-    int setScheduler(std::function<void()> callback, int hour, int minute, const std::vector<int>& daysOfWeek);
-    int setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, const std::vector<int>& daysOfWeek);
-    void clearScheduler(int id);
+    uint setScheduler(std::function<void()> callback, int hour, int minute, const std::vector<int>& daysOfWeek);
+    uint setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, const std::vector<int>& daysOfWeek);
+    void clearScheduler(uint id);
 };
 
 #endif

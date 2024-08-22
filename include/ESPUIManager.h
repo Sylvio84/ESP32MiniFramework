@@ -20,7 +20,7 @@ private:
 public:
     static uint16_t ssidInput, passwordInput, serialLabel, statusLabel, mqttServerInput, mqttPortInput, mqttUserInput, mqttPasswordInput;
 
-    ESPUIManager(Configuration config, EventManager &eventMgr)
+    ESPUIManager(Configuration& config, EventManager &eventMgr)
     {
         this->hostname = config.HOSTNAME;
         if (eventManager == nullptr)

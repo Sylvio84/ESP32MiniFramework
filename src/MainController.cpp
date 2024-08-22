@@ -1,6 +1,6 @@
 #include "../include/MainController.h"
 
-MainController::MainController(Configuration &config) : config(&config),
+MainController::MainController(Configuration& config) : config(config),
                                                         displayManager(config),
                                                         wiFiManager(config, eventManager),
                                                         mqttManager(config, eventManager),
@@ -27,6 +27,7 @@ void MainController::init()
     delay(500);
     Serial.begin(115200);
     Serial.println();
+    config.init();
     displayManager.init();
     wiFiManager.init();
     timeManager.init();
@@ -184,7 +185,7 @@ void MainController::processCommand(String command, std::vector<String> params)
             wiFiManager.saveSSID(params[1]);
             Serial.println("SSID: " + params[1]);
         }
-        else if (params[0] == "password")
+        else if (params[0] == "pass")
         {
             wiFiManager.savePassword(params[1]);
             Serial.println("Password: " + params[1]);
@@ -224,10 +225,14 @@ void MainController::processCommand(String command, std::vector<String> params)
         }
         else if (params[0] == "status")
         {
-            Serial.println("Status: " + wiFiManager.getStatus());
             Serial.println("Connected: " + String(wiFiManager.isConnected()));
-            Serial.println("SSID: " + wiFiManager.retrieveSSID());
-            Serial.println("IP: " + wiFiManager.retrieveIP());
+            Serial.println("Status: " + wiFiManager.getInfo("status"));
+            Serial.println("SSID: " + wiFiManager.getInfo("ssid"));
+            Serial.println("IP: " + wiFiManager.getInfo("ip"));
+            Serial.println("MAC: " + wiFiManager.getInfo("mac"));
+            Serial.println("RSSI: " + wiFiManager.getInfo("rssi"));
+            
+
         }
         else if (params[0] == "debug")
         {
@@ -287,10 +292,12 @@ void MainController::processCommand(String command, std::vector<String> params)
         Serial.println("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB");
         Serial.println("Free heap: " + String(ESP.getFreeHeap()));
         Serial.println("Free sketch space: " + String(ESP.getFreeSketchSpace()));
+#ifdef ESP32
         Serial.println("Chip ID: " + String(ESP.getEfuseMac()));
         Serial.println("Chip model: " + String(ESP.getChipModel()));
         Serial.println("Chip revision: " + String(ESP.getChipRevision()));
         Serial.println("Chip core: " + String(ESP.getChipCores()));
+#endif
         Serial.println("Hostname: " + String(hostname));
 
         if (wiFiManager.isConnected())

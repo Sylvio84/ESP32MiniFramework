@@ -5,9 +5,8 @@ EventManager *WiFiManager::eventManager = nullptr;
 void WiFiManager::init(bool auto_connect)
 {
     Serial.println("WiFiManager init...");
-    prefs.begin("wifi", false);
-    this->ssid = prefs.getString("ssid", "");
-    this->password = prefs.getString("password", "");
+    this->ssid = retrieveSSID();
+    this->password = retrievePassword();
     if (auto_connect)
     {
         this->autoConnect();
@@ -26,7 +25,7 @@ void WiFiManager::loop()
         connectionStatus = 1;
     }
 
-    int wait = (tryCount +1) * checkDelay;
+    unsigned long wait = (tryCount + 1) * checkDelay;
 
     if (currentMillis - lastMillis >= wait)
     {
@@ -53,7 +52,9 @@ void WiFiManager::loop()
                         eventManager->triggerEvent("WiFi", "ConnectionFailed", params);
                         this->startAccessPoint();
                     }
-                } else {
+                }
+                else
+                {
                     Serial.print("*");
                 }
             }
@@ -171,24 +172,29 @@ void WiFiManager::saveSSID(String ssid)
 {
     this->ssid = ssid;
     Serial.println("New WiFi SSID: " + this->ssid);
-    prefs.putString("ssid", ssid);
+    config.setPreference("wf_ssid", ssid);
 }
 
 void WiFiManager::savePassword(String password)
 {
     this->password = password;
     Serial.println("New WiFi password: " + this->password);
-    prefs.putString("password", password);
+    config.setPreference("wf_pass", password);
 }
 
 String WiFiManager::getDebugInfos()
 {
-    return "SSID: " + prefs.getString("ssid", "") + "\nPassword: " + prefs.getString("password", "");
+    return "SSID: " + retrieveSSID() + "\nPassword: " + retrievePassword();
 }
 
 String WiFiManager::retrieveSSID()
 {
-    return prefs.getString("ssid", "");
+    return config.getPreference("wf_ssid", this->ssid);
+}
+
+String WiFiManager::retrievePassword()
+{
+    return config.getPreference("wf_pass", this->password);
 }
 
 String WiFiManager::retrieveIP()
@@ -223,4 +229,107 @@ String WiFiManager::getStatus()
     default:
         return "Unknown";
     }
+}
+
+String WiFiManager::getInfo(String name)
+{
+    if (name == "mac")
+    {
+        return WiFi.macAddress();
+    }
+    if (name == "ip")
+    {
+        return WiFi.localIP().toString();
+    }
+    if (name == "ssid")
+    {
+        return WiFi.SSID();
+    }
+    if (name == "rssi")
+    {
+        return String(WiFi.RSSI());
+    }
+    if (name == "status")
+    {
+        return String(WiFi.status());
+    }
+    if (name == "gateway")
+    {
+        return WiFi.gatewayIP().toString();
+    }
+    if (name == "subnet")
+    {
+        return WiFi.subnetMask().toString();
+    }
+    if (name == "dns")
+    {
+        return WiFi.dnsIP().toString();
+    }
+    if (name == "hostname")
+    {
+        return WiFi.hostname();
+    }
+    if (name == "bssid")
+    {
+        return WiFi.BSSIDstr();
+    }
+    if (name == "channel")
+    {
+        return String(WiFi.channel());
+    }
+    if (name == "psk")
+    {
+        return WiFi.psk();
+    }
+    return "";
+}
+
+void WiFiManager::scanNetworks(bool show_hidden)
+{
+    WiFi.scanDelete();
+    WiFi.scanNetworks(true, show_hidden);
+}
+
+int WiFiManager::getNetworks()
+{
+    return WiFi.scanComplete();
+}
+
+int WiFiManager::getNetworkCount(bool show_hidden)
+{
+    return WiFi.scanNetworks(false, show_hidden);
+}
+
+void WiFiManager::setNetwork(int n, bool save)
+{
+    this->ssid = WiFi.SSID(n);
+    if (save)
+    {
+        this->saveSSID(this->ssid);
+    }
+}
+
+String WiFiManager::getNetworkInfo(int n, String name)
+{
+    if (name == "ssid")
+    {
+        return WiFi.SSID(n);
+    }
+    if (name == "bssid")
+    {
+        return WiFi.BSSIDstr(n);
+    }
+    if (name == "channel")
+    {
+        return String(WiFi.channel(n));
+    }
+    if (name == "rssi")
+    {
+        return String(WiFi.RSSI(n));
+    }
+    if (name == "encryption")
+    {
+        return String(WiFi.encryptionType(n));
+    }
+    return "";
 }

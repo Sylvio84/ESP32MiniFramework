@@ -19,7 +19,7 @@ private:
     bool isInitialized = false;
 
 public:
-    DisplayManager(Configuration config);
+    DisplayManager(Configuration& config);
 
     bool init();
 

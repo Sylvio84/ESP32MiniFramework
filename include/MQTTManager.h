@@ -4,29 +4,34 @@
 #include <Arduino.h>
 #include <vector>
 #include <PubSubClient.h>
-//#include <WiFiManager.h>
-#include <WiFi.h>
+// #include <WiFiManager.h>
 #include <Configuration.h>
-#include <Preferences.h>
 #include <EventManager.h>
+#ifdef ESP32
+#include <WiFi.h>
+#else
+#include <ESP8266WiFi.h>
+#endif
 
-class MQTTManager {
+class MQTTManager
+{
 
 public:
-    MQTTManager(Configuration config, EventManager &eventMgr): mqttClient(wifiClient) {
+    MQTTManager(Configuration& config, EventManager &eventMgr) : config(config), mqttClient(wifiClient)
+    {
         this->eventManager = &eventMgr;
         this->hostname = config.HOSTNAME;
     }
 
     void init();
     void loop();
-    void reconnect();
+    bool reconnect();
 
     bool isConnected();
 
-    //void onMessage(char* topic, byte* payload, unsigned int length);
+    // void onMessage(char* topic, byte* payload, unsigned int length);
 
-    //void registerCallback(MQTTCallback callback);
+    // void registerCallback(MQTTCallback callback);
     void publish(String topic, String payload);
     void subscribe(String topic);
     void unsubscribe(String topic);
@@ -36,16 +41,22 @@ public:
     void saveUsername(String username);
     void savePassword(String password);
 
+    String retrieveServer();
+    int retrievePort();
+    String retrieveUsername();
+    String retrievePassword();
+
     String getDebugInfos();
 
 private:
+    Configuration& config;
+
     const char *hostname;
 
     WiFiClient wifiClient;
     PubSubClient mqttClient;
     static EventManager *eventManager; // Pointeur vers EventManager
 
-    Preferences prefs;
     bool connected = false;
 
     String username = "";

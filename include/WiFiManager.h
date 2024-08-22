@@ -3,17 +3,22 @@
 
 #include <Arduino.h>
 #include <Configuration.h>
-#include <WiFi.h>
 #include <Tools.h>
-#include <Preferences.h>
 #include <EventManager.h>
+
+#ifdef ESP32
+#include <WiFi.h>
+#else
+#include <ESP8266WiFi.h>
+#endif
 
 class WiFiManager
 {
 private:
     static const uint CONNECTION_TIMEOUT = 10000;
 
-    Preferences prefs;
+    Configuration& config;
+
     bool connected = false;
     bool keepConnected = false;
     uint connectionStatus = 0; // 0 = start, 1 = connection in progress, 2 = initial connection failed, 3 = connection lost, 4 = disconnection, 5 = Access Point, 10 = connection success
@@ -30,7 +35,7 @@ private:
     static EventManager *eventManager; // Pointeur vers EventManager
 
 public:
-    WiFiManager(Configuration config, EventManager &eventMgr)
+    WiFiManager(Configuration& config, EventManager &eventMgr): config(config)
     {
         this->apIP = IPAddress(192, 168, 1, 249);
         this->ApHostname = config.HOSTNAME;
@@ -67,8 +72,21 @@ public:
 
     String retrieveSSID();
 
+    String retrievePassword();
+
     String retrieveIP();
     
+    String getInfo(String name);
+
+    void scanNetworks(bool show_hidden = false);
+
+    int getNetworks();
+
+    int getNetworkCount(bool show_hidden = false);
+
+    void setNetwork(int n, bool save = false);
+
+    String getNetworkInfo(int n, String name);
 };
 
 #endif

@@ -15,18 +15,18 @@ class MainController
 {
 protected:
     const char* hostname;
-    Configuration* config;
+    Configuration& config;
     DisplayManager displayManager;
     WiFiManager wiFiManager;
     MQTTManager mqttManager;
-    ESPUIManager espUIManager;
     EventManager eventManager;
     TimeManager timeManager;
+    ESPUIManager espUIManager;
 
     bool timeSet = false;
 
 public:
-    MainController(Configuration& config);
+    MainController(Configuration &config);
 
     virtual void init();
     virtual void loop();

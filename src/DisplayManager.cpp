@@ -1,7 +1,7 @@
 #include "../include/DisplayManager.h"
 
 
-DisplayManager::DisplayManager(Configuration config) : lcd(config.LCD_ADDRESS, config.LCD_COLS, config.LCD_ROWS)
+DisplayManager::DisplayManager(Configuration& config) : lcd(config.LCD_ADDRESS, config.LCD_COLS, config.LCD_ROWS)
 {
     this->cols = config.LCD_COLS;
     this->rows = config.LCD_ROWS;
