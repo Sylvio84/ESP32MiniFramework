@@ -2,10 +2,11 @@
 #define MQTTMANAGER_H
 
 #include <Arduino.h>
-#include <vector>
 #include <PubSubClient.h>
+#include <vector>
 // #include <WiFiManager.h>
 #include <Configuration.h>
+#include <ESPUI.h>
 #include <EventManager.h>
 #ifdef ESP32
 #include <WiFi.h>
@@ -16,17 +17,30 @@
 class MQTTManager
 {
 
-public:
-    MQTTManager(Configuration& config, EventManager &eventMgr) : config(config), mqttClient(wifiClient)
+   public:
+    MQTTManager(Configuration& config, EventManager& eventMgr) : config(config), mqttClient(wifiClient)
     {
         this->eventManager = &eventMgr;
         this->hostname = config.HOSTNAME;
     }
 
+    // 0 = disabled, 1 = waiting wifi to connect, 2 = keep connected
+    uint status = 0;
+
+    String username = "";
+    String password = "";
+    String server = "";
+    int port = 1883;
+
     void init();
     void loop();
-    bool reconnect();
 
+    void processEvent(String type, String event, std::vector<String> params);
+    bool processCommand(String action, std::vector<String> params);
+
+    void setStatus(uint status);
+
+    bool reconnect();
     bool isConnected();
 
     // void onMessage(char* topic, byte* payload, unsigned int length);
@@ -48,21 +62,31 @@ public:
 
     String getDebugInfos();
 
-private:
+    bool addSubscription(String topic);
+    bool removeSubscription(String topic);
+    std::vector<String> getSubscriptions();
+
+    void initEspUI();
+    void EspUiCallback(Control* sender, int type);
+
+   private:
     Configuration& config;
 
-    const char *hostname;
+    const char* hostname;
 
     WiFiClient wifiClient;
     PubSubClient mqttClient;
-    static EventManager *eventManager; // Pointeur vers EventManager
+    static EventManager* eventManager;  // Pointeur vers EventManager
 
     bool connected = false;
 
-    String username = "";
-    String password = "";
-    String server = "";
-    int port = 1883;
+    std::vector<String> subscriptions;
+
+    // ESPUI:
+    uint16_t mqttServerInput = 0;
+    uint16_t mqttPortInput = 0;
+    uint16_t mqttUserInput = 0;
+    uint16_t mqttPasswordInput = 0;
 };
 
 #endif

@@ -6,6 +6,10 @@
 #include <Configuration.h>
 #include <LiquidCrystal_I2C.h> // lib_deps = marcoschwartz/LiquidCrystal_I2C@^1.1.4
 
+/*
+@Todo: to transform into a Device child class
+*/
+
 class DisplayManager
 {
 private:

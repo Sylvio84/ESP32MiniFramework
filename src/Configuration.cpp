@@ -1,5 +1,7 @@
 #include "../include/Configuration.h"
 
+EventManager *Configuration::eventManager = nullptr;
+
 #ifdef ESP32
 Configuration::Configuration()
 {
@@ -12,8 +14,9 @@ Configuration::Configuration() : json_preferences()
 }
 #endif
 
-void Configuration::init()
+void Configuration::init(EventManager &eventMgr)
 {
+    eventManager = &eventMgr;
 #ifndef ESP32
     readJsonPreferences();
     Serial.println("DEBUG...");
@@ -21,19 +24,19 @@ void Configuration::init()
 #endif
 }
 
-int Configuration::getValue(const char *key, int defaultValue)
+int Configuration::getValue(const String key, int defaultValue)
 {
     return defaultValue;
 }
 
-String Configuration::getValue(const char *key, String defaultValue)
+String Configuration::getValue(const String key, String defaultValue)
 {
     return defaultValue;
 }
 
-bool Configuration::setPreference(const char *key, int value)
+bool Configuration::setPreference(const String key, int value)
 {
-    if (strlen(key) > 16 || strlen(key) == 0)
+    if (key.length() > 16 || key.length() == 0)
     {
         return false;
     }
@@ -46,9 +49,9 @@ bool Configuration::setPreference(const char *key, int value)
 #endif
 }
 
-bool Configuration::setPreference(const char *key, String value)
+bool Configuration::setPreference(const String key, String value)
 {
-    if (strlen(key) > 16 || strlen(key) == 0 || value.length() > 255)
+    if (key.length() > 16 || key.length() == 0 || value.length() > 255)
     {
         return false;
     }
@@ -60,7 +63,7 @@ bool Configuration::setPreference(const char *key, String value)
 #endif
 }
 
-int Configuration::getPreference(const char *key, int defaultValue)
+int Configuration::getPreference(const String key, int defaultValue)
 {
 #ifdef ESP32
     return prefs.getInt(key, defaultValue);
@@ -69,7 +72,7 @@ int Configuration::getPreference(const char *key, int defaultValue)
 #endif
 }
 
-String Configuration::getPreference(const char *key, String defaultValue)
+String Configuration::getPreference(const String key, const String& defaultValue)
 {
 #ifdef ESP32
     return prefs.getString(key, defaultValue);
@@ -132,33 +135,34 @@ bool Configuration::writeJsonPreferences()
     return true;
 }
 
-bool Configuration::writeVariable(const char *key, int value)
+bool Configuration::writeVariable(const String key, int value)
 {
     json_preferences[key] = value;
     return writeJsonPreferences();
 }
 
-bool Configuration::writeVariable(const char *key, String value)
+bool Configuration::writeVariable(const String key, String value)
 {
     json_preferences[key] = value;
     return writeJsonPreferences();
 }
 
-int Configuration::readVariableInt(const char *key, int defaultValue)
+int Configuration::readVariableInt(const String key, int defaultValue)
 {
     return json_preferences.containsKey(key) ? json_preferences[key].as<int>() : defaultValue;
 }
 
-String Configuration::readVariableString(const char *key, String defaultValue)
+String Configuration::readVariableString(const String key, String defaultValue)
 {
     return json_preferences.containsKey(key) ? json_preferences[key].as<String>() : defaultValue;
 }
 
 void Configuration::debugJsonPreferences()
 {
-    Serial.println("Preferences:");
-    serializeJsonPretty(json_preferences, Serial);
-    Serial.println();
+    eventManager->debug("Preferences:", 1);
+    String jsonString;
+    serializeJsonPretty(json_preferences, jsonString);
+    eventManager->debug(jsonString, 1);
 }
 
 #endif

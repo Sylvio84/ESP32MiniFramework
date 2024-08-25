@@ -17,9 +17,10 @@ private:
 
     static EventManager *eventManager; // Pointeur vers EventManager
 
-public:
-    static uint16_t ssidInput, passwordInput, serialLabel, statusLabel, mqttServerInput, mqttPortInput, mqttUserInput, mqttPasswordInput;
+    uint16_t serialLabel = 0;
+    uint16_t statusLabel = 0;
 
+public:
     ESPUIManager(Configuration& config, EventManager &eventMgr)
     {
         this->hostname = config.HOSTNAME;
@@ -35,12 +36,9 @@ public:
 
     uint16_t initInfoTab();
     uint16_t initDebugTab();
-    uint16_t initWiFiTab();
-    uint16_t initMQTTTab();
     
-    static void textCallback(Control *sender, int type);
-    static void buttonCallback(Control *sender, int type);
-
+    void EspUiCallback(Control *sender, int type);
+    
     Control* getControl(uint16_t id);
 };
 

@@ -2,6 +2,7 @@
 #define CONFIGURATION_H
 
 #include <Arduino.h>
+#include <EventManager.h>
 
 #ifdef ESP32
 #include <Preferences.h>
@@ -31,17 +32,17 @@ public:
 
     Configuration();
 
-    void init();
+    void init(EventManager &eventMgr);
 
-    static int getValue(const char *key, int defaultValue = 0);
+    static int getValue(const String key, int defaultValue = 0);
 
-    static String getValue(const char *key, String defaultValue = "");
+    static String getValue(const String key, String defaultValue = "");
 
-    bool setPreference(const char *key, int value);
-    bool setPreference(const char *key, String value);
+    bool setPreference(const String key, int value);
+    bool setPreference(const String key, String value);
 
-    int getPreference(const char *key, int defaultValue = 0);
-    String getPreference(const char *key, String defaultValue = "");
+    int getPreference(const String key, int defaultValue = 0);
+    String getPreference(const String key, const String &defaultValue = "");
 
 #ifndef ESP32
 #define EEPROM_PREFERENCES_SIZE 4096
@@ -51,6 +52,8 @@ public:
 #endif
 
 private:
+    static EventManager *eventManager; // Pointeur vers EventManager
+
 #ifdef ESP32
     Preferences prefs;
 #else
@@ -59,10 +62,10 @@ private:
     bool readJsonPreferences();
     bool writeJsonPreferences();
 
-    bool writeVariable(const char *key, int value);
-    bool writeVariable(const char *key, String value);
-    int readVariableInt(const char *key, int defaultValue = 0);
-    String readVariableString(const char *key, String defaultValue = "");
+    bool writeVariable(const String key, int value);
+    bool writeVariable(const String key, String value);
+    int readVariableInt(const String key, int defaultValue = 0);
+    String readVariableString(const String key, String defaultValue = "");
 
 #endif
 };
