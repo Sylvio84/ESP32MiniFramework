@@ -5,6 +5,7 @@
 #include <Configuration.h>
 #include <vector>
 #include <functional>
+#include <WiFi.h>
 
 class TimeManager
 {

@@ -1,9 +1,6 @@
 #include "../include/TimeManager.h"
 
-void TimeManager::init()
-{
-}
-
+void TimeManager::init() {}
 
 void TimeManager::loop()
 {
@@ -14,8 +11,11 @@ void TimeManager::loop()
 
 void TimeManager::update(bool force)
 {
-    if (isInitialized && !force)
-    {
+    if (isInitialized && !force) {
+        return;
+    }
+    if (!WiFi.isConnected()) {
+        Serial.println("WiFi not connected, cannot update time");
         return;
     }
     Serial.println("Time not set, setting time...");
@@ -26,22 +26,23 @@ void TimeManager::update(bool force)
     Serial.println("Time set to: " + getFormattedDateTime("%H:%M:%S"));
 }
 
-String TimeManager::getFormattedDateTime(const char *format)
+String TimeManager::getFormattedDateTime(const char* format)
 {
-    if (!isInitialized)
-    {
-        Serial.println("Time not initialized, initializing...");
-        update();
+    if (!isInitialized) {
+        if (WiFi.isConnected()) {
+            Serial.println("Time not initialized, initializing...");
+            update();
+        } else {
+            return String("");
+        }
     }
-    if (!isInitialized)
-    {
+    if (!isInitialized) {
         Serial.println("Failed to initialize time");
         return String("");
     }
     struct tm timeinfo;
 
-    if (!getLocalTime(&timeinfo))
-    {
+    if (!getLocalTime(&timeinfo)) {
         // logMessage("Failed to obtain time");
         Serial.println("Failed to obtain time");
         return String("");
@@ -53,10 +54,8 @@ String TimeManager::getFormattedDateTime(const char *format)
 
 void TimeManager::checkIntervals()
 {
-    for (auto &interval : intervals)
-    {
-        if (interval.active && (millis() - interval.lastTime >= interval.interval))
-        {
+    for (auto& interval : intervals) {
+        if (interval.active && (millis() - interval.lastTime >= interval.interval)) {
             interval.callback();
             interval.lastTime = millis();
         }
@@ -67,34 +66,27 @@ uint TimeManager::setInterval(std::function<void()> callback, unsigned long inte
 {
     Interval newInterval = {millis(), intervalTime, callback, true};
     intervals.push_back(newInterval);
-    return intervals.size() - 1; // Retourner l'index comme ID d'intervalle
+    return intervals.size() - 1;  // Retourner l'index comme ID d'intervalle
 }
 
-uint TimeManager::setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime) {
-    Interval newInterval = {
-        millis(),
-        intervalTime,
-        [obj, callback]() { callback(obj); },
-        true
-    };
+uint TimeManager::setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime)
+{
+    Interval newInterval = {millis(), intervalTime, [obj, callback]() { callback(obj); }, true};
     intervals.push_back(newInterval);
     return intervals.size() - 1;
 }
 
 void TimeManager::clearInterval(uint id)
 {
-    if (id >= 0 && id < intervals.size())
-    {
-        intervals[id].active = false; // Désactiver l'intervalle
+    if (id >= 0 && id < intervals.size()) {
+        intervals[id].active = false;  // Désactiver l'intervalle
     }
 }
 
 void TimeManager::checkTimeouts()
 {
-    for (auto &timeout : timeouts)
-    {
-        if (timeout.active && (millis() - timeout.startTime >= timeout.delay))
-        {
+    for (auto& timeout : timeouts) {
+        if (timeout.active && (millis() - timeout.startTime >= timeout.delay)) {
             timeout.callback();
             timeout.active = false;
         }
@@ -105,28 +97,22 @@ uint TimeManager::setTimeout(std::function<void()> callback, unsigned long delay
 {
     Timeout newTimeout = {millis(), delay, callback, true};
     timeouts.push_back(newTimeout);
-    return timeouts.size() - 1; // Retourner l'index comme ID de délai
+    return timeouts.size() - 1;  // Retourner l'index comme ID de délai
 }
 
-uint TimeManager::setTimeoutObj(void* obj, std::function<void(void*)> callback, unsigned long delay) {
-    Timeout newTimeout = {
-        millis(),
-        delay,
-        [obj, callback]() { callback(obj); },
-        true
-    };
+uint TimeManager::setTimeoutObj(void* obj, std::function<void(void*)> callback, unsigned long delay)
+{
+    Timeout newTimeout = {millis(), delay, [obj, callback]() { callback(obj); }, true};
     timeouts.push_back(newTimeout);
     return timeouts.size() - 1;
 }
 
 void TimeManager::clearTimeout(uint id)
 {
-    if (id >= 0 && id < timeouts.size())
-    {
-        timeouts[id].active = false; // Désactiver le délai
+    if (id >= 0 && id < timeouts.size()) {
+        timeouts[id].active = false;  // Désactiver le délai
     }
 }
-
 
 void TimeManager::checkSchedulers()
 {
@@ -135,8 +121,7 @@ void TimeManager::checkSchedulers()
     }
 
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo))
-    {
+    if (!getLocalTime(&timeinfo)) {
         Serial.println("Failed to obtain time");
         return;
     }
@@ -145,13 +130,9 @@ void TimeManager::checkSchedulers()
     int currentMinute = timeinfo.tm_min;
     int currentDayOfWeek = timeinfo.tm_wday;
 
-    for (auto &scheduler : schedulers)
-    {
-        if (scheduler.active &&
-            scheduler.hour == currentHour &&
-            scheduler.minute == currentMinute &&
-            std::find(scheduler.daysOfWeek.begin(), scheduler.daysOfWeek.end(), currentDayOfWeek) != scheduler.daysOfWeek.end())
-        {
+    for (auto& scheduler : schedulers) {
+        if (scheduler.active && scheduler.hour == currentHour && scheduler.minute == currentMinute &&
+            std::find(scheduler.daysOfWeek.begin(), scheduler.daysOfWeek.end(), currentDayOfWeek) != scheduler.daysOfWeek.end()) {
             scheduler.callback();
         }
     }
@@ -161,20 +142,19 @@ uint TimeManager::setScheduler(std::function<void()> callback, int hour, int min
 {
     Scheduler newScheduler = {hour, minute, daysOfWeek, callback, true};
     schedulers.push_back(newScheduler);
-    return schedulers.size() - 1; // Retourner l'index comme ID de planification
+    return schedulers.size() - 1;  // Retourner l'index comme ID de planification
 }
 
 uint TimeManager::setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, const std::vector<int>& daysOfWeek)
 {
     Scheduler newScheduler = {hour, minute, daysOfWeek, [obj, callback]() { callback(obj); }, true};
     schedulers.push_back(newScheduler);
-    return schedulers.size() - 1; // Retourner l'index comme ID de planification
+    return schedulers.size() - 1;  // Retourner l'index comme ID de planification
 }
 
 void TimeManager::clearScheduler(uint id)
 {
-    if (id >= 0 && id < schedulers.size())
-    {
-        schedulers[id].active = false; // Désactiver la planification
+    if (id >= 0 && id < schedulers.size()) {
+        schedulers[id].active = false;  // Désactiver la planification
     }
 }

@@ -1,12 +1,9 @@
 #include "../include/Configuration.h"
 
-EventManager *Configuration::eventManager = nullptr;
+EventManager* Configuration::eventManager = nullptr;
 
 #ifdef ESP32
-Configuration::Configuration()
-{
-    prefs.begin("config", false);
-}
+Configuration::Configuration() {}
 #else
 Configuration::Configuration() : json_preferences()
 {
@@ -14,10 +11,12 @@ Configuration::Configuration() : json_preferences()
 }
 #endif
 
-void Configuration::init(EventManager &eventMgr)
+void Configuration::init(EventManager& eventMgr)
 {
     eventManager = &eventMgr;
-#ifndef ESP32
+#ifdef ESP32
+    prefs.begin("config", false);
+#else
     readJsonPreferences();
     Serial.println("DEBUG...");
     debugJsonPreferences();
@@ -36,13 +35,12 @@ String Configuration::getValue(const String key, String defaultValue)
 
 bool Configuration::setPreference(const String key, int value)
 {
-    if (key.length() > 16 || key.length() == 0)
-    {
+    if (key.length() > 16 || key.length() == 0) {
         return false;
     }
 
 #ifdef ESP32
-    prefs.putInt(key, value);
+    prefs.putInt(key.c_str(), value);
     return true;
 #else
     return writeVariable(key, value);
@@ -51,12 +49,11 @@ bool Configuration::setPreference(const String key, int value)
 
 bool Configuration::setPreference(const String key, String value)
 {
-    if (key.length() > 16 || key.length() == 0 || value.length() > 255)
-    {
+    if (key.length() > 16 || key.length() == 0 || value.length() > 255) {
         return false;
     }
 #ifdef ESP32
-    prefs.putString(key, value);
+    prefs.putString(key.c_str(), value.c_str());
     return true;
 #else
     return writeVariable(key, value);
@@ -66,7 +63,7 @@ bool Configuration::setPreference(const String key, String value)
 int Configuration::getPreference(const String key, int defaultValue)
 {
 #ifdef ESP32
-    return prefs.getInt(key, defaultValue);
+    return prefs.getInt(key.c_str(), defaultValue);
 #else
     return readVariableInt(key, defaultValue);
 #endif
@@ -75,7 +72,7 @@ int Configuration::getPreference(const String key, int defaultValue)
 String Configuration::getPreference(const String key, const String& defaultValue)
 {
 #ifdef ESP32
-    return prefs.getString(key, defaultValue);
+    return prefs.getString(key.c_str(), defaultValue);
 #else
     return readVariableString(key, defaultValue);
 #endif
@@ -87,8 +84,7 @@ bool Configuration::readJsonPreferences()
 {
     // Lire l'EEPROM et charger le JSON
     String jsonStr = "";
-    for (size_t i = 0; i < eeprom.length(); i++)
-    {
+    for (size_t i = 0; i < eeprom.length(); i++) {
         char c = eeprom.read(i);
         if (c == '\0')
             break;
@@ -97,8 +93,7 @@ bool Configuration::readJsonPreferences()
 
     // Désérialiser le JSON
     DeserializationError error = deserializeJson(json_preferences, jsonStr);
-    if (error)
-    {
+    if (error) {
         Serial.print("Failed to deserialize JSON: ");
         Serial.println(error.c_str());
         return false;
@@ -117,14 +112,12 @@ bool Configuration::writeJsonPreferences()
     serializeJson(json_preferences, jsonStr);
 
     // Effacer l'EEPROM
-    for (size_t i = 0; i < eeprom.length(); i++)
-    {
+    for (size_t i = 0; i < eeprom.length(); i++) {
         eeprom.write(i, '\0');
     }
 
     // Écrire le JSON dans l'EEPROM
-    for (size_t i = 0; i < jsonStr.length(); i++)
-    {
+    for (size_t i = 0; i < jsonStr.length(); i++) {
         eeprom.write(i, jsonStr[i]);
     }
 

@@ -47,9 +47,9 @@ void MQTTManager::loop()
     }*/
 
     if (currentMillis - lastMillis >= 1000) {
-        if ((status >= 2) && !mqttClient.connected()) {
+        if ((status >= 2) && server !="" && !mqttClient.connected()) {
             if (!reconnect()) {
-                Serial.println(" try again in 1 seconds");
+                eventManager->debug("MQTT connection failed, try again in 1 seconds", 1);
             }
         }
         lastMillis = currentMillis;
@@ -83,7 +83,7 @@ bool MQTTManager::reconnect()
             return true;
         } else {
             eventManager->triggerEvent("mqtt", "ConnectionFailed", {});
-            eventManager->debug("MQTT connection failed, rc=" + String(mqttClient.state()), 1);
+            eventManager->debug("MQTT error: " + String(mqttClient.state()), 2);
             return false;
         }
     }
@@ -205,25 +205,29 @@ bool MQTTManager::processCommand(String command, std::vector<String> params)
     eventManager->debug("Processing MQTT command: " + command, 2);
     if (command == "server") {
         if (params.size() > 0) {
-            saveServer(params[1]);
+            saveServer(params[0]);
+            Serial.println("Server set to: " + params[0]);
         } else {
             Serial.println("Server: " + retrieveServer());
         }
     } else if (command == "port") {
         if (params.size() > 0) {
-            savePort(params[1].toInt());
+            savePort(params[0].toInt());
+            Serial.println("Port set to: " + params[0]);
         } else {
             Serial.println("Port: " + String(retrievePort()));
         }
     } else if (command == "user") {
         if (params.size() > 0) {
-            saveUsername(params[1]);
+            saveUsername(params[0]);
+            Serial.println("Username set to: " + params[0]);
         } else {
             Serial.println("Username: " + retrieveUsername());
         }
     } else if (command == "pass") {
         if (params.size() > 0) {
-            savePassword(params[1]);
+            savePassword(params[0]);
+            Serial.println("Password set to: " + params[0]);
         } else {
             Serial.println("Password: " + retrievePassword());
         }
@@ -233,21 +237,21 @@ bool MQTTManager::processCommand(String command, std::vector<String> params)
         reconnect();
     } else if (command == "subscribe") {
         if (params.size() > 0) {
-            addSubscription(params[1]);
-            subscribe(params[1]);
+            addSubscription(params[0]);
+            subscribe(params[0]);
         } else {
             Serial.println("Missing topic");
         }
     } else if (command == "unsubscribe") {
         if (params.size() > 0) {
-            removeSubscription(params[1]);
-            unsubscribe(params[1]);
+            removeSubscription(params[0]);
+            unsubscribe(params[0]);
         } else {
             Serial.println("Missing topic");
         }
     } else if (command == "publish") {
         if (params.size() > 1) {
-            publish(params[1], params[2]);
+            publish(params[0], params[1]);
         } else {
             Serial.println("Missing topic or payload");
         }

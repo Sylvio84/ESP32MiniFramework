@@ -11,6 +11,10 @@ void Device::init()
     eventManager->debug("Device #" + id + " initialized", 1);
 }
 
+void Device::loop()
+{
+}
+
 void Device::addCommand(const std::string& command, std::function<void()> action)
 {
     commands[command] = action;

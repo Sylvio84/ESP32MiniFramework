@@ -152,6 +152,12 @@ void MainController::processCommand(String command, std::vector<String> params)
     {
         device->processCommand(command, params);
     }*/
+    // if command is a digit
+    if (command.length() == 1 && isdigit(command[0])) {
+        params.insert(params.begin(), String(command[0]));
+        command = "debuglevel";
+    }
+
     if (command == "info") {
         Serial.println("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz");
         Serial.println("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB");
@@ -164,6 +170,8 @@ void MainController::processCommand(String command, std::vector<String> params)
         Serial.println("Chip core: " + String(ESP.getChipCores()));
 #endif
         Serial.println("Hostname: " + String(hostname));
+        Serial.println("Debug level: " + String(config.getPreference("debug_level", 0)));
+        Serial.println("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"));
 
         if (wiFiManager.isConnected()) {
             Serial.println("Connected to WiFi: " + wiFiManager.retrieveSSID());
@@ -178,6 +186,7 @@ void MainController::processCommand(String command, std::vector<String> params)
     } else if (command == "debuglevel") {
         if (params.size() > 0) {
             config.setPreference("debug_level", params[0].toInt());
+            Serial.println("Debug level set to: " + params[0]);
         } else {
             int debugLevel = config.getPreference("debug_level", 0);
             Serial.println("Debug level: " + String(debugLevel));

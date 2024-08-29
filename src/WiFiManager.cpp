@@ -90,6 +90,7 @@ void WiFiManager::processEvent(String type, String event, std::vector<String> pa
 
 bool WiFiManager::processCommand(String command, std::vector<String> params)
 {
+    eventManager->debug("Processing WiFi command: " + command, 2);
     if (command == "connect") {
         this->connect();
     } else if (command == "disconnect") {
@@ -129,10 +130,16 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
             Serial.println("Keep connection: OFF");
         }
     } else if (command == "scan") {
-        this->scanNetworks();
+        uint16_t count = getNetworkCount();
+        Serial.println("Networks found: " + String(count));
+        for (int i = 0; i < count; i++) {
+            Serial.println(String(i) + ": " + getNetworkInfo(i, "ssid"));
+        }
+        Serial.println("wifi:network <n> to set network");
     } else if (command == "network") {
         if (params.size() > 0) {
             this->setNetwork(params[0].toInt(), true);
+            Serial.println("Network set to: " + getSSID());
         } else {
             Serial.println("Current network: " + getSSID());
         }
@@ -300,9 +307,9 @@ String WiFiManager::getInfo(String name)
     if (name == "dns") {
         return WiFi.dnsIP().toString();
     }
-    if (name == "hostname") {
+    /*if (name == "hostname") {
         return WiFi.hostname();
-    }
+    }*/
     if (name == "bssid") {
         return WiFi.BSSIDstr();
     }
@@ -386,31 +393,27 @@ void WiFiManager::initEspUI()
     ESPUI.setEnabled(connect, true);
 }
 
-void WiFiManager::EspUiCallback(Control *sender, int type)
+void WiFiManager::EspUiCallback(Control* sender, int type)
 {
-    eventManager->debug("WiFi ESPUI callback: sender.value = " + sender->value + " sender.id = " + sender->id + " sender.type = " + sender->type + "  / type = " + String(type), 2);
-    if (type == B_DOWN)
-    {
+    eventManager->debug(
+        "WiFi ESPUI callback: sender.value = " + sender->value + " sender.id = " + sender->id + " sender.type = " + sender->type + "  / type = " + String(type),
+        2);
+    if (type == B_DOWN) {
         return;
     }
-    
-    if (sender->value == "WiFiConnect")
-    {
+
+    if (sender->value == "WiFiConnect") {
         eventManager->triggerEvent("ESPUI", "WiFiConnect", {});
-    }
-    else if (sender->value == "WiFiSave")
-    {
+    } else if (sender->value == "WiFiSave") {
         std::vector<String> params1;
         params1.push_back(ESPUI.getControl(ssidInput)->value);
         eventManager->triggerEvent("ESPUI", "WiFiSaveSSID", params1);
 
         String password = ESPUI.getControl(passwordInput)->value;
-        if (password.length() > 0)
-        {
+        if (password.length() > 0) {
             std::vector<String> params2;
             params2.push_back(password);
             eventManager->triggerEvent("ESPUI", "WiFiSavePassword", params2);
         }
     }
-
 }

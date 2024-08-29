@@ -35,7 +35,7 @@ class Device
 
     // Méthodes virtuelles pures à implémenter dans les classes dérivées
     virtual void init();
-    virtual void loop() = 0;
+    virtual void loop();
 
     virtual bool subscribeMQTT(String topic);
     virtual bool unsubscribeMQTT(String topic);
