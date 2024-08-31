@@ -4,7 +4,7 @@ EventManager* WiFiManager::eventManager = nullptr;
 
 void WiFiManager::init(bool auto_connect)
 {
-    Serial.println("WiFiManager init...");
+    eventManager->debug("Init WiFiManager", 1);
     retrieveSSID();
     retrievePassword();
     if (auto_connect) {
@@ -37,15 +37,16 @@ void WiFiManager::loop()
                 if (tryCount >= 10) {
                     tryCount = 0;
                     if (keepConnected) {
-                        Serial.println("Connection failed, retrying");
+                        eventManager->debug("Connection failed, retrying", 1);
                     } else {
                         connectionStatus = 2;
-                        Serial.println("Connection failed");
+                        eventManager->debug("Connection failed", 1);
                         eventManager->triggerEvent("wifi", "failed", params);
                         this->startAccessPoint();
                     }
                 } else {
-                    Serial.print("*");
+                    //Serial.print("*");
+                    eventManager->debug("*", 1);
                 }
             } else {
                 connected = true;
@@ -62,7 +63,7 @@ void WiFiManager::loop()
             if (WiFi.status() != WL_CONNECTED) {
                 connectionStatus = 3;
                 this->connected = false;
-                Serial.println("Connection lost");
+                eventManager->debug("Connection lost", 1);
                 eventManager->triggerEvent("wifi", "lost", {});
             }
         } else if (connectionStatus == 3)  // Connection lost
@@ -101,13 +102,13 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
         if (params.size() > 0) {
             this->saveSSID(params[0]);
         } else {
-            Serial.println("SSID: " + retrieveSSID());
+            eventManager->debug("SSID: " + retrieveSSID(), 0);
         }
     } else if (command == "pass") {
         if (params.size() > 0) {
             this->savePassword(params[0]);
         } else {
-            Serial.println("Password: " + retrievePassword());
+            eventManager->debug("Password: " + retrievePassword(), 0);
         }
     } else if (command == "reset") {
         this->saveSSID("");
@@ -115,33 +116,33 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
     } else if (command == "autoconnect") {
         this->autoConnect();
     } else if (command == "status" || command == "") {
-        Serial.println("Connected: " + String(isConnected()));
-        Serial.println("Status: " + getStatus());
-        Serial.println("SSID: " + getInfo("ssid"));
-        Serial.println("IP: " + getInfo("ip"));
-        Serial.println("MAC: " + getInfo("mac"));
-        Serial.println("RSSI: " + getInfo("rssi"));
+        eventManager->debug("Connected: " + String(isConnected()), 0);
+        eventManager->debug("Status: " + getStatus(), 0);
+        eventManager->debug("SSID: " + getInfo("ssid"), 0);
+        eventManager->debug("IP: " + getInfo("ip"), 0);
+        eventManager->debug("MAC: " + getInfo("mac"), 0);
+        eventManager->debug("RSSI: " + getInfo("rssi"), 0);
     } else if (command == "debug") {
-        Serial.println(getDebugInfos());
+        eventManager->debug("Debug infos:", 0);
     } else if (command == "keep") {
         if (keepConnection()) {
-            Serial.println("Keep connection: ON");
+            eventManager->debug("Keep connection: ON", 0);
         } else {
-            Serial.println("Keep connection: OFF");
+            eventManager->debug("Keep connection: OFF", 0);
         }
     } else if (command == "scan") {
         uint16_t count = getNetworkCount();
-        Serial.println("Networks found: " + String(count));
+        eventManager->debug("Networks found: " + String(count), 0);
         for (int i = 0; i < count; i++) {
-            Serial.println(String(i) + ": " + getNetworkInfo(i, "ssid"));
+            eventManager->debug(String(i) + ": " + getNetworkInfo(i, "ssid"), 0);
         }
-        Serial.println("wifi:network <n> to set network");
+        eventManager->debug("wifi:network <n> to set network", 0);
     } else if (command == "network") {
         if (params.size() > 0) {
             this->setNetwork(params[0].toInt(), true);
-            Serial.println("Network set to: " + getSSID());
+            eventManager->debug("Network set to: " + getSSID(), 0);
         } else {
-            Serial.println("Current network: " + getSSID());
+            eventManager->debug("Current network: " + getSSID(), 0);
         }
     } else {
         return false;
@@ -152,9 +153,9 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
 bool WiFiManager::autoConnect()
 {
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi AutoConnect...");
+        eventManager->debug("WiFi AutoConnect...", 0);
         if (this->ssid == "") {
-            Serial.println("No SSID, starting access point");
+            eventManager->debug("No SSID, starting access point", 0);
             this->startAccessPoint();
             return false;
         } else {
@@ -170,7 +171,7 @@ bool WiFiManager::autoConnect()
 bool WiFiManager::connect()
 {
     connectionStatus = 1;
-    Serial.println("Connecting to: " + this->ssid + "...");
+    eventManager->debug("Connecting to: " + this->ssid + "...", 0);
     WiFi.mode(WIFI_STA);
 
     WiFi.begin(this->ssid.c_str(), this->password.c_str());
@@ -196,8 +197,8 @@ void WiFiManager::disconnect()
 void WiFiManager::startAccessPoint()
 {
     disconnect();
-    Serial.println("\n\nCreating Hotspot: " + this->ApHostname);
-    Serial.println("IP Address: " + this->apIP.toString());
+    eventManager->debug("Creating Hotspot: " + this->ApHostname, 0);
+    eventManager->debug("IP Address: " + this->apIP.toString(), 0);
     WiFi.mode(WIFI_AP);
     delay(100);
     WiFi.softAPConfig(this->apIP, this->apIP, IPAddress(255, 255, 255, 0));
@@ -220,14 +221,14 @@ bool WiFiManager::isConnected()
 void WiFiManager::saveSSID(String ssid)
 {
     this->ssid = ssid;
-    Serial.println("New WiFi SSID: " + this->ssid);
+    eventManager->debug("New WiFi SSID: " + this->ssid, 1);
     config.setPreference("wf_ssid", ssid);
 }
 
 void WiFiManager::savePassword(String password)
 {
     this->password = password;
-    Serial.println("New WiFi password: " + this->password);
+    eventManager->debug("New WiFi password: " + this->password, 1);
     config.setPreference("wf_pass", password);
 }
 

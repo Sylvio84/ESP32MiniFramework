@@ -4,7 +4,7 @@ EventManager* MQTTManager::eventManager = nullptr;
 
 void MQTTManager::init()
 {
-    Serial.println("MQTTManager init...");
+    eventManager->debug("MQTTManager init...", 1);
 
     retrieveServer();
     retrievePort();
@@ -12,11 +12,11 @@ void MQTTManager::init()
     retrievePassword();
 
     if (server == "") {
-        Serial.println("No MQTT server configured");
+        eventManager->debug("No MQTT server configured", 1);
         return;
     }
     if (username == "") {
-        Serial.println("Warning: No MQTT username configured");
+        eventManager->debug("No MQTT username configured", 1);
     }
     mqttClient.setServer(server.c_str(), port);
 
@@ -42,7 +42,7 @@ void MQTTManager::loop()
     unsigned long currentMillis = millis();
 
     /*if (!wifiClient.available()) {
-        Serial.println("No WiFi connection, MQTT disabled");
+        eventManager->debug("No WiFi connection, MQTT disabled", 1);
         return;
     }*/
 
@@ -206,33 +206,33 @@ bool MQTTManager::processCommand(String command, std::vector<String> params)
     if (command == "server") {
         if (params.size() > 0) {
             saveServer(params[0]);
-            Serial.println("Server set to: " + params[0]);
+            eventManager->debug("Server set to: " + params[0], 0);
         } else {
-            Serial.println("Server: " + retrieveServer());
+            eventManager->debug("Server: " + retrieveServer(), 0);
         }
     } else if (command == "port") {
         if (params.size() > 0) {
             savePort(params[0].toInt());
-            Serial.println("Port set to: " + params[0]);
+            eventManager->debug("Port set to: " + params[0], 0);
         } else {
-            Serial.println("Port: " + String(retrievePort()));
+            eventManager->debug("Port: " + String(retrievePort()), 0);
         }
     } else if (command == "user") {
         if (params.size() > 0) {
             saveUsername(params[0]);
-            Serial.println("Username set to: " + params[0]);
+            eventManager->debug("Username set to: " + params[0], 0);
         } else {
-            Serial.println("Username: " + retrieveUsername());
+            eventManager->debug("Username: " + retrieveUsername(), 0);
         }
     } else if (command == "pass") {
         if (params.size() > 0) {
             savePassword(params[0]);
-            Serial.println("Password set to: " + params[0]);
+            eventManager->debug("Password set to: " + params[0], 0);
         } else {
-            Serial.println("Password: " + retrievePassword());
+            eventManager->debug("Password: " + retrievePassword(), 0);
         }
     } else if (command == "status") {
-        Serial.println("Connected: " + String(isConnected()));
+        eventManager->debug("Status: " + String(isConnected()), 0);
     } else if (command == "connect") {
         reconnect();
     } else if (command == "subscribe") {
@@ -240,27 +240,27 @@ bool MQTTManager::processCommand(String command, std::vector<String> params)
             addSubscription(params[0]);
             subscribe(params[0]);
         } else {
-            Serial.println("Missing topic");
+            eventManager->debug("Missing topic", 1);
         }
     } else if (command == "unsubscribe") {
         if (params.size() > 0) {
             removeSubscription(params[0]);
             unsubscribe(params[0]);
         } else {
-            Serial.println("Missing topic");
+            eventManager->debug("Missing topic", 1);
         }
     } else if (command == "publish") {
         if (params.size() > 1) {
             publish(params[0], params[1]);
         } else {
-            Serial.println("Missing topic or payload");
+            eventManager->debug("Missing topic or payload", 1);
         }
     } else if (command == "subscriptions") {
         for (const auto& topic : getSubscriptions()) {
-            Serial.println(topic);
+            eventManager->debug("- Subscription: " + topic, 0);
         }
     } else if (command == "debug") {
-        Serial.println(getDebugInfos());
+        eventManager->debug(getDebugInfos(), 0);
     } else {
         return false;
     }

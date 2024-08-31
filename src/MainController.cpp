@@ -31,7 +31,7 @@ void MainController::init()
     wiFiManager.initEspUI();
     mqttManager.initEspUI();
     for (auto& device : devices) {
-        device->init();        
+        device->init();
     }
 
     displayManager.clear();
@@ -100,8 +100,8 @@ void MainController::processUI(String action, std::vector<String> params)
         int line = params[0].toInt();
         displayManager.printLine(line, params[1].c_str());
     } else if (action == "WiFiConnected") {
-        Serial.println("Connected to WiFi: " + params[0]);
-        Serial.println("IP address: " + params[1]);
+        eventManager.debug("Connected to WiFi: " + params[0], 1);
+        eventManager.debug("IP address: " + params[1], 1);
         timeManager.update();
     }
 }
@@ -121,8 +121,8 @@ void MainController::processEvent(String type, String event, std::vector<String>
     }
     if (type == "wifi") {
         if (event == "connected" || event == "recovered") {
-            Serial.println("Connected to WiFi: " + params[0]);
-            Serial.println("IP address: " + params[1]);
+            eventManager.debug("Connected to WiFi: " + params[0], 1);
+            eventManager.debug("IP address: " + params[1], 1);
             timeManager.update();
             mqttManager.setStatus(2);
             // ESPUI.server->reset(); // Remove all handlers and writers // ESPUI.server->end();
@@ -137,7 +137,7 @@ void MainController::processEvent(String type, String event, std::vector<String>
         processCommand(event.substring(1), params);
     } else if (type == "mqtt") {
         if (event == "connected") {
-            Serial.println("Connected to MQTT server: " + params[0]);
+            eventManager.debug("Connected to MQTT server: " + params[0], 1);
         } else if (event == "message") {
             processMQTT(params[0], params[1]);
         }
@@ -159,44 +159,45 @@ void MainController::processCommand(String command, std::vector<String> params)
     }
 
     if (command == "info") {
-        Serial.println("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz");
-        Serial.println("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB");
-        Serial.println("Free heap: " + String(ESP.getFreeHeap()));
-        Serial.println("Free sketch space: " + String(ESP.getFreeSketchSpace()));
+        eventManager.debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
+        eventManager.debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);
+        eventManager.debug("Free heap: " + String(ESP.getFreeHeap()), 0);
+        eventManager.debug("Free sketch space: " + String(ESP.getFreeSketchSpace()), 0);
 #ifdef ESP32
-        Serial.println("Chip ID: " + String(ESP.getEfuseMac()));
-        Serial.println("Chip model: " + String(ESP.getChipModel()));
-        Serial.println("Chip revision: " + String(ESP.getChipRevision()));
-        Serial.println("Chip core: " + String(ESP.getChipCores()));
+        eventManager.debug("Chip ID: " + String(ESP.getEfuseMac()), 0);
+        eventManager.debug("Chip model: " + String(ESP.getChipModel()), 0);
+        eventManager.debug("Chip revision: " + String(ESP.getChipRevision()), 0);
+        eventManager.debug("Chip core: " + String(ESP.getChipCores()), 0);
 #endif
-        Serial.println("Hostname: " + String(hostname));
-        Serial.println("Debug level: " + String(config.getPreference("debug_level", 0)));
-        Serial.println("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"));
-
+        eventManager.debug("Hostname: " + hostname, 0);
+        eventManager.debug("Debug level: " + String(config.getPreference("debug_level", 0)), 0);
+        eventManager.debug("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
         if (wiFiManager.isConnected()) {
-            Serial.println("Connected to WiFi: " + wiFiManager.retrieveSSID());
-            Serial.println("IP address: " + wiFiManager.retrieveIP());
+            eventManager.debug("Connected to WiFi: " + wiFiManager.retrieveSSID(), 0);
+            eventManager.debug("IP address: " + wiFiManager.retrieveIP(), 0);
         } else {
-            Serial.println("Not connected to WiFi");
+            eventManager.debug("Not connected to WiFi", 0);
         }
     } else if (command == "date") {
-        Serial.println(timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"));
+        eventManager.debug(timeManager.getFormattedDateTime("%d/%m/%Y"), 0);
     } else if (command == "restart" || command == "reboot") {
+        eventManager.debug("Restarting...", 1);
         ESP.restart();
     } else if (command == "debuglevel") {
         if (params.size() > 0) {
             config.setPreference("debug_level", params[0].toInt());
-            Serial.println("Debug level set to: " + params[0]);
+            eventManager.debug("Debug level set to: " + params[0], 1);
         } else {
             int debugLevel = config.getPreference("debug_level", 0);
-            Serial.println("Debug level: " + String(debugLevel));
+            eventManager.debug("Debug level: " + String(debugLevel), 0);
         }
     } else if (command == "hostname") {
         if (params.size() > 0) {
             config.setPreference("hostname", params[0]);
             hostname = params[0];
+            eventManager.debug("Hostname set to: " + params[0], 1);
         } else {
-            Serial.println("Hostname: " + hostname);
+            eventManager.debug("Hostname: " + hostname, 0);
         }
     } else if (command == "device") {
         if (params.size() == 0) {
@@ -216,7 +217,7 @@ void MainController::processCommand(String command, std::vector<String> params)
             }
         }
     } else {
-        Serial.println("Unknown command: " + command);
+        eventManager.debug("Unknown command: " + command, 0);
     }
 }
 
