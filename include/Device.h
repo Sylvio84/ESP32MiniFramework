@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <Configuration.h>
 #include <EventManager.h>
+#include <TimeManager.h>
 #include <ESPUI.h>
 #include <functional>
 #include <map>
@@ -19,7 +20,7 @@ class Device
     String type;
 
     // Constructeur virtuel
-    Device(String id, Configuration& config, EventManager& eventMgr) : config(config)
+    Device(String id, Configuration& config, EventManager& eventMgr, TimeManager& timeManager) : config(config), timeManager(timeManager)
     {
         this->id = id;
         if (eventManager == nullptr) {
@@ -56,6 +57,7 @@ class Device
 
    protected:
     Configuration& config;
+    TimeManager& timeManager;
 
     // Carte des commandes et de leurs actions associées
     std::map<std::string, std::function<void()>> commands;

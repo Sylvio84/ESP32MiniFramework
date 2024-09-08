@@ -23,7 +23,7 @@ inline void debugLog( const char* file, int line)
 class MainController
 {
 protected:
-    String hostname;
+    
     EventManager eventManager;
     Configuration& config;
     SerialCommandManager serialCommandManager;

@@ -10,9 +10,6 @@ MainController::MainController(Configuration& config)
       timeManager(config),
       espUIManager(config, eventManager)
 {
-    // this->config = &config;
-    this->hostname = config.getPreference("hostname", config.HOSTNAME);
-
     eventManager.registerMainCallback(
         [this](const String& eventType, const String& event, const std::vector<String>& params) { this->processEvent(eventType, event, params); });
     eventManager.registerDebugCallback([this](const String& message, int level) { this->processDebugMessage(message, level); });
@@ -22,11 +19,13 @@ void MainController::init()
 {
     delay(500);
     config.init(eventManager);
+
     serialCommandManager.init();
     displayManager.init();
     wiFiManager.init();
     timeManager.init();
     mqttManager.init();
+    mqttManager.addSubscription(config.getHostname() + "/cmd");
     espUIManager.init();
     wiFiManager.initEspUI();
     mqttManager.initEspUI();
@@ -40,8 +39,9 @@ void MainController::init()
     } else {
         displayManager.printLine(0, "Not connected");
     }
+
     eventManager.debug("Init done!", 1);
-    eventManager.debug("Welcome on " + String(hostname));
+    eventManager.debug("Welcome on " + config.getHostname());
 }
 
 void MainController::loop()
@@ -93,6 +93,7 @@ void MainController::processUI(String action, std::vector<String> params)
     } else if (action == "MQTTReconnect") {
         mqttManager.reconnect();
     } else if (action == "Reboot") {
+        eventManager.debug("Restarting (espui)...", 1);
         ESP.restart();
     } else if (action == "DisplayClear") {
         displayManager.clear();
@@ -115,6 +116,7 @@ void MainController::processEvent(String type, String event, std::vector<String>
 
     wiFiManager.processEvent(type, event, params);
     mqttManager.processEvent(type, event, params);
+    espUIManager.processEvent(type, event, params);
     // displayManager.processEvent(type, event, params);
     for (auto& device : devices) {
         device->processEvent(type, event, params);
@@ -142,7 +144,18 @@ void MainController::processEvent(String type, String event, std::vector<String>
             processMQTT(params[0], params[1]);
         }
     } else if (type == "espui") {
-        processUI(event, params);
+        if (event == "Command") {
+            serialCommandManager.processCommand(params[0]);
+        } else if (event == "Reboot") {
+            eventManager.debug("Restarting (event)...", 1);
+            ESP.restart();
+        } else {
+            processUI(event, params);
+        }
+    } else if (type == "serial") {
+        if (event == "command") {
+            eventManager.triggerEvent("espui", "SerialIn", params);
+        }
     }
 }
 
@@ -169,7 +182,7 @@ void MainController::processCommand(String command, std::vector<String> params)
         eventManager.debug("Chip revision: " + String(ESP.getChipRevision()), 0);
         eventManager.debug("Chip core: " + String(ESP.getChipCores()), 0);
 #endif
-        eventManager.debug("Hostname: " + hostname, 0);
+        eventManager.debug("Hostname: " + config.getHostname(), 0);
         eventManager.debug("Debug level: " + String(config.getPreference("debug_level", 0)), 0);
         eventManager.debug("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
         if (wiFiManager.isConnected()) {
@@ -181,7 +194,7 @@ void MainController::processCommand(String command, std::vector<String> params)
     } else if (command == "date") {
         eventManager.debug(timeManager.getFormattedDateTime("%d/%m/%Y"), 0);
     } else if (command == "restart" || command == "reboot") {
-        eventManager.debug("Restarting...", 1);
+        eventManager.debug("Restarting (command)...", 1);
         ESP.restart();
     } else if (command == "debuglevel") {
         if (params.size() > 0) {
@@ -194,10 +207,9 @@ void MainController::processCommand(String command, std::vector<String> params)
     } else if (command == "hostname") {
         if (params.size() > 0) {
             config.setPreference("hostname", params[0]);
-            hostname = params[0];
             eventManager.debug("Hostname set to: " + params[0], 1);
         } else {
-            eventManager.debug("Hostname: " + hostname, 0);
+            eventManager.debug("Hostname: " + config.getHostname(), 0);
         }
     } else if (command == "device") {
         if (params.size() == 0) {
@@ -271,11 +283,16 @@ Device* MainController::getDeviceByTopic(const String& topic) const
 void MainController::processDebugMessage(String message, int level)
 {
     if (level <= config.getPreference("debug_level", 0)) {
+        String logJson;
         if (level > 0) {
             String time = timeManager.getFormattedDateTime("%H:%M:%S");
-            Serial.println(time + "> " + message);
+            logJson = "{\"time\":\"" + time + "\",\"level\":" + String(level) + ",\"message\":\"" + message + "\"}";
+            message = time + "> " + message;
         } else {
-            Serial.println("> " + message);
+            logJson = "{\"level\":" + String(level) + ",\"message\":\"" + message + "\"}";
         }
+        Serial.println(message);
+        espUIManager.addDebugMessage(message, level);
+        mqttManager.publish(config.getHostname() + "/log", logJson, false);
     }
 }

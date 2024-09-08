@@ -72,9 +72,9 @@ bool MQTTManager::reconnect()
     if (!mqttClient.connected()) {
         eventManager->triggerEvent("mqtt", "ConnectionInProgress", {});
         eventManager->debug("Attempting MQTT connection...", 1);
-        if (mqttClient.connect(hostname, username.c_str(), password.c_str())) {
+        if (mqttClient.connect(config.getHostname().c_str(), username.c_str(), password.c_str())) {
             eventManager->triggerEvent("mqtt", "Connected", {this->server});
-            eventManager->debug("MQTT connected", 1);
+            eventManager->debug("MQTT connected (hostname = " + config.getHostname() + ")", 1);
             eventManager->debug("Process subscriptions: " + String(subscriptions.size()), 3);
             for (const auto& topic : subscriptions) {
                 eventManager->debug("Process subscription " + topic, 3);
@@ -90,9 +90,11 @@ bool MQTTManager::reconnect()
     return true;
 }
 
-void MQTTManager::publish(String topic, String payload)
+void MQTTManager::publish(String topic, String payload, bool enableDebug)
 {
-    eventManager->debug("Publishing to " + topic + ": " + payload, 2);
+    if (enableDebug) {
+        eventManager->debug("Publishing to " + topic + ": " + payload, 2);
+    }
     mqttClient.publish(topic.c_str(), payload.c_str());
 }
 

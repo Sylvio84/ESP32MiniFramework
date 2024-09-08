@@ -29,7 +29,6 @@ class WiFiManager
     uint tryCount = 0;
 
     IPAddress apIP;
-    String ApHostname = "ESP32";
 
     static EventManager* eventManager;  // Pointeur vers EventManager
 
@@ -42,7 +41,6 @@ class WiFiManager
     WiFiManager(Configuration& config, EventManager& eventMgr) : config(config)
     {
         this->apIP = IPAddress(192, 168, 1, 249);
-        this->ApHostname = config.HOSTNAME;
         if (eventManager == nullptr) {
             eventManager = &eventMgr;
         }

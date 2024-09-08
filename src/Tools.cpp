@@ -1,21 +1,23 @@
 #include "../include/Tools.h"
 
-String splitString(String data, char separator, int index) {
-  int found = 0;
-  int strIndex[] = { 0, -1 };
-  int maxIndex = data.length() - 1;
+String splitString(String data, char separator, int index)
+{
+    int found = 0;
+    int strIndex[] = {0, -1};
+    int maxIndex = data.length() - 1;
 
-  for (int i = 0; i <= maxIndex && found <= index; i++) {
-    if (data.charAt(i) == separator || i == maxIndex) {
-      found++;
-      strIndex[0] = strIndex[1] + 1;
-      strIndex[1] = (i == maxIndex) ? i + 1 : i;
+    for (int i = 0; i <= maxIndex && found <= index; i++) {
+        if (data.charAt(i) == separator || i == maxIndex) {
+            found++;
+            strIndex[0] = strIndex[1] + 1;
+            strIndex[1] = (i == maxIndex) ? i + 1 : i;
+        }
     }
-  }
-  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+    return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
 
-std::vector<String> split(const String& str, char delimiter) {
+std::vector<String> split(const String& str, char delimiter)
+{
     std::vector<String> result;
     int start = 0;
     int end = str.indexOf(delimiter);
@@ -26,4 +28,14 @@ std::vector<String> split(const String& str, char delimiter) {
     }
     result.push_back(str.substring(start));
     return result;
+}
+
+bool isInteger(const String& str)
+{
+    for (unsigned int i = 0; i < str.length(); i++) {
+        if (!isdigit(str[i])) {
+            return false;
+        }
+    }
+    return true;
 }

@@ -21,7 +21,6 @@ class MQTTManager
     MQTTManager(Configuration& config, EventManager& eventMgr) : config(config), mqttClient(wifiClient)
     {
         this->eventManager = &eventMgr;
-        this->hostname = config.HOSTNAME;
     }
 
     // 0 = disabled, 1 = waiting wifi to connect, 2 = keep connected
@@ -46,7 +45,7 @@ class MQTTManager
     // void onMessage(char* topic, byte* payload, unsigned int length);
 
     // void registerCallback(MQTTCallback callback);
-    void publish(String topic, String payload);
+    void publish(String topic, String payload, bool enableDebug = true);
     void subscribe(String topic);
     void unsubscribe(String topic);
 
@@ -71,8 +70,6 @@ class MQTTManager
 
    private:
     Configuration& config;
-
-    const char* hostname;
 
     WiFiClient wifiClient;
     PubSubClient mqttClient;

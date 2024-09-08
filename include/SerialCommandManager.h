@@ -2,39 +2,36 @@
 #define SERIAL_COMMAND_MANAGER_H
 
 #include <Arduino.h>
-#include <map>
-#include <vector>
-#include <functional>
 #include <Configuration.h>
 #include <EventManager.h>
+#include <functional>
+#include <map>
+#include <vector>
 
 class SerialCommandManager
 {
-public:
-    SerialCommandManager(Configuration& config, EventManager &eventMgr) : config(config)
+  public:
+    SerialCommandManager(Configuration& config, EventManager& eventMgr) : config(config)
     {
         baudRate = config.getPreference("serial_speed", baudRate);
-        if (eventManager == nullptr)
-        {
+        if (eventManager == nullptr) {
             eventManager = &eventMgr;
         }
     }
 
-    // Méthodes publiques
-    void init();                                                                         // Initialise la communication série
-    void loop();                                                                         // Gère les commandes dans la boucle principale
+    void init();
+    void loop();
 
-private:
-    // Attributs
-    int baudRate = 115200; // Vitesse de communication série
-    Configuration &config;
+    void processCommand(const String& input);
 
-    // Méthodes privées
-    void handleSerialInput();                                    // Gère l'entrée série
-    void processCommand(const String &input);                    // Traite la commande reçue
-    std::vector<String> splitParameters(const String &paramStr); // Divise la chaîne de paramètres
+  private:
+    int baudRate = 115200;
+    Configuration& config;
 
-    static EventManager *eventManager; // Pointeur vers EventManager
+    void handleSerialInput();
+    std::vector<String> splitParameters(const String& paramStr);
+
+    static EventManager* eventManager;
 };
 
-#endif // SERIAL_COMMAND_MANAGER_H
+#endif  // SERIAL_COMMAND_MANAGER_H

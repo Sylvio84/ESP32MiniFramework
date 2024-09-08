@@ -197,12 +197,12 @@ void WiFiManager::disconnect()
 void WiFiManager::startAccessPoint()
 {
     disconnect();
-    eventManager->debug("Creating Hotspot: " + this->ApHostname, 0);
+    eventManager->debug("Creating Hotspot: " + config.getHostname(), 0);
     eventManager->debug("IP Address: " + this->apIP.toString(), 0);
     WiFi.mode(WIFI_AP);
     delay(100);
     WiFi.softAPConfig(this->apIP, this->apIP, IPAddress(255, 255, 255, 0));
-    WiFi.softAP(this->ApHostname);
+    WiFi.softAP(this->config.getHostname().c_str());
     connectionStatus = 5;
     connected = false;
     eventManager->triggerEvent("wifi", "ap_started", {});
@@ -308,9 +308,6 @@ String WiFiManager::getInfo(String name)
     if (name == "dns") {
         return WiFi.dnsIP().toString();
     }
-    /*if (name == "hostname") {
-        return WiFi.hostname();
-    }*/
     if (name == "bssid") {
         return WiFi.BSSIDstr();
     }

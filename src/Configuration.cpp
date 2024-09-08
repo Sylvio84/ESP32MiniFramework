@@ -150,6 +150,11 @@ String Configuration::readVariableString(const String key, String defaultValue)
     return json_preferences.containsKey(key) ? json_preferences[key].as<String>() : defaultValue;
 }
 
+String Configuration::getHostname()
+{
+    return getPreference("hostname", String(HOSTNAME));
+}
+
 void Configuration::debugJsonPreferences()
 {
     eventManager->debug("Preferences:", 1);

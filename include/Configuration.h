@@ -44,6 +44,8 @@ public:
     int getPreference(const String key, int defaultValue = 0);
     String getPreference(const String key, const String &defaultValue = "");
 
+    String getHostname();
+
 #ifndef ESP32
 #define EEPROM_PREFERENCES_SIZE 4096
     JsonDocument json_preferences;

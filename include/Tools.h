@@ -4,3 +4,5 @@
 String splitString(String data, char separator, int index);
 
 std::vector<String> split(const String& str, char delimiter);
+
+bool isInteger(const String& str);
