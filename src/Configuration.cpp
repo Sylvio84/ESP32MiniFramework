@@ -78,6 +78,47 @@ String Configuration::getPreference(const String key, const String& defaultValue
 #endif
 }
 
+String Configuration::getJsonConfig()
+{
+    String jsonString;
+#ifdef ESP32
+    for (int i = 0; i < prefs.length(); i++) {
+        String key = prefs.key(i);
+        if (prefs.type(i) == PREF_INT) {
+            jsonString += "\"" + key + "\": " + prefs.getInt(key) + ", ";
+        } else if (prefs.type(i) == PREF_STRING) {
+            jsonString += "\"" + key + "\": \"" + prefs.getString(key) + "\", ";
+        }
+    }
+#else
+    serializeJson(json_preferences, jsonString);
+#endif
+    return jsonString;
+}
+
+bool Configuration::setJsonConfig(const String json)
+{
+#ifdef ESP32
+    DeserializationError error = deserializeJson(json_preferences, json);
+    if (error) {
+        Serial.print("Failed to deserialize JSON: ");
+        Serial.println(error.c_str());
+        return false;
+    }
+    for (JsonPair kv : json_preferences.as<JsonObject>()) {
+        if (kv.value().is<int>()) {
+            setPreference(kv.key().c_str(), kv.value().as<int>());
+        } else if (kv.value().is<String>()) {
+            setPreference(kv.key().c_str(), kv.value().as<String>());
+        }
+    }
+    return true;
+#else
+    json_preferences = json;
+    return writeJsonPreferences();
+#endif
+}
+
 #ifndef ESP32
 
 bool Configuration::readJsonPreferences()

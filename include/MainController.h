@@ -12,6 +12,7 @@
 #include <TimeManager.h>
 #include <Tools.h>
 #include <Device.h>
+#include <LittleFS.h>
 
 #define DEBUG_LOG() debugLog(__FILE__, __LINE__)
 

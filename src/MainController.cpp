@@ -175,6 +175,7 @@ void MainController::processCommand(String command, std::vector<String> params)
         eventManager.debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
         eventManager.debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);
         eventManager.debug("Free heap: " + String(ESP.getFreeHeap()), 0);
+        eventManager.debug("Sketch size: " + String(ESP.getSketchSize()), 0);
         eventManager.debug("Free sketch space: " + String(ESP.getFreeSketchSpace()), 0);
 #ifdef ESP32
         eventManager.debug("Chip ID: " + String(ESP.getEfuseMac()), 0);
@@ -182,6 +183,7 @@ void MainController::processCommand(String command, std::vector<String> params)
         eventManager.debug("Chip revision: " + String(ESP.getChipRevision()), 0);
         eventManager.debug("Chip core: " + String(ESP.getChipCores()), 0);
 #endif
+        eventManager.debug("Reset reason: " + ESP.getResetReason(), 0);
         eventManager.debug("Hostname: " + config.getHostname(), 0);
         eventManager.debug("Debug level: " + String(config.getPreference("debug_level", 0)), 0);
         eventManager.debug("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
@@ -191,8 +193,20 @@ void MainController::processCommand(String command, std::vector<String> params)
         } else {
             eventManager.debug("Not connected to WiFi", 0);
         }
+    } else if (command == "fs") {
+        if (!LittleFS.begin()) {
+            eventManager.debug("Failed to initialize LittleFS", 0);
+            return;
+        }
+        FSInfo fs_info;
+        LittleFS.info(fs_info);
+        eventManager.debug("Total bytes: " + String(fs_info.totalBytes), 0);
+        eventManager.debug("Used bytes: " + String(fs_info.usedBytes), 0);
+        eventManager.debug("Free bytes: " + String(fs_info.totalBytes - fs_info.usedBytes), 0);
     } else if (command == "date") {
         eventManager.debug(timeManager.getFormattedDateTime("%d/%m/%Y"), 0);
+    } else if (command == "ota") {
+        wiFiManager.otaUpdate();
     } else if (command == "restart" || command == "reboot") {
         eventManager.debug("Restarting (command)...", 1);
         ESP.restart();
@@ -210,6 +224,13 @@ void MainController::processCommand(String command, std::vector<String> params)
             eventManager.debug("Hostname set to: " + params[0], 1);
         } else {
             eventManager.debug("Hostname: " + config.getHostname(), 0);
+        }
+    } else if (command == "config") {
+        if (params.size() > 0) {
+            config.setJsonConfig(params[0]);
+            eventManager.debug("Configuration updated", 1);
+        } else {
+            eventManager.debug(config.getJsonConfig(), 0);
         }
     } else if (command == "device") {
         if (params.size() == 0) {

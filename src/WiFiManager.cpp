@@ -46,7 +46,7 @@ void WiFiManager::loop()
                     }
                 } else {
                     //Serial.print("*");
-                    eventManager->debug("*", 1);
+                    eventManager->debug("*", 2);
                 }
             } else {
                 connected = true;
@@ -415,3 +415,70 @@ void WiFiManager::EspUiCallback(Control* sender, int type)
         }
     }
 }
+
+#ifdef ESP8266
+bool WiFiManager::otaUpdate()
+{
+    if (WiFi.status() != WL_CONNECTED) {
+        eventManager->debug("No WiFi connection", 1);
+        return false;
+    }
+
+    if (connectionStatus != 10) {
+        eventManager->debug("No WiFi connection STA", 1);
+        return false;
+    }
+
+    String otaHost = config.getPreference("ota_host", config.OTA_HOST);
+    int otaPort = config.getPreference("ota_port", config.OTA_PORT);
+    if (otaHost.length() == 0) {
+        eventManager->debug("No OTA Host", 1);
+        return false;
+    }
+
+    String otaFingerprint = config.OTA_FINGERPRINT;
+
+    String otaUrl = config.getPreference("ota_url", config.OTA_URL);
+    if (otaUrl.length() == 0) {
+        eventManager->debug("No OTA URL", 1);
+        return false;
+    }
+
+    //WiFiClient client;
+
+    WiFiClientSecure client;
+    bool mfln = client.probeMaxFragmentLength(otaHost, otaPort, 1024);
+    if (mfln) {
+        eventManager->debug("Maximum fragment Length negotiation supported.", 2);
+        client.setBufferSizes(1024, 1024);
+    }
+    client.setInsecure();
+
+    if (!client.connect(otaHost, otaPort)) {
+        eventManager->debug("Connection to " + otaHost + ":" + String(otaPort) + " failed", 1);
+        return false;
+    } else {
+        eventManager->debug("Connected to " + otaHost + ":" + String(otaPort), 2);
+    }
+
+    /*if (!client.verify(otaFingerprint.c_str(), otaHost.c_str())) {
+        eventManager->debug("Certificate mismatch", 1);
+        return false;
+    }*/
+
+    auto ret = ESPhttpUpdate.update(client, otaHost, otaPort, otaUrl);
+    // if successful, ESP will restart
+    switch (ret) {
+        case HTTP_UPDATE_FAILED:
+            eventManager->debug("OTA Update failed: " + ESPhttpUpdate.getLastErrorString(), 1);
+            return false;
+        case HTTP_UPDATE_NO_UPDATES:
+            eventManager->debug("OTA No updates", 1);
+            return false;
+        case HTTP_UPDATE_OK:
+            eventManager->debug("OTA Update successful", 1);  // may not be called since we reboot the ESP
+            return true;
+    }
+    return false;
+}
+#endif

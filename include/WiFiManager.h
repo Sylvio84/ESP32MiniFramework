@@ -9,8 +9,11 @@
 
 #ifdef ESP32
 #include <WiFi.h>
-#else
+#include <esp_https_ota.h>
+#endif
+#ifdef ESP8266
 #include <ESP8266WiFi.h>
+#include "ESP8266httpUpdate.h"
 #endif
 
 class WiFiManager
@@ -77,6 +80,8 @@ class WiFiManager
 
     void initEspUI();
     void EspUiCallback(Control *sender, int type);
+
+    bool otaUpdate();
 };
 
 #endif

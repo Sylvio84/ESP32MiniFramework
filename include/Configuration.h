@@ -17,6 +17,10 @@ public:
     int CONNECTION_TIMEOUT = 10000;
 
     const char *HOSTNAME = "ESP32";
+    const char *OTA_HOST = "home.zore.org";
+    const char *OTA_FINGERPRINT = "35 EF E8 CB CC 63 97 13 70 41 85 19 5C B3 CC 81 5A 79 C0 7A C1 1F 98 E6 1D D5 8B 98 23 50 B6 22";
+    int OTA_PORT = 443;
+    const char *OTA_URL = "esp/default/firmaware.bin"; // should be overriden in MyConfig
 
     int LCD_ADDRESS = 0x27;
     int LCD_COLS = 20;
@@ -40,6 +44,9 @@ public:
 
     bool setPreference(const String key, int value);
     bool setPreference(const String key, String value);
+
+    String getJsonConfig();
+    bool setJsonConfig(const String json);
 
     int getPreference(const String key, int defaultValue = 0);
     String getPreference(const String key, const String &defaultValue = "");
