@@ -1,3 +1,4 @@
+#ifndef DISABLE_ESPUI
 #include "../include/ESPUIManager.h"
 
 // Définition et initialisation du membre statique
@@ -96,3 +97,4 @@ Control *ESPUIManager::getControl(uint16_t id)
 {
     return ESPUI.getControl(id);
 }
+#endif

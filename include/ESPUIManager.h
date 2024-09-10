@@ -1,3 +1,4 @@
+#ifndef DISABLE_ESPUI
 #ifndef ESPUIMANAGER_H
 #define ESPUIMANAGER_H
 
@@ -48,4 +49,5 @@ public:
     Control* getControl(uint16_t id);
 };
 
+#endif
 #endif

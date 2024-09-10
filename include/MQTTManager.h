@@ -6,7 +6,9 @@
 #include <vector>
 // #include <WiFiManager.h>
 #include <Configuration.h>
+#ifndef DISABLE_ESPUI
 #include <ESPUI.h>
+#endif
 #include <EventManager.h>
 #ifdef ESP32
 #include <WiFi.h>
@@ -17,11 +19,8 @@
 class MQTTManager
 {
 
-   public:
-    MQTTManager(Configuration& config, EventManager& eventMgr) : config(config), mqttClient(wifiClient)
-    {
-        this->eventManager = &eventMgr;
-    }
+  public:
+    MQTTManager(Configuration& config, EventManager& eventMgr) : config(config), mqttClient(wifiClient) { this->eventManager = &eventMgr; }
 
     // 0 = disabled, 1 = waiting wifi to connect, 2 = keep connected
     uint status = 0;
@@ -65,10 +64,12 @@ class MQTTManager
     bool removeSubscription(String topic);
     std::vector<String> getSubscriptions();
 
+#ifndef DISABLE_ESPUI
     void initEspUI();
     void EspUiCallback(Control* sender, int type);
+#endif
 
-   private:
+  private:
     Configuration& config;
 
     WiFiClient wifiClient;
@@ -79,11 +80,13 @@ class MQTTManager
 
     std::vector<String> subscriptions;
 
+#ifndef DISABLE_ESPUI
     // ESPUI:
     uint16_t mqttServerInput = 0;
     uint16_t mqttPortInput = 0;
     uint16_t mqttUserInput = 0;
     uint16_t mqttPasswordInput = 0;
+#endif
 };
 
 #endif

@@ -3,7 +3,9 @@
 
 #include <Arduino.h>
 #include <Configuration.h>
+#ifndef DISABLE_ESPUI
 #include <ESPUI.h>
+#endif
 #include <EventManager.h>
 #include <Tools.h>
 
@@ -18,7 +20,7 @@
 
 class WiFiManager
 {
-   private:
+  private:
     static const uint CONNECTION_TIMEOUT = 10000;
 
     Configuration& config;
@@ -35,12 +37,13 @@ class WiFiManager
 
     static EventManager* eventManager;  // Pointeur vers EventManager
 
-
+#ifndef DISABLE_ESPUI
     // ESPUI:
     uint16_t ssidInput = 0;
     uint16_t passwordInput = 0;
+#endif
 
-   public:
+  public:
     WiFiManager(Configuration& config, EventManager& eventMgr) : config(config)
     {
         this->apIP = IPAddress(192, 168, 1, 249);
@@ -78,8 +81,10 @@ class WiFiManager
     void setNetwork(int n, bool save = false);
     String getNetworkInfo(int n, String name);
 
+#ifndef DISABLE_ESPUI
     void initEspUI();
-    void EspUiCallback(Control *sender, int type);
+    void EspUiCallback(Control* sender, int type);
+#endif
 
     bool otaUpdate();
 };

@@ -7,7 +7,9 @@
 #include <DisplayManager.h>
 #include <WiFiManager.h>
 #include <MQTTManager.h>
+#ifndef DISABLE_ESPUI
 #include <ESPUIManager.h>
+#endif
 #include <EventManager.h>
 #include <TimeManager.h>
 #include <Tools.h>
@@ -32,7 +34,10 @@ protected:
     WiFiManager wiFiManager;
     MQTTManager mqttManager;
     TimeManager timeManager;
+
+    #ifndef DISABLE_ESPUI
     ESPUIManager espUIManager;
+    #endif
 
     bool timeSet = false;
 
@@ -50,7 +55,9 @@ public:
     Device* getDeviceByName(const String &name) const;
     Device* getDeviceByTopic(const String &topic) const;
 
+#ifndef DISABLE_ESPUI
     virtual void processUI(String action, std::vector<String> params);
+#endif
     virtual void processCommand(String command, std::vector<String> params);
     virtual void processEvent(String type, String event, std::vector<String> params);
 

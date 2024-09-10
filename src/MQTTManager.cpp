@@ -300,6 +300,7 @@ std::vector<String> MQTTManager::getSubscriptions()
     return subscriptions;
 }
 
+#ifndef DISABLE_ESPUI
 void MQTTManager::initEspUI()
 {
     eventManager->debug("Init MQTTManager ESPUI", 2);
@@ -353,3 +354,4 @@ void MQTTManager::EspUiCallback(Control* sender, int type)
         eventManager->triggerEvent("ESPUI", "MQTTReconnect", {});
     }
 }
+#endif

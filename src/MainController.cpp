@@ -7,8 +7,11 @@ MainController::MainController(Configuration& config)
       displayManager(config),
       wiFiManager(config, eventManager),
       mqttManager(config, eventManager),
-      timeManager(config),
+      timeManager(config)
+#ifndef DISABLE_ESPUI
+      ,
       espUIManager(config, eventManager)
+#endif
 {
     eventManager.registerMainCallback(
         [this](const String& eventType, const String& event, const std::vector<String>& params) { this->processEvent(eventType, event, params); });
@@ -26,9 +29,11 @@ void MainController::init()
     timeManager.init();
     mqttManager.init();
     mqttManager.addSubscription(config.getHostname() + "/cmd");
+#ifndef DISABLE_ESPUI
     espUIManager.init();
     wiFiManager.initEspUI();
     mqttManager.initEspUI();
+#endif
     for (auto& device : devices) {
         device->init();
     }
@@ -41,7 +46,7 @@ void MainController::init()
     }
 
     eventManager.debug("Init done!", 1);
-    eventManager.debug("Welcome on " + config.getHostname());
+    eventManager.debug("Welcome on " + config.getHostname() + "!", 0);
 }
 
 void MainController::loop()
@@ -58,8 +63,8 @@ void MainController::loop()
     }
 }
 
+#ifndef DISABLE_ESPUI
 void MainController::processUI(String action, std::vector<String> params)
-
 {
     eventManager.debug("Processing UI: " + action, 2);
     for (const auto& param : params) {
@@ -106,6 +111,7 @@ void MainController::processUI(String action, std::vector<String> params)
         timeManager.update();
     }
 }
+#endif
 
 void MainController::processEvent(String type, String event, std::vector<String> params)
 {
@@ -116,7 +122,9 @@ void MainController::processEvent(String type, String event, std::vector<String>
 
     wiFiManager.processEvent(type, event, params);
     mqttManager.processEvent(type, event, params);
+#ifndef DISABLE_ESPUI
     espUIManager.processEvent(type, event, params);
+#endif
     // displayManager.processEvent(type, event, params);
     for (auto& device : devices) {
         device->processEvent(type, event, params);
@@ -143,6 +151,7 @@ void MainController::processEvent(String type, String event, std::vector<String>
         } else if (event == "message") {
             processMQTT(params[0], params[1]);
         }
+#ifndef DISABLE_ESPUI
     } else if (type == "espui") {
         if (event == "Command") {
             serialCommandManager.processCommand(params[0]);
@@ -152,6 +161,7 @@ void MainController::processEvent(String type, String event, std::vector<String>
         } else {
             processUI(event, params);
         }
+#endif
     } else if (type == "serial") {
         if (event == "command") {
             eventManager.triggerEvent("espui", "SerialIn", params);
@@ -313,7 +323,9 @@ void MainController::processDebugMessage(String message, int level)
             logJson = "{\"level\":" + String(level) + ",\"message\":\"" + message + "\"}";
         }
         Serial.println(message);
+#ifndef DISABLE_ESPUI
         espUIManager.addDebugMessage(message, level);
+#endif
         mqttManager.publish(config.getHostname() + "/log", logJson, false);
     }
 }

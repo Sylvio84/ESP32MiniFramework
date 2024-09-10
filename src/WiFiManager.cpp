@@ -364,11 +364,7 @@ String WiFiManager::getNetworkInfo(int n, String name)
     return "";
 }
 
-/*void WiFiManager::initEspUI(ESPUIManager *espUIManager) 
-{
-    espUIManager->initWiFiTab();
-}*/
-
+#ifndef DISABLE_ESPUI
 void WiFiManager::initEspUI()
 {
     eventManager->debug("Init WiFi EspUI", 2);
@@ -415,6 +411,7 @@ void WiFiManager::EspUiCallback(Control* sender, int type)
         }
     }
 }
+#endif
 
 #ifdef ESP8266
 bool WiFiManager::otaUpdate()
