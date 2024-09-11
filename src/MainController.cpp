@@ -7,7 +7,7 @@ MainController::MainController(Configuration& config)
       displayManager(config),
       wiFiManager(config, eventManager),
       mqttManager(config, eventManager),
-      timeManager(config)
+      timeManager(config, eventManager)
 #ifndef DISABLE_ESPUI
       ,
       espUIManager(config, eventManager)
@@ -47,6 +47,7 @@ void MainController::init()
 
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + config.getHostname() + "!", 0);
+    setPowerSaving(config.getPreference("power_saving", 10));
 }
 
 void MainController::loop()
@@ -56,6 +57,9 @@ void MainController::loop()
     wiFiManager.loop();
     if (wiFiManager.isConnected()) {
         mqttManager.loop();
+        if (mqttManager.isConnected() && powerSaving > 0) {
+            delay(powerSaving);  //power saving
+        }
     }
     // readSerialCommand();
     for (auto& device : devices) {
@@ -66,7 +70,7 @@ void MainController::loop()
 #ifndef DISABLE_ESPUI
 void MainController::processUI(String action, std::vector<String> params)
 {
-    eventManager.debug("Processing UI: " + action, 2);
+    eventManager.debug("Processing UI: " + action, 3);
     for (const auto& param : params) {
         eventManager.debug("Param: " + param, 3);
     }
@@ -115,7 +119,7 @@ void MainController::processUI(String action, std::vector<String> params)
 
 void MainController::processEvent(String type, String event, std::vector<String> params)
 {
-    eventManager.debug("Processing Event: " + type + " / " + event, 2);
+    eventManager.debug("Processing Event: " + type + " / " + event, 3);
     for (const auto& param : params) {
         eventManager.debug("Param: " + param, 3);
     }
@@ -143,8 +147,47 @@ void MainController::processEvent(String type, String event, std::vector<String>
         if (event == "disconnected" || event == "lost") {
             mqttManager.setStatus(1);
         }
-    } else if (type == "sys" && event.startsWith("@")) {
-        processCommand(event.substring(1), params);
+    } else if (type == "sys") {
+        if (event.startsWith("@")) {
+            processCommand(event.substring(1), params);
+        }
+        if (event == "power_saving_suspend") {
+            if (powerSavingRemumeTimer > 0) {
+                timeManager.clearTimeout(powerSavingRemumeTimer);
+            }
+            if (powerSaving > 0) {
+                setPowerSaving(0, false);
+                if (params.size() > 0) {
+                    eventManager.debug(params[0], 0);
+                }
+            }
+        }
+        if (event == "power_saving_resume") {
+            if (powerSavingRemumeTimer > 0) {
+                timeManager.clearTimeout(powerSavingRemumeTimer);
+            }
+            if (params.size() > 0) {
+
+                if (params.size() > 1 && isInteger(params[1])) {
+                    int duration = params[1].toInt() * 1000;
+                    powerSavingRemumeTimer = timeManager.setTimeout(
+                        [this, params] {
+                            if (params[0].length() > 0) {
+                                eventManager.debug(params[0], 0);
+                            }
+                            setPowerSaving(-1, false);
+                        },
+                        duration);
+                } else {
+                    if (params[0].length() > 0) {
+                        eventManager.debug(params[0], 0);
+                    }
+                    setPowerSaving(-1, false);
+                }
+            } else {
+                setPowerSaving(-1, false);
+            }
+        }
     } else if (type == "mqtt") {
         if (event == "connected") {
             eventManager.debug("Connected to MQTT server: " + params[0], 1);
@@ -181,7 +224,9 @@ void MainController::processCommand(String command, std::vector<String> params)
         command = "debuglevel";
     }
 
-    if (command == "info") {
+    if (command == "ping") {
+        Serial.println("Pong");
+    } else if (command == "info") {
         eventManager.debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
         eventManager.debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);
         eventManager.debug("Free heap: " + String(ESP.getFreeHeap()), 0);
@@ -196,6 +241,8 @@ void MainController::processCommand(String command, std::vector<String> params)
         eventManager.debug("Reset reason: " + ESP.getResetReason(), 0);
         eventManager.debug("Hostname: " + config.getHostname(), 0);
         eventManager.debug("Debug level: " + String(config.getPreference("debug_level", 0)), 0);
+        eventManager.debug("Power saving: " + String(wifi_get_sleep_type() == NONE_SLEEP_T ? "disabled" : "enabled"), 0);
+        eventManager.debug("Power saving time: " + String(powerSaving), 0);
         eventManager.debug("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
         if (wiFiManager.isConnected()) {
             eventManager.debug("Connected to WiFi: " + wiFiManager.retrieveSSID(), 0);
@@ -228,6 +275,18 @@ void MainController::processCommand(String command, std::vector<String> params)
             int debugLevel = config.getPreference("debug_level", 0);
             eventManager.debug("Debug level: " + String(debugLevel), 0);
         }
+    } else if (command == "power_saving") {
+        if (params.size() > 0) {
+            if (!isInteger(params[0])) {
+                eventManager.debug("Invalid value: " + params[0], 0);
+                eventManager.debug("Usage: sys:power_saving <value>, the value should be a number >= 0 (ms) / 0 = disable", 0);
+                return;
+            }
+            setPowerSaving(params[0].toInt());
+        } else {
+            int powerSaving = config.getPreference("power_saving", 0);
+            eventManager.debug("Power saving: " + String(powerSaving), 0);
+        }
     } else if (command == "hostname") {
         if (params.size() > 0) {
             config.setPreference("hostname", params[0]);
@@ -241,6 +300,13 @@ void MainController::processCommand(String command, std::vector<String> params)
             eventManager.debug("Configuration updated", 1);
         } else {
             eventManager.debug(config.getJsonConfig(), 0);
+        }
+    } else if (command == "ntp") {
+        if (timeManager.update(true)) {
+            eventManager.debug("Time updated", 0);
+            eventManager.debug("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
+        } else {
+            eventManager.debug("Failed to update time", 0);
         }
     } else if (command == "device") {
         if (params.size() == 0) {
@@ -311,11 +377,11 @@ Device* MainController::getDeviceByTopic(const String& topic) const
     return nullptr;
 }
 
-void MainController::processDebugMessage(String message, int level)
+void MainController::processDebugMessage(String message, int level, bool displayTime)
 {
     if (level <= config.getPreference("debug_level", 0)) {
         String logJson;
-        if (level > 0) {
+        if (displayTime && level > 0) {
             String time = timeManager.getFormattedDateTime("%H:%M:%S");
             logJson = "{\"time\":\"" + time + "\",\"level\":" + String(level) + ",\"message\":\"" + message + "\"}";
             message = time + "> " + message;
@@ -327,5 +393,26 @@ void MainController::processDebugMessage(String message, int level)
         espUIManager.addDebugMessage(message, level);
 #endif
         mqttManager.publish(config.getHostname() + "/log", logJson, false);
+    }
+}
+
+void MainController::setPowerSaving(int value, bool save)
+{
+    if (value < 0) {
+        value = config.getPreference("power_saving", 0);
+    }
+    if (value == 1) {
+        value = 100;  // default value
+    }
+    powerSaving = value;
+    if (powerSaving > 0) {
+        eventManager.debug("Power saving enabled: process every " + String(powerSaving) + "ms", 1);
+        wifi_set_sleep_type(LIGHT_SLEEP_T);  // power saving when idle (delay 100ms in loop)
+    } else {
+        eventManager.debug("Power saving disabled", 1);
+        wifi_set_sleep_type(NONE_SLEEP_T);
+    }
+    if (save) {
+        config.setPreference("power_saving", powerSaving);
     }
 }

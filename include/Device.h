@@ -32,7 +32,7 @@ class Device
     void addCommand(const std::string& command, std::function<void()> action);
 
     // Méthode pour traiter une commande reçue
-    void handleCommand(const std::string& command);
+    bool handleCommand(const std::string& command);
 
     // Méthodes virtuelles pures à implémenter dans les classes dérivées
     virtual void init();

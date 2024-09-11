@@ -34,19 +34,19 @@ void WiFiManager::loop()
                 std::vector<String> params;
                 params.push_back(String(tryCount));
                 eventManager->triggerEvent("wifi", "in_progress", params);
-                if (tryCount >= 10) {
+                if (tryCount >= 20) {
                     tryCount = 0;
                     if (keepConnected) {
-                        eventManager->debug("Connection failed, retrying", 1);
+                        eventManager->debug("WiFi: Connection failed, retrying", 1);
                     } else {
                         connectionStatus = 2;
-                        eventManager->debug("Connection failed", 1);
+                        eventManager->debug("WiFi: Connection failed", 1);
                         eventManager->triggerEvent("wifi", "failed", params);
                         this->startAccessPoint();
                     }
                 } else {
                     //Serial.print("*");
-                    eventManager->debug("*", 2);
+                    eventManager->debug("WiFi: connection in progress #" + String(tryCount) + "..." , 2);
                 }
             } else {
                 connected = true;
@@ -63,7 +63,7 @@ void WiFiManager::loop()
             if (WiFi.status() != WL_CONNECTED) {
                 connectionStatus = 3;
                 this->connected = false;
-                eventManager->debug("Connection lost", 1);
+                eventManager->debug("WiFi: Connection lost", 1);
                 eventManager->triggerEvent("wifi", "lost", {});
             }
         } else if (connectionStatus == 3)  // Connection lost
@@ -91,7 +91,7 @@ void WiFiManager::processEvent(String type, String event, std::vector<String> pa
 
 bool WiFiManager::processCommand(String command, std::vector<String> params)
 {
-    eventManager->debug("Processing WiFi command: " + command, 2);
+    eventManager->debug("Processing WiFi command: " + command, 3);
     if (command == "connect") {
         this->connect();
     } else if (command == "disconnect") {

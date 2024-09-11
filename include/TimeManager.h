@@ -10,14 +10,15 @@
 #else
 #include <ESP8266WiFi.h>
 #endif
+#include <EventManager.h>
 
 class TimeManager
 {
 protected:
-    bool isInitialized = false;
+    Configuration& config;
+    static EventManager* eventManager;  // Pointeur vers EventManager
 
-    const char *ntpServer = "pool.ntp.org";
-    const char *timezone = "CET-1CEST,M3.5.0,M10.5.0/3";
+    bool isInitialized = false;
 
     struct Timeout {
         unsigned long startTime;
@@ -51,16 +52,15 @@ protected:
     void checkSchedulers(); // @todo: to test
 
 public:
-    TimeManager(Configuration& config)
+    TimeManager(Configuration& config, EventManager& eventMgr) : config(config)
     {
-        timezone = config.TIMEZONE;
-        ntpServer = config.NTP_SERVER;
+        this->eventManager = &eventMgr;
     }
 
     virtual void init();
     virtual void loop();
     
-    void update(bool force = false);
+    bool update(bool force = false);
 
     String getFormattedDateTime(const char *format);
 

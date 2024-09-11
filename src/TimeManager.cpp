@@ -1,5 +1,7 @@
 #include "../include/TimeManager.h"
 
+EventManager* TimeManager::eventManager = nullptr;
+
 void TimeManager::init() {}
 
 void TimeManager::loop()
@@ -9,42 +11,43 @@ void TimeManager::loop()
     checkSchedulers();
 }
 
-void TimeManager::update(bool force)
+bool TimeManager::update(bool force)
 {
     if (isInitialized && !force) {
-        return;
+        return true;
     }
     if (!WiFi.isConnected()) {
-        Serial.println("WiFi not connected, cannot update time");
-        return;
+        //eventManager->debug("WiFi not connected, cannot update time", 1);
+        return false;
     }
-    Serial.println("Time not set, setting time...");
-    configTime(0, 0, ntpServer);
-    setenv("TZ", timezone, 1);
+    //eventManager->debug("Updating time from " + String(config.NTP_SERVER), 1);
+    configTime(0, 0, config.NTP_SERVER);
+    setenv("TZ", config.TIMEZONE, 1);
     tzset();
     isInitialized = true;
-    Serial.println("Time set to: " + getFormattedDateTime("%H:%M:%S"));
+    eventManager->debug("Time set to: " + getFormattedDateTime("%H:%M:%S"), 1);
+    return true;
 }
 
 String TimeManager::getFormattedDateTime(const char* format)
 {
     if (!isInitialized) {
         if (WiFi.isConnected()) {
-            Serial.println("Time not initialized, initializing...");
+            //eventManager->debug("Time not initialized, initializing...", 2);
             update();
         } else {
             return String("");
         }
     }
     if (!isInitialized) {
-        Serial.println("Failed to initialize time");
+        //eventManager->debug("Failed to initialize time", 1);
         return String("");
     }
     struct tm timeinfo;
 
     if (!getLocalTime(&timeinfo)) {
         // logMessage("Failed to obtain time");
-        Serial.println("Failed to obtain time");
+        //eventManager->debug("Failed to obtain time", 2);
         return String("");
     }
     char formattedTime[20];
@@ -122,7 +125,7 @@ void TimeManager::checkSchedulers()
 
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) {
-        Serial.println("Failed to obtain time");
+        eventManager->debug("Failed to obtain time", 1);
         return;
     }
 

@@ -11,9 +11,7 @@ void Device::init()
     eventManager->debug("Device #" + id + " initialized", 1);
 }
 
-void Device::loop()
-{
-}
+void Device::loop() {}
 
 void Device::addCommand(const std::string& command, std::function<void()> action)
 {
@@ -21,11 +19,14 @@ void Device::addCommand(const std::string& command, std::function<void()> action
 }
 
 // Méthode pour traiter une commande reçue
-void Device::handleCommand(const std::string& command)
+bool Device::handleCommand(const std::string& command)
 {
     if (commands.find(command) != commands.end()) {
+        eventManager->debug("Command found", 3);
         commands[command]();  // Appelle la fonction associée
+        return true;
     }
+    return false;
 }
 
 void Device::saveTopic(String topic)
@@ -114,9 +115,8 @@ bool Device::processMQTT(String topic, String value)
     eventManager->debug("Processing device #" + id + " MQTT message: " + topic + " = " + value, 3);
     eventManager->debug("MyTopic: " + this->topic, 3);
     if (topic == this->topic) {
-        eventManager->debug("Topic matched", 3);
-        handleCommand(value.c_str());
-        return true;
+        eventManager->debug("Topic " + topic + " matched, command:" + value, 3);
+        return handleCommand(value.c_str());
     }
     return false;
 }

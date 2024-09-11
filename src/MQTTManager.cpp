@@ -169,7 +169,7 @@ String MQTTManager::getDebugInfos()
 
 void MQTTManager::processEvent(String type, String event, std::vector<String> params)
 {
-    eventManager->debug("Processing MQTT event: " + type + " / " + event, 2);
+    eventManager->debug("Processing MQTT event: " + type + " / " + event, 3);
     for (const auto& param : params) {
         eventManager->debug("Param: " + param, 3);
     }
@@ -204,7 +204,7 @@ void MQTTManager::processEvent(String type, String event, std::vector<String> pa
 
 bool MQTTManager::processCommand(String command, std::vector<String> params)
 {
-    eventManager->debug("Processing MQTT command: " + command, 2);
+    eventManager->debug("Processing MQTT command: " + command, 3);
     if (command == "server") {
         if (params.size() > 0) {
             saveServer(params[0]);

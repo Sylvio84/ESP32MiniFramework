@@ -1,37 +1,61 @@
 #include "SerialCommandManager.h"
 
-EventManager *SerialCommandManager::eventManager = nullptr;
+EventManager* SerialCommandManager::eventManager = nullptr;
 
 void SerialCommandManager::init()
 {
-    Serial.begin(baudRate); // Initialisation de la communication série
+    Serial.begin(baudRate);  // Initialisation de la communication série
     Serial.println();
     Serial.println("SerialCommandManager initialized.");
 }
 
 void SerialCommandManager::loop()
 {
-    handleSerialInput(); // Gérer les entrées série dans la boucle principale
+    handleSerialInput();  // Gérer les entrées série dans la boucle principale
 }
 
 void SerialCommandManager::handleSerialInput()
 {
-    if (Serial.available() > 0)
-    {
-        String input = Serial.readStringUntil('\n');
-        input.trim();
-        processCommand(input);
+    while (Serial.available() > 0) {
+        char receivedChar = Serial.read();
+        if (receivedChar == 13) {
+            return;
+        }
+
+        bool validate = receivedChar == 10;
+
+        if (inputBuffer.length() == 0) {
+            if (validate) {
+                eventManager->triggerEvent("sys", "power_saving_suspend", {"Power saving suspended"});
+                eventManager->triggerEvent("sys", "power_saving_resume", {"Power saving resumed", "60"});  // resume power saving after 60 seconds
+                return;
+            } else {
+                eventManager->triggerEvent("sys", "power_saving_suspend", {});
+            }
+        }
+
+        if (validate) {
+            inputBuffer.trim();
+            processCommand(inputBuffer);
+            inputBuffer = "";
+            eventManager->triggerEvent("sys", "power_saving_resume", {"", "60"});
+        } else if (receivedChar == '\b' || receivedChar == 127) {
+            if (inputBuffer.length() > 0) {
+                inputBuffer.remove(inputBuffer.length() - 1);
+            }
+        } else {
+            inputBuffer += receivedChar;
+        }
     }
 }
 
-void SerialCommandManager::processCommand(const String &input)
+void SerialCommandManager::processCommand(const String& input)
 {
     //Serial.println("Command received: " + input);
     int nsIndex = input.indexOf(':');
     int cmdIndex = input.indexOf(' ');
 
-    if (nsIndex == -1 || (cmdIndex != -1 && cmdIndex < nsIndex))
-    {
+    if (nsIndex == -1 || (cmdIndex != -1 && cmdIndex < nsIndex)) {
         Serial.println("Erreur: Format de commande incorrect: " + input);
         return;
     }
@@ -48,14 +72,15 @@ void SerialCommandManager::processCommand(const String &input)
     eventManager->triggerEvent(ns, "@" + command, params);
 }
 
-std::vector<String> SerialCommandManager::splitParameters(const String& paramStr) {
+std::vector<String> SerialCommandManager::splitParameters(const String& paramStr)
+{
     std::vector<String> params;
     String tempParam;
     bool inQuotes = false;
 
     for (unsigned int i = 0; i < paramStr.length(); ++i) {
         char c = paramStr[i];
-        
+
         if (c == '"') {
             // Toggle the inQuotes flag
             inQuotes = !inQuotes;

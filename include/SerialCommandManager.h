@@ -28,6 +28,8 @@ class SerialCommandManager
     int baudRate = 115200;
     Configuration& config;
 
+    String inputBuffer;
+
     void handleSerialInput();
     std::vector<String> splitParameters(const String& paramStr);
 

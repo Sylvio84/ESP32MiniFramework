@@ -39,9 +39,13 @@ protected:
     ESPUIManager espUIManager;
     #endif
 
+    int powerSaving = 0; // 0 = disabled, else = idle time in ms while power saving (100 is a good value)
     bool timeSet = false;
 
     std::vector<Device*> devices;
+
+    uint powerSavingRemumeTimer = 0;
+    void setPowerSaving(int value, bool save = true);
 
 public:
     MainController(Configuration &config);
@@ -65,7 +69,7 @@ public:
 
     EventManager* getEventManager();
 
-    void processDebugMessage(String message, int level = 0);
+    void processDebugMessage(String message, int level = 0, bool displayTime = true);
 };
 
 #endif

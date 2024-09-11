@@ -20,7 +20,9 @@ class MQTTManager
 {
 
   public:
-    MQTTManager(Configuration& config, EventManager& eventMgr) : config(config), mqttClient(wifiClient) { this->eventManager = &eventMgr; }
+    MQTTManager(Configuration& config, EventManager& eventMgr) : config(config), mqttClient(wifiClient) { 
+        this->eventManager = &eventMgr;
+    }
 
     // 0 = disabled, 1 = waiting wifi to connect, 2 = keep connected
     uint status = 0;
