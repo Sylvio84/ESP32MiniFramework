@@ -8,7 +8,7 @@
 
 using MainCallback = std::function<void(const String&, const String&, const std::vector<String>&)>;
 using EventCallback = std::function<void(const String&, const std::vector<String>&)>;
-using DebugCallBack = std::function<void(const String&, int)>;
+using DebugCallBack = std::function<void(const String&, int, bool)>;
 
 class EventManager {
 public:
@@ -22,7 +22,7 @@ public:
     void triggerEvent(const String& eventType, const String& event, const std::vector<String>& params);
 
     void registerDebugCallback(DebugCallBack callback);
-    void debug(String message, int level = 0);
+    void debug(String message, int level = 0, bool displayTime = true);
 
 private:
     // Map associant chaque type d'événement à une liste de callbacks

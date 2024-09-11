@@ -24,9 +24,9 @@ void EventManager::registerDebugCallback(DebugCallBack callback) {
     debugCallback = callback;
 }
 
-void EventManager::debug(String message, int level)
+void EventManager::debug(String message, int level, bool displayTime)
 {
     if (debugCallback) {
-        debugCallback(message, level);
+        debugCallback(message, level, displayTime);
     }
 }

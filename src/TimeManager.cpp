@@ -17,10 +17,10 @@ bool TimeManager::update(bool force)
         return true;
     }
     if (!WiFi.isConnected()) {
-        //eventManager->debug("WiFi not connected, cannot update time", 1);
+        eventManager->debug("WiFi not connected, cannot update time", 1, false);
         return false;
     }
-    //eventManager->debug("Updating time from " + String(config.NTP_SERVER), 1);
+    eventManager->debug("Updating time from " + String(config.NTP_SERVER), 1, false);
     configTime(0, 0, config.NTP_SERVER);
     setenv("TZ", config.TIMEZONE, 1);
     tzset();
@@ -33,21 +33,21 @@ String TimeManager::getFormattedDateTime(const char* format)
 {
     if (!isInitialized) {
         if (WiFi.isConnected()) {
-            //eventManager->debug("Time not initialized, initializing...", 2);
+            eventManager->debug("Time not initialized, initializing...", 2, false);
             update();
         } else {
             return String("");
         }
     }
     if (!isInitialized) {
-        //eventManager->debug("Failed to initialize time", 1);
+        eventManager->debug("Failed to initialize time", 1, false);
         return String("");
     }
     struct tm timeinfo;
 
     if (!getLocalTime(&timeinfo)) {
         // logMessage("Failed to obtain time");
-        //eventManager->debug("Failed to obtain time", 2);
+        eventManager->debug("Failed to obtain time", 2, false);
         return String("");
     }
     char formattedTime[20];
@@ -69,7 +69,7 @@ uint TimeManager::setInterval(std::function<void()> callback, unsigned long inte
 {
     Interval newInterval = {millis(), intervalTime, callback, true};
     intervals.push_back(newInterval);
-    return intervals.size() - 1;  // Retourner l'index comme ID d'intervalle
+    return intervals.size() - 1;
 }
 
 uint TimeManager::setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime)
@@ -82,7 +82,7 @@ uint TimeManager::setIntervalObj(void* obj, std::function<void(void*)> callback,
 void TimeManager::clearInterval(uint id)
 {
     if (id >= 0 && id < intervals.size()) {
-        intervals[id].active = false;  // Désactiver l'intervalle
+        intervals[id].active = false;
     }
 }
 
@@ -113,7 +113,7 @@ uint TimeManager::setTimeoutObj(void* obj, std::function<void(void*)> callback, 
 void TimeManager::clearTimeout(uint id)
 {
     if (id >= 0 && id < timeouts.size()) {
-        timeouts[id].active = false;  // Désactiver le délai
+        timeouts[id].active = false;
     }
 }
 
@@ -145,19 +145,19 @@ uint TimeManager::setScheduler(std::function<void()> callback, int hour, int min
 {
     Scheduler newScheduler = {hour, minute, daysOfWeek, callback, true};
     schedulers.push_back(newScheduler);
-    return schedulers.size() - 1;  // Retourner l'index comme ID de planification
+    return schedulers.size() - 1;
 }
 
 uint TimeManager::setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, const std::vector<int>& daysOfWeek)
 {
     Scheduler newScheduler = {hour, minute, daysOfWeek, [obj, callback]() { callback(obj); }, true};
     schedulers.push_back(newScheduler);
-    return schedulers.size() - 1;  // Retourner l'index comme ID de planification
+    return schedulers.size() - 1;
 }
 
 void TimeManager::clearScheduler(uint id)
 {
     if (id >= 0 && id < schedulers.size()) {
-        schedulers[id].active = false;  // Désactiver la planification
+        schedulers[id].active = false;
     }
 }

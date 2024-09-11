@@ -15,7 +15,7 @@ MainController::MainController(Configuration& config)
 {
     eventManager.registerMainCallback(
         [this](const String& eventType, const String& event, const std::vector<String>& params) { this->processEvent(eventType, event, params); });
-    eventManager.registerDebugCallback([this](const String& message, int level) { this->processDebugMessage(message, level); });
+    eventManager.registerDebugCallback([this](const String& message, int level, bool displayTime = true) { this->processDebugMessage(message, level, displayTime); });
 }
 
 void MainController::init()

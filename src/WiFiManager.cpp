@@ -7,6 +7,7 @@ void WiFiManager::init(bool auto_connect)
     eventManager->debug("Init WiFiManager", 1);
     retrieveSSID();
     retrievePassword();
+    apMode = static_cast<wm_ap_mode>(config.getPreference("ap_mode", 2));
     if (auto_connect) {
         this->autoConnect();
     }
@@ -26,10 +27,18 @@ void WiFiManager::loop()
     unsigned long wait = (tryCount + 1) * checkDelay;
 
     if (currentMillis - lastMillis >= wait) {
-        if (connectionStatus == 1)  // Connection in progress
-        {
+        if (connectionStatus < 10) {
+            //Serial.println(WiFi.status());
             if (WiFi.status() != WL_CONNECTED) {
                 this->connected = false;
+                if (WiFi.status() == WL_WRONG_PASSWORD) {
+                    if (connectionStatus != 6) {
+                        connectionStatus = 6;
+                        eventManager->debug("WiFi: Wrong password", 0);
+                        eventManager->triggerEvent("wifi", "wrong_password", {});
+                        this->startAccessPoint();
+                    }
+                }
                 tryCount++;
                 std::vector<String> params;
                 params.push_back(String(tryCount));
@@ -39,15 +48,18 @@ void WiFiManager::loop()
                     if (keepConnected) {
                         eventManager->debug("WiFi: Connection failed, retrying", 1);
                     } else {
-                        connectionStatus = 2;
-                        eventManager->debug("WiFi: Connection failed", 1);
-                        eventManager->triggerEvent("wifi", "failed", params);
-                        this->startAccessPoint();
+                        if (connectionStatus != 6) {
+                            connectionStatus = 2;
+                            eventManager->debug("WiFi: Connection failed", 1);
+                            eventManager->triggerEvent("wifi", "failed", params);
+                            // if wifi mode is AP, restart AP
+                            this->startAccessPoint();
+                        }
                     }
                 } else {
                     //Serial.print("*");
-                    eventManager->debug("WiFi: connection in progress #" + String(tryCount) + "..." , 2);
                 }
+                eventManager->debug("WiFi: connection in progress #" + String(tryCount) + "...", 2);
             } else {
                 connected = true;
                 keepConnected = true;
@@ -172,7 +184,14 @@ bool WiFiManager::connect()
 {
     connectionStatus = 1;
     eventManager->debug("Connecting to: " + this->ssid + "...", 0);
-    WiFi.mode(WIFI_STA);
+
+    WiFiMode_t mode = WIFI_STA;
+    if (apMode == WM_AP_MODE_ALWAYS) {
+        mode = WIFI_AP_STA;
+    }
+    if (WiFi.getMode() != mode) {
+        WiFi.mode(mode);
+    }
 
     WiFi.begin(this->ssid.c_str(), this->password.c_str());
     delay(100);
@@ -194,18 +213,35 @@ void WiFiManager::disconnect()
     eventManager->triggerEvent("wifi", "disconnected", {});
 }
 
-void WiFiManager::startAccessPoint()
+void WiFiManager::startAccessPoint(bool restart)
 {
-    disconnect();
+    if (apMode == WM_AP_MODE_NEVER) {
+        eventManager->debug("Hotspot disabled", 1);
+        return;
+    }
+    if (!restart && (WiFi.getMode() == WIFI_AP_STA || WiFi.getMode() == WIFI_AP)) {
+        eventManager->debug("Hotspot already started", 1);
+        return;
+    }
+
+    //disconnect();
     eventManager->debug("Creating Hotspot: " + config.getHostname(), 0);
     eventManager->debug("IP Address: " + this->apIP.toString(), 0);
-    WiFi.mode(WIFI_AP);
+    WiFi.mode(WIFI_AP_STA);
     delay(100);
     WiFi.softAPConfig(this->apIP, this->apIP, IPAddress(255, 255, 255, 0));
     WiFi.softAP(this->config.getHostname().c_str());
-    connectionStatus = 5;
-    connected = false;
+    //connectionStatus = 5;
+    //connected = false;
     eventManager->triggerEvent("wifi", "ap_started", {});
+}
+
+void WiFiManager::stopAccessPoint()
+{
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_STA);
+    eventManager->triggerEvent("wifi", "ap_stopped", {});
+    eventManager->debug("Hotspot stopped", 0);
 }
 
 String WiFiManager::getSSID()
@@ -218,18 +254,26 @@ bool WiFiManager::isConnected()
     return this->connected;
 }
 
-void WiFiManager::saveSSID(String ssid)
+void WiFiManager::saveSSID(String ssid, bool reconnect)
 {
     this->ssid = ssid;
     eventManager->debug("New WiFi SSID: " + this->ssid, 1);
     config.setPreference("wf_ssid", ssid);
+    if (reconnect) {
+        disconnect();
+        connect();
+    }
 }
 
-void WiFiManager::savePassword(String password)
+void WiFiManager::savePassword(String password, bool reconnect)
 {
     this->password = password;
     eventManager->debug("New WiFi password: " + this->password, 1);
     config.setPreference("wf_pass", password);
+    if (reconnect) {
+        disconnect();
+        connect();
+    }
 }
 
 String WiFiManager::getDebugInfos()
