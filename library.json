@@ -67,8 +67,7 @@
         },
         {
             "name": "ESPTelnet",
-            "url": "git@github.com:Sylvio84/ESPTelnet.git",
-            "version": "main",
+            "version": "git@github.com:Sylvio84/ESPTelnet.git",
             "frameworks": "arduino"
         }
     ],
