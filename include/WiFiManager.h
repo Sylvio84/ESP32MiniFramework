@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <Configuration.h>
+#include <ESPTelnet.h>
 #ifndef DISABLE_ESPUI
 #include <ESPUI.h>
 #endif
@@ -30,6 +31,8 @@ class WiFiManager
     static const uint CONNECTION_TIMEOUT = 10000;
 
     Configuration& config;
+    ESPTelnet telnet;
+    uint16_t telnetPort = 23;
 
     bool connected = false;
     bool keepConnected = false;
@@ -73,6 +76,9 @@ class WiFiManager
     bool keepConnection();
     void disconnect();
     void startAccessPoint(bool restart = false);
+    void setupTelnet();
+    void stopTelnet();
+    void printTelnet(String message);
     void stopAccessPoint();
     String getStatus();
     String getSSID();

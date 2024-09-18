@@ -113,7 +113,7 @@ uint TimeManager::setTimeoutObj(void* obj, std::function<void(void*)> callback, 
 void TimeManager::clearTimeout(uint id)
 {
     if (id >= 0 && id < timeouts.size()) {
-        timeouts[id].active = false;
+        timeouts.erase(timeouts.begin() + id);
     }
 }
 
@@ -158,6 +158,6 @@ uint TimeManager::setSchedulerObj(void* obj, std::function<void(void*)> callback
 void TimeManager::clearScheduler(uint id)
 {
     if (id >= 0 && id < schedulers.size()) {
-        schedulers[id].active = false;
+        schedulers.erase(schedulers.begin() + id);
     }
 }

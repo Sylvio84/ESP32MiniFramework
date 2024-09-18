@@ -15,6 +15,8 @@ void WiFiManager::init(bool auto_connect)
 
 void WiFiManager::loop()
 {
+    telnet.loop();
+
     static unsigned long lastMillis = 0;
     unsigned long currentMillis = millis();
 
@@ -231,9 +233,57 @@ void WiFiManager::startAccessPoint(bool restart)
     delay(100);
     WiFi.softAPConfig(this->apIP, this->apIP, IPAddress(255, 255, 255, 0));
     WiFi.softAP(this->config.getHostname().c_str());
+    setupTelnet();
     //connectionStatus = 5;
     //connected = false;
     eventManager->triggerEvent("wifi", "ap_started", {});
+}
+
+void WiFiManager::setupTelnet() {  
+  // passing on functions for various telnet events
+  telnet.onConnect([this](const String& str) {
+    eventManager->debug("Telnet connected", 2);
+    eventManager->triggerEvent("telnet", "connected", {});
+  });
+
+  telnet.onConnectionAttempt([this](const String& str) {
+    eventManager->debug("Telnet connection attempt", 2);
+    eventManager->triggerEvent("telnet", "connection_attempt", {str});
+  });
+  telnet.onReconnect([this](const String& str) {
+    eventManager->debug("Telnet reconnected", 2);
+    eventManager->triggerEvent("telnet", "reconnected", {});
+  });
+  telnet.onDisconnect([this](const String& str) {
+    eventManager->debug("Telnet disconnected", 2);
+    eventManager->triggerEvent("telnet", "disconnected", {});
+  });
+  telnet.onInputReceived([this](const String& str) {
+    eventManager->debug("Telnet input received: " + str, 2);
+    eventManager->triggerEvent("telnet", "input", {str});
+  });
+
+  if (telnet.begin(telnetPort)) {
+    eventManager->debug("Telnet server started on port " + String(telnetPort), 1);
+    eventManager->triggerEvent("telnet", "started", {String(telnetPort)});
+  } else {
+    eventManager->debug("Telnet server could not start", 1);
+  }
+}
+
+void WiFiManager::stopTelnet()
+{
+    telnet.stop();
+    eventManager->triggerEvent("telnet", "stopped", {});
+    eventManager->debug("Telnet stopped", 0);
+}
+
+void WiFiManager::printTelnet(String message)
+{
+    if (!telnet.isConnected()) {
+        return;
+    }
+    telnet.print(message);
 }
 
 void WiFiManager::stopAccessPoint()

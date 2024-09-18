@@ -66,6 +66,9 @@ class MQTTManager
     bool removeSubscription(String topic);
     std::vector<String> getSubscriptions();
 
+    bool storePublication(String topic, String payload);
+    bool removePublication(String topic);
+
 #ifndef DISABLE_ESPUI
     void initEspUI();
     void EspUiCallback(Control* sender, int type);
@@ -81,6 +84,8 @@ class MQTTManager
     bool connected = false;
 
     std::vector<String> subscriptions;
+
+    std::map<String, String> publications;
 
 #ifndef DISABLE_ESPUI
     // ESPUI:

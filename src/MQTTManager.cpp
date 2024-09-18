@@ -47,7 +47,7 @@ void MQTTManager::loop()
     }*/
 
     if (currentMillis - lastMillis >= 1000) {
-        if ((status >= 2) && server !="" && !mqttClient.connected()) {
+        if ((status >= 2) && server != "" && !mqttClient.connected()) {
             if (!reconnect()) {
                 eventManager->debug("MQTT connection failed, try again in 1 seconds", 1);
             }
@@ -75,10 +75,14 @@ bool MQTTManager::reconnect()
         if (mqttClient.connect(config.getHostname().c_str(), username.c_str(), password.c_str())) {
             eventManager->triggerEvent("mqtt", "Connected", {this->server});
             eventManager->debug("MQTT connected (hostname = " + config.getHostname() + ")", 1);
-            eventManager->debug("Process subscriptions: " + String(subscriptions.size()), 3);
             for (const auto& topic : subscriptions) {
-                eventManager->debug("Process subscription " + topic, 3);
+                eventManager->debug("Process subscription " + topic, 2);
                 subscribe(topic);
+            }
+            for (const auto& pub : publications) {
+                eventManager->debug("Publishing stored publication: " + pub.first + " = " + pub.second, 2);
+                publish(pub.first, pub.second);
+                removePublication(pub.first);
             }
             return true;
         } else {
@@ -94,6 +98,10 @@ void MQTTManager::publish(String topic, String payload, bool enableDebug)
 {
     if (enableDebug) {
         eventManager->debug("Publishing to " + topic + ": " + payload, 2);
+    }
+    if (!mqttClient.connected()) {
+        eventManager->debug("MQTT not connected, can't publish: " + topic + " = " + payload, 1);
+        return;
     }
     mqttClient.publish(topic.c_str(), payload.c_str());
 }
@@ -198,6 +206,22 @@ void MQTTManager::processEvent(String type, String event, std::vector<String> pa
             } else {
                 eventManager->debug("Missing topic or payload", 1);
             }
+        } else if (event == "publishAsap") {
+            if (params.size() > 1) {
+                if (isConnected()) {
+                    publish(params[0], params[1]);
+                } else {
+                    storePublication(params[0], params[1]);
+                }
+            } else {
+                eventManager->debug("Missing topic or payload", 1);
+            }
+        } else if (event == "removePublication") {
+            if (params.size() > 0) {
+                removePublication(params[0]);
+            } else {
+                eventManager->debug("Missing topic", 1);
+            }
         }
     }
 }
@@ -298,6 +322,30 @@ bool MQTTManager::removeSubscription(String topic)
 std::vector<String> MQTTManager::getSubscriptions()
 {
     return subscriptions;
+}
+
+bool MQTTManager::storePublication(String topic, String payload)
+{
+    eventManager->debug("Storing MQTT publication: " + topic + " = " + payload, 3);
+    auto it = publications.find(topic);
+    if (it != publications.end()) {
+        publications[topic] = payload;
+        return true;
+    } else {
+        publications[topic] = payload;
+        return false;
+    }
+}
+
+bool MQTTManager::removePublication(String topic)
+{
+    eventManager->debug("Removing MQTT publication: " + topic, 3);
+    auto it = publications.find(topic);
+    if (it != publications.end()) {
+        publications.erase(it);
+        return true;
+    }
+    return false;
 }
 
 #ifndef DISABLE_ESPUI

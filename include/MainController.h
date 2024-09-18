@@ -62,6 +62,7 @@ public:
 #ifndef DISABLE_ESPUI
     virtual void processUI(String action, std::vector<String> params);
 #endif
+    bool processInput(const String input);
     virtual void processCommand(String command, std::vector<String> params);
     virtual void processEvent(String type, String event, std::vector<String> params);
 

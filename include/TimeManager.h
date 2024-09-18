@@ -18,8 +18,6 @@ protected:
     Configuration& config;
     static EventManager* eventManager;  // Pointeur vers EventManager
 
-    bool isInitialized = false;
-
     struct Timeout {
         unsigned long startTime;
         unsigned long delay;
@@ -52,6 +50,10 @@ protected:
     void checkSchedulers(); // @todo: to test
 
 public:
+
+    bool isInitialized = false;
+
+
     TimeManager(Configuration& config, EventManager& eventMgr) : config(config)
     {
         this->eventManager = &eventMgr;

@@ -64,6 +64,12 @@
             "owner": "knolleary",
             "version": "~2.8",
             "frameworks": "arduino"
+        },
+        {
+            "name": "ESPTelnet",
+            "url": "git@github.com:Sylvio84/ESPTelnet.git",
+            "version": "main",
+            "frameworks": "arduino"
         }
     ],
     "frameworks": "arduino",

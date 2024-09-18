@@ -22,8 +22,6 @@ class SerialCommandManager
     void init();
     void loop();
 
-    void processCommand(const String& input);
-
   private:
     int baudRate = 115200;
     Configuration& config;
@@ -31,7 +29,6 @@ class SerialCommandManager
     String inputBuffer;
 
     void handleSerialInput();
-    std::vector<String> splitParameters(const String& paramStr);
 
     static EventManager* eventManager;
 };

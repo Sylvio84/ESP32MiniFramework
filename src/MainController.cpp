@@ -15,7 +15,8 @@ MainController::MainController(Configuration& config)
 {
     eventManager.registerMainCallback(
         [this](const String& eventType, const String& event, const std::vector<String>& params) { this->processEvent(eventType, event, params); });
-    eventManager.registerDebugCallback([this](const String& message, int level, bool displayTime = true) { this->processDebugMessage(message, level, displayTime); });
+    eventManager.registerDebugCallback(
+        [this](const String& message, int level, bool displayTime = true) { this->processDebugMessage(message, level, displayTime); });
 }
 
 void MainController::init()
@@ -57,11 +58,10 @@ void MainController::loop()
     wiFiManager.loop();
     if (wiFiManager.isConnected()) {
         mqttManager.loop();
-        if (mqttManager.isConnected() && powerSaving > 0) {
-            delay(powerSaving);  //power saving
+        if (mqttManager.isConnected() && timeManager.isInitialized && powerSaving > 0) {
+            delay(powerSaving);
         }
     }
-    // readSerialCommand();
     for (auto& device : devices) {
         device->loop();
     }
@@ -206,10 +206,45 @@ void MainController::processEvent(String type, String event, std::vector<String>
         }
 #endif
     } else if (type == "serial") {
+        if (event == "input") {
+            processInput(params[0]);
+        }
         if (event == "command") {
             eventManager.triggerEvent("espui", "SerialIn", params);
         }
+    } else if (type == "telnet") {
+        if (event == "input") {
+            processInput(params[0]);
+        }
     }
+}
+
+bool MainController::processInput(const String input)
+{
+    eventManager.debug("Processing input: " + input, 2);
+    if (input.length() == 0) {
+        eventManager.debug("Empty input", 1);
+        return false;
+    }
+    int nsIndex = input.indexOf(':');
+    int cmdIndex = input.indexOf(' ');
+
+    if (nsIndex == -1 || (cmdIndex != -1 && cmdIndex < nsIndex)) {
+        eventManager.debug("Erreur: Format de commande incorrect: " + input, 0);
+        return false;
+    }
+
+    // Extraction du namespace et de la commande
+    String ns = input.substring(0, nsIndex);
+    String command = cmdIndex == -1 ? input.substring(nsIndex + 1) : input.substring(nsIndex + 1, cmdIndex);
+
+    // Extraction des paramètres
+    String paramStr = cmdIndex == -1 ? "" : input.substring(cmdIndex + 1);
+    std::vector<String> params = paramStr.isEmpty() ? std::vector<String>() : splitParameters(paramStr);
+
+    //eventManager.triggerEvent("serial", "command", {input});
+    eventManager.triggerEvent(ns, "@" + command, params);
+    return true;
 }
 
 void MainController::processCommand(String command, std::vector<String> params)
@@ -389,10 +424,13 @@ void MainController::processDebugMessage(String message, int level, bool display
             logJson = "{\"level\":" + String(level) + ",\"message\":\"" + message + "\"}";
         }
         Serial.println(message);
+        wiFiManager.printTelnet(message + "\n");
 #ifndef DISABLE_ESPUI
         espUIManager.addDebugMessage(message, level);
 #endif
-        mqttManager.publish(config.getHostname() + "/log", logJson, false);
+        if (mqttManager.isConnected()) {
+            mqttManager.publish(config.getHostname() + "/log", logJson, false);
+        }
     }
 }
 
