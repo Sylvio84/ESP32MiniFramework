@@ -38,7 +38,10 @@ void MQTTManager::init()
 
 void MQTTManager::loop()
 {
-    static unsigned long lastMillis = 0;
+    static unsigned long lastMQTTReconnect = 0;
+    static unsigned long retry = 1;
+    static unsigned long lastMQTTLoop = 0;
+    static unsigned long reconnectDelay = 0;
     unsigned long currentMillis = millis();
 
     /*if (!wifiClient.available()) {
@@ -46,15 +49,27 @@ void MQTTManager::loop()
         return;
     }*/
 
-    if (currentMillis - lastMillis >= 1000) {
+    if (currentMillis - lastMQTTReconnect >= (reconnectDelay * 1000)) {
         if ((status >= 2) && server != "" && !mqttClient.connected()) {
+            eventManager->debug("MQTT: Try to connect....", 1);
             if (!reconnect()) {
-                eventManager->debug("MQTT connection failed, try again in 1 seconds", 1);
+                retry++;
+                int reconnectDelay = retry;
+                if (reconnectDelay > 60) {
+                    reconnectDelay = 60;
+                }
+                eventManager->debug("MQTT connection failed, try again in " + String(reconnectDelay) + "s", 1);
             }
         }
-        lastMillis = currentMillis;
+        lastMQTTReconnect = currentMillis;
     }
-    mqttClient.loop();
+    if ((lastMQTTLoop == 0) || (currentMillis - lastMQTTLoop >= 25)) {
+        if (mqttClient.loop() && retry != 0) {
+            retry = 0;
+            reconnectDelay = 1000;
+        }
+        lastMQTTLoop = currentMillis;
+    }
 }
 
 void MQTTManager::setStatus(uint status)
@@ -88,6 +103,19 @@ bool MQTTManager::reconnect()
         } else {
             eventManager->triggerEvent("mqtt", "ConnectionFailed", {});
             eventManager->debug("MQTT error: " + String(mqttClient.state()), 2);
+            IPAddress serverIP;
+            if (WiFi.hostByName(config.getHostname().c_str(), serverIP)) {
+                eventManager->debug("Server IP: " + serverIP.toString(), 2);
+            } else {
+                eventManager->debug("DNS lookup failed", 1);
+            }
+            WiFiClient testClient;
+            if (testClient.connect(serverIP, 1883)) {
+                eventManager->debug("TCP connection successful", 2);
+                testClient.stop();
+            } else {
+                eventManager->debug("TCP connection failed", 2);
+            }
             return false;
         }
     }
@@ -258,7 +286,11 @@ bool MQTTManager::processCommand(String command, std::vector<String> params)
             eventManager->debug("Password: " + retrievePassword(), 0);
         }
     } else if (command == "status") {
-        eventManager->debug("Status: " + String(isConnected()), 0);
+        if (isConnected()) {
+            eventManager->debug("MQTT: Not connected", 0);
+        } else {
+            eventManager->debug("MQTT: Connected", 0);
+        }
     } else if (command == "connect") {
         reconnect();
     } else if (command == "subscribe") {

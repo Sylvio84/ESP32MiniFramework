@@ -26,6 +26,7 @@ bool Device::handleCommand(const std::string& command)
         commands[command]();  // Appelle la fonction associée
         return true;
     }
+    eventManager->debug("Command not found", 3);
     return false;
 }
 
@@ -95,7 +96,7 @@ bool Device::processCommand(String command, std::vector<String> params)
         if (params.size() > 0) {
             saveName(params[0]);
         } else {
-            Serial.println("Name: " + retrieveName());
+            eventManager->debug("Name: " + retrieveName(), 0);
         }
         return true;
     }
@@ -103,7 +104,7 @@ bool Device::processCommand(String command, std::vector<String> params)
         if (params.size() > 0) {
             saveTopic(params[0]);
         } else {
-            Serial.println("Topic: " + retrieveTopic());
+            eventManager->debug("Topic: " + retrieveTopic(), 0);
         }
         return true;
     }

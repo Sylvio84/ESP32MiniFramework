@@ -90,6 +90,7 @@ void TimeManager::checkTimeouts()
 {
     for (auto& timeout : timeouts) {
         if (timeout.active && (millis() - timeout.startTime >= timeout.delay)) {
+            eventManager->debug("Timeout triggered", 2);
             timeout.callback();
             timeout.active = false;
         }

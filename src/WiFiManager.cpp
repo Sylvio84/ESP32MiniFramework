@@ -148,7 +148,7 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
         uint16_t count = getNetworkCount();
         eventManager->debug("Networks found: " + String(count), 0);
         for (int i = 0; i < count; i++) {
-            eventManager->debug(String(i) + ": " + getNetworkInfo(i, "ssid"), 0);
+            eventManager->debug("#" + String(i) + " " + getNetworkInfo(i, "ssid") + " RSSI=" + getNetworkInfo(i, "rssi") + "db", 0);
         }
         eventManager->debug("wifi:network <n> to set network", 0);
     } else if (command == "network") {
@@ -557,6 +557,7 @@ bool WiFiManager::otaUpdate()
         return false;
     }*/
 
+    eventManager->debug("Start OTA update from " + otaHost + ":" + String(otaPort) + otaUrl, 1);
     auto ret = ESPhttpUpdate.update(client, otaHost, otaPort, otaUrl);
     // if successful, ESP will restart
     switch (ret) {

@@ -1,3 +1,4 @@
+#ifndef DISABLE_DISPLAY
 #include "../include/DisplayManager.h"
 
 
@@ -114,3 +115,4 @@ LiquidCrystal_I2C DisplayManager::getLcd()
 {
     return lcd;
 }
+#endif

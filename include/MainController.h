@@ -4,7 +4,9 @@
 #include <Arduino.h>
 #include <Configuration.h>
 #include <SerialCommandManager.h>
+#ifndef DISABLE_DISPLAY
 #include <DisplayManager.h>
+#endif
 #include <WiFiManager.h>
 #include <MQTTManager.h>
 #ifndef DISABLE_ESPUI
@@ -30,7 +32,9 @@ protected:
     EventManager eventManager;
     Configuration& config;
     SerialCommandManager serialCommandManager;
+    #ifndef DISABLE_DISPLAY
     DisplayManager displayManager;
+    #endif
     WiFiManager wiFiManager;
     MQTTManager mqttManager;
     TimeManager timeManager;

@@ -1,3 +1,4 @@
+#ifndef DISABLE_DISPLAY
 #ifndef DISPLAYMANAGER_H
 #define DISPLAYMANAGER_H
 
@@ -43,4 +44,5 @@ public:
     LiquidCrystal_I2C getLcd();
 };
 
+#endif
 #endif

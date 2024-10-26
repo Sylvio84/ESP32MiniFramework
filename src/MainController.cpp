@@ -4,7 +4,10 @@ MainController::MainController(Configuration& config)
     : eventManager(),
       config(config),
       serialCommandManager(config, eventManager),
-      displayManager(config),
+#ifndef DISABLE_DISPLAY
+      ,
+      displayManager(config)
+#endif
       wiFiManager(config, eventManager),
       mqttManager(config, eventManager),
       timeManager(config, eventManager)
@@ -25,7 +28,9 @@ void MainController::init()
     config.init(eventManager);
 
     serialCommandManager.init();
+    #ifndef DISABLE_DISPLAY
     displayManager.init();
+    #endif
     wiFiManager.init();
     timeManager.init();
     mqttManager.init();
@@ -38,13 +43,14 @@ void MainController::init()
     for (auto& device : devices) {
         device->init();
     }
-
+#ifndef DISABLE_DISPLAY
     displayManager.clear();
     if (wiFiManager.isConnected()) {
         displayManager.printLine(0, "Wifi Connected");
     } else {
         displayManager.printLine(0, "Not connected");
     }
+    #endif
 
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + config.getHostname() + "!", 0);
@@ -298,9 +304,11 @@ void MainController::processCommand(String command, std::vector<String> params)
     } else if (command == "date") {
         eventManager.debug(timeManager.getFormattedDateTime("%d/%m/%Y"), 0);
     } else if (command == "ota") {
+        // the firmware should not exceed 510KB
         wiFiManager.otaUpdate();
     } else if (command == "restart" || command == "reboot") {
         eventManager.debug("Restarting (command)...", 1);
+        delay(500);
         ESP.restart();
     } else if (command == "debuglevel") {
         if (params.size() > 0) {
