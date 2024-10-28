@@ -20,8 +20,8 @@ void MQTTManager::init()
     }
     mqttClient.setServer(server.c_str(), port);
 
-    mqttClient.setKeepAlive(5);
-    mqttClient.setSocketTimeout(100);
+    //mqttClient.setKeepAlive(5);
+    //mqttClient.setSocketTimeout(100);
 
     /*mqttClient.setCallback([this](char *topic, byte *payload, unsigned int length)
                            { eventManager->triggerEvent("mqtt", "message", {topic, String((char *)payload, length)}); });*/
@@ -49,7 +49,7 @@ void MQTTManager::loop()
         return;
     }*/
 
-    if (currentMillis - lastMQTTReconnect >= (reconnectDelay * 1000)) {
+    if (currentMillis - lastMQTTReconnect >= (reconnectDelay * 10000)) {
         if ((status >= 2) && server != "" && !mqttClient.connected()) {
             eventManager->debug("MQTT: Try to connect....", 1);
             if (!reconnect()) {
@@ -58,7 +58,7 @@ void MQTTManager::loop()
                 if (reconnectDelay > 60) {
                     reconnectDelay = 60;
                 }
-                eventManager->debug("MQTT connection failed, try again in " + String(reconnectDelay) + "s", 1);
+                eventManager->debug("MQTT connection failed, try again in " + String(reconnectDelay * 10) + "s", 1);
             }
         }
         lastMQTTReconnect = currentMillis;

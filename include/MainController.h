@@ -63,6 +63,9 @@ public:
     Device* getDeviceByName(const String &name) const;
     Device* getDeviceByTopic(const String &topic) const;
 
+    void internalLed(bool state);
+    bool internalLedState();
+
 #ifndef DISABLE_ESPUI
     virtual void processUI(String action, std::vector<String> params);
 #endif

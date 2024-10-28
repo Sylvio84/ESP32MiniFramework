@@ -63,6 +63,9 @@ bool Configuration::setPreference(const String key, String value)
 int Configuration::getPreference(const String key, int defaultValue)
 {
 #ifdef ESP32
+    if (!prefs.isKey(key.c_str())) {
+        return defaultValue;
+    }
     return prefs.getInt(key.c_str(), defaultValue);
 #else
     return readVariableInt(key, defaultValue);
@@ -72,24 +75,25 @@ int Configuration::getPreference(const String key, int defaultValue)
 String Configuration::getPreference(const String key, const String& defaultValue)
 {
 #ifdef ESP32
+    if (!prefs.isKey(key.c_str())) {
+        return defaultValue;
+    }
     return prefs.getString(key.c_str(), defaultValue);
 #else
     return readVariableString(key, defaultValue);
 #endif
 }
 
+String Configuration::getHostname()
+{
+    return getPreference("hostname", String(HOSTNAME));
+}
+
 String Configuration::getJsonConfig()
 {
     String jsonString;
 #ifdef ESP32
-    for (int i = 0; i < prefs.length(); i++) {
-        String key = prefs.key(i);
-        if (prefs.type(i) == PREF_INT) {
-            jsonString += "\"" + key + "\": " + prefs.getInt(key) + ", ";
-        } else if (prefs.type(i) == PREF_STRING) {
-            jsonString += "\"" + key + "\": \"" + prefs.getString(key) + "\", ";
-        }
-    }
+    eventManager->debug("Not possible to get JSON config on ESP32", 0);
 #else
     serializeJson(json_preferences, jsonString);
 #endif
@@ -99,27 +103,15 @@ String Configuration::getJsonConfig()
 bool Configuration::setJsonConfig(const String json)
 {
 #ifdef ESP32
-    DeserializationError error = deserializeJson(json_preferences, json);
-    if (error) {
-        Serial.print("Failed to deserialize JSON: ");
-        Serial.println(error.c_str());
-        return false;
-    }
-    for (JsonPair kv : json_preferences.as<JsonObject>()) {
-        if (kv.value().is<int>()) {
-            setPreference(kv.key().c_str(), kv.value().as<int>());
-        } else if (kv.value().is<String>()) {
-            setPreference(kv.key().c_str(), kv.value().as<String>());
-        }
-    }
-    return true;
+    eventManager->debug("Not possible to set JSON config on ESP32", 0);
+    return false;
 #else
     json_preferences = json;
     return writeJsonPreferences();
 #endif
 }
 
-#ifndef ESP32
+#ifdef ESP8266
 
 bool Configuration::readJsonPreferences()
 {
@@ -189,11 +181,6 @@ int Configuration::readVariableInt(const String key, int defaultValue)
 String Configuration::readVariableString(const String key, String defaultValue)
 {
     return json_preferences.containsKey(key) ? json_preferences[key].as<String>() : defaultValue;
-}
-
-String Configuration::getHostname()
-{
-    return getPreference("hostname", String(HOSTNAME));
 }
 
 void Configuration::debugJsonPreferences()

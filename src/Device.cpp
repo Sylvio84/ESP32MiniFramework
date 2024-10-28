@@ -6,7 +6,9 @@ void Device::init()
 {
     retrieveName();
     retrieveTopic();
+#ifndef DISABLE_ESPUI
     initEspUI();
+#endif
     subscribeMQTT(topic);
     eventManager->debug("Device #" + id + " initialized", 1);
 }
@@ -127,6 +129,7 @@ bool Device::processUI(String action, std::vector<String> params)
     return false;
 }
 
+#ifndef DISABLE_ESPUI
 void Device::initEspUI()
 {
     eventManager->debug("Init " + id + " ESPUI", 2);
@@ -163,3 +166,4 @@ void Device::EspUiCallback(Control* sender, int type)
         saveTopic(ESPUI.getControl(topicInput)->value);
     }
 }
+#endif

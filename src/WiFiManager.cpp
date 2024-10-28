@@ -8,7 +8,11 @@ void WiFiManager::init(bool auto_connect)
     retrieveSSID();
     retrievePassword();
     apMode = static_cast<wm_ap_mode>(config.getPreference("ap_mode", 2));
-    if (auto_connect) {
+
+    if (!this->ssid.length() || this->ssid == "") {
+        eventManager->debug("No SSID, Start Access Point", 0);
+        startAccessPoint();
+    } else if (auto_connect) {
         this->autoConnect();
     }
 }
@@ -16,6 +20,9 @@ void WiFiManager::init(bool auto_connect)
 void WiFiManager::loop()
 {
     telnet.loop();
+    if (!this->ssid.length()) {
+        return;
+    }
 
     static unsigned long lastMillis = 0;
     unsigned long currentMillis = millis();
@@ -33,6 +40,7 @@ void WiFiManager::loop()
             //Serial.println(WiFi.status());
             if (WiFi.status() != WL_CONNECTED) {
                 this->connected = false;
+#ifdef ESP8266
                 if (WiFi.status() == WL_WRONG_PASSWORD) {
                     if (connectionStatus != 6) {
                         connectionStatus = 6;
@@ -41,6 +49,7 @@ void WiFiManager::loop()
                         this->startAccessPoint();
                     }
                 }
+#endif
                 tryCount++;
                 std::vector<String> params;
                 params.push_back(String(tryCount));
@@ -158,6 +167,23 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
         } else {
             eventManager->debug("Current network: " + getSSID(), 0);
         }
+    } else if (command == "ping") {
+        if (params.size() > 0) {
+            eventManager->debug("Ping: " + params[0], 0);
+            IPAddress ip;
+            if (ip.fromString(params[0])) {
+                if (Ping.ping(ip, 1)) {
+                    eventManager->debug("Ping successful", 0);
+                } else {
+                    eventManager->debug("Ping failed", 0);
+                }
+            } else {
+                eventManager->debug("Invalid IP address", 1);
+            }
+        } else {
+            eventManager->debug("Missing IP address", 1);
+        }
+
     } else {
         return false;
     }
@@ -168,7 +194,7 @@ bool WiFiManager::autoConnect()
 {
     if (WiFi.status() != WL_CONNECTED) {
         eventManager->debug("WiFi AutoConnect...", 0);
-        if (this->ssid == "") {
+        if (!this->ssid.length()) {
             eventManager->debug("No SSID, starting access point", 0);
             this->startAccessPoint();
             return false;
@@ -185,6 +211,10 @@ bool WiFiManager::autoConnect()
 bool WiFiManager::connect()
 {
     connectionStatus = 1;
+    if (!this->ssid.length()) {
+        eventManager->debug("No SSID", 1);
+        return false;
+    }
     eventManager->debug("Connecting to: " + this->ssid + "...", 0);
 
     WiFiMode_t mode = WIFI_STA;
@@ -194,6 +224,8 @@ bool WiFiManager::connect()
     if (WiFi.getMode() != mode) {
         WiFi.mode(mode);
     }
+
+    //WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8));
 
     WiFi.begin(this->ssid.c_str(), this->password.c_str());
     delay(100);
@@ -239,36 +271,37 @@ void WiFiManager::startAccessPoint(bool restart)
     eventManager->triggerEvent("wifi", "ap_started", {});
 }
 
-void WiFiManager::setupTelnet() {  
-  // passing on functions for various telnet events
-  telnet.onConnect([this](const String& str) {
-    eventManager->debug("Telnet connected", 2);
-    eventManager->triggerEvent("telnet", "connected", {});
-  });
+void WiFiManager::setupTelnet()
+{
+    // passing on functions for various telnet events
+    telnet.onConnect([this](const String& str) {
+        eventManager->debug("Telnet connected", 2);
+        eventManager->triggerEvent("telnet", "connected", {});
+    });
 
-  telnet.onConnectionAttempt([this](const String& str) {
-    eventManager->debug("Telnet connection attempt", 2);
-    eventManager->triggerEvent("telnet", "connection_attempt", {str});
-  });
-  telnet.onReconnect([this](const String& str) {
-    eventManager->debug("Telnet reconnected", 2);
-    eventManager->triggerEvent("telnet", "reconnected", {});
-  });
-  telnet.onDisconnect([this](const String& str) {
-    eventManager->debug("Telnet disconnected", 2);
-    eventManager->triggerEvent("telnet", "disconnected", {});
-  });
-  telnet.onInputReceived([this](const String& str) {
-    eventManager->debug("Telnet input received: " + str, 2);
-    eventManager->triggerEvent("telnet", "input", {str});
-  });
+    telnet.onConnectionAttempt([this](const String& str) {
+        eventManager->debug("Telnet connection attempt", 2);
+        eventManager->triggerEvent("telnet", "connection_attempt", {str});
+    });
+    telnet.onReconnect([this](const String& str) {
+        eventManager->debug("Telnet reconnected", 2);
+        eventManager->triggerEvent("telnet", "reconnected", {});
+    });
+    telnet.onDisconnect([this](const String& str) {
+        eventManager->debug("Telnet disconnected", 2);
+        eventManager->triggerEvent("telnet", "disconnected", {});
+    });
+    telnet.onInputReceived([this](const String& str) {
+        eventManager->debug("Telnet input received: " + str, 2);
+        eventManager->triggerEvent("telnet", "input", {str});
+    });
 
-  if (telnet.begin(telnetPort)) {
-    eventManager->debug("Telnet server started on port " + String(telnetPort), 1);
-    eventManager->triggerEvent("telnet", "started", {String(telnetPort)});
-  } else {
-    eventManager->debug("Telnet server could not start", 1);
-  }
+    if (telnet.begin(telnetPort)) {
+        eventManager->debug("Telnet server started on port " + String(telnetPort), 1);
+        eventManager->triggerEvent("telnet", "started", {String(telnetPort)});
+    } else {
+        eventManager->debug("Telnet server could not start", 1);
+    }
 }
 
 void WiFiManager::stopTelnet()
@@ -458,6 +491,16 @@ String WiFiManager::getNetworkInfo(int n, String name)
     return "";
 }
 
+void WiFiManager::setPowerSave(bool value)
+{
+#ifdef ESP32
+    WiFi.setSleep(value);
+#endif
+#ifdef ESP8266
+    wifi_set_sleep_type(value ? LIGHT_SLEEP_T : NONE_SLEEP_T);
+#endif
+}
+
 #ifndef DISABLE_ESPUI
 void WiFiManager::initEspUI()
 {
@@ -552,11 +595,6 @@ bool WiFiManager::otaUpdate()
         eventManager->debug("Connected to " + otaHost + ":" + String(otaPort), 2);
     }
 
-    /*if (!client.verify(otaFingerprint.c_str(), otaHost.c_str())) {
-        eventManager->debug("Certificate mismatch", 1);
-        return false;
-    }*/
-
     eventManager->debug("Start OTA update from " + otaHost + ":" + String(otaPort) + otaUrl, 1);
     auto ret = ESPhttpUpdate.update(client, otaHost, otaPort, otaUrl);
     // if successful, ESP will restart
@@ -572,5 +610,53 @@ bool WiFiManager::otaUpdate()
             return true;
     }
     return false;
+}
+#endif
+#ifdef ESP32
+
+// Non testé
+bool WiFiManager::otaUpdate()
+{
+    if (WiFi.status() != WL_CONNECTED) {
+        eventManager->debug("No WiFi connection", 1);
+        return false;
+    }
+
+    String otaHost = config.getPreference("ota_host", config.OTA_HOST);
+    int otaPort = config.getPreference("ota_port", config.OTA_PORT);
+    String otaUrl = config.getPreference("ota_url", config.OTA_URL);
+
+    if (otaHost.length() == 0) {
+        eventManager->debug("No OTA Host", 1);
+        return false;
+    }
+
+    if (otaUrl.length() == 0) {
+        eventManager->debug("No OTA URL", 1);
+        return false;
+    }
+
+    // Construire l'URL complète
+    String fullUrl = "https://" + otaHost + ":" + String(otaPort) + otaUrl;
+
+    // Configuration pour la mise à jour OTA
+    esp_http_client_config_t ota_config = {
+        .url = fullUrl.c_str(),
+        .cert_pem = config.OTA_CERT_PEM,  //NULL,  // Utilisez un certificat si nécessaire pour la sécurité
+        //.skip_cert_common_name_check = true,
+    };
+
+    eventManager->debug("Starting OTA update from " + fullUrl, 1);
+
+    // Démarrage de la mise à jour OTA
+    esp_err_t ret = esp_https_ota(&ota_config);
+    if (ret == ESP_OK) {
+        eventManager->debug("OTA Update successful", 1);
+        esp_restart();
+        return true;
+    } else {
+        eventManager->debug("OTA Update failed: " + String(esp_err_to_name(ret)), 1);
+        return false;
+    }
 }
 #endif

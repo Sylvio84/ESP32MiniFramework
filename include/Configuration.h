@@ -6,6 +6,7 @@
 
 #ifdef ESP32
 #include <Preferences.h>
+#include <ArduinoJson.h>
 #else
 #include <EEPROM.h>
 #include <ArduinoJson.h>
@@ -33,6 +34,8 @@ public:
     const char *DATE_FORMAT = "%d/%m/%Y";
     const char *TIME_FORMAT = "%H:%M:%S";
     const char *DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S";
+
+    const char* OTA_CERT_PEM = nullptr;
 
     Configuration();
 

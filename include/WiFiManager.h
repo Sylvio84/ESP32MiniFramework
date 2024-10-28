@@ -13,6 +13,7 @@
 #ifdef ESP32
 #include <WiFi.h>
 #include <esp_https_ota.h>
+#include <ESP32Ping.h>
 #endif
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
@@ -95,6 +96,7 @@ class WiFiManager
     int getNetworkCount(bool show_hidden = false);
     void setNetwork(int n, bool save = false);
     String getNetworkInfo(int n, String name);
+    void setPowerSave(bool value);
 
     //void WiFiEvent(WiFiEvent_t event);
 

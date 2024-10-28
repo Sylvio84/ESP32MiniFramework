@@ -24,13 +24,14 @@ MainController::MainController(Configuration& config)
 
 void MainController::init()
 {
+    pinMode(LED_BUILTIN, OUTPUT);
     delay(500);
     config.init(eventManager);
 
     serialCommandManager.init();
-    #ifndef DISABLE_DISPLAY
+#ifndef DISABLE_DISPLAY
     displayManager.init();
-    #endif
+#endif
     wiFiManager.init();
     timeManager.init();
     mqttManager.init();
@@ -50,11 +51,12 @@ void MainController::init()
     } else {
         displayManager.printLine(0, "Not connected");
     }
-    #endif
+#endif
 
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + config.getHostname() + "!", 0);
     setPowerSaving(config.getPreference("power_saving", 10));
+    setCpuFrequencyMhz(80);
 }
 
 void MainController::loop()
@@ -141,9 +143,9 @@ void MainController::processEvent(String type, String event, std::vector<String>
     }
     if (type == "wifi") {
         if (event == "connected" || event == "recovered") {
+            timeManager.update();
             eventManager.debug("Connected to WiFi: " + params[0], 1);
             eventManager.debug("IP address: " + params[1], 1);
-            timeManager.update();
             mqttManager.setStatus(2);
             // ESPUI.server->reset(); // Remove all handlers and writers // ESPUI.server->end();
         }
@@ -265,8 +267,37 @@ void MainController::processCommand(String command, std::vector<String> params)
         command = "debuglevel";
     }
 
-    if (command == "ping") {
-        Serial.println("Pong");
+    if (command == "temp") {
+        eventManager.debug("Temperature: " + String(temperatureRead()) + "°C", 0);
+    } else if (command == "led") {
+        if (params.size() > 0) {
+            if (params[0] == "on") {
+                internalLed(true);
+                eventManager.debug("LED on", 1);
+            } else if (params[0] == "off") {
+                internalLed(false);
+                eventManager.debug("LED off", 1);
+            } else {
+                eventManager.debug("Invalid parameter: " + params[0], 0);
+            }
+        } else {
+            eventManager.debug("Missing parameter: on/off", 0);
+        }
+    } else if (command == "freq") {
+        if (params.size() > 0) {
+            if (params[0] == "80" || params[0] == "160" || params[0] == "240") {
+                if (params[0] == "240" && ESP.getChipModel() == "ESP32C3") {
+                    eventManager.debug("Frequency not supported on ESP32-C3", 0);
+                    return;
+                }
+                setCpuFrequencyMhz(params[0].toInt());
+                eventManager.debug("Frequency set to: " + params[0] + " MHz", 1);
+            } else {
+                eventManager.debug("Invalid frequency: " + params[0], 0);
+            }
+        } else {
+            eventManager.debug("CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz", 0);
+        }
     } else if (command == "info") {
         eventManager.debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
         eventManager.debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);
@@ -279,10 +310,17 @@ void MainController::processCommand(String command, std::vector<String> params)
         eventManager.debug("Chip revision: " + String(ESP.getChipRevision()), 0);
         eventManager.debug("Chip core: " + String(ESP.getChipCores()), 0);
 #endif
+#ifdef ESP8266
         eventManager.debug("Reset reason: " + ESP.getResetReason(), 0);
+#endif
+#ifdef ESP32
+        eventManager.debug("Reset reason: " + esp_reset_reason(), 0);
+#endif
         eventManager.debug("Hostname: " + config.getHostname(), 0);
         eventManager.debug("Debug level: " + String(config.getPreference("debug_level", 0)), 0);
+#ifdef ESP8266
         eventManager.debug("Power saving: " + String(wifi_get_sleep_type() == NONE_SLEEP_T ? "disabled" : "enabled"), 0);
+#endif
         eventManager.debug("Power saving time: " + String(powerSaving), 0);
         eventManager.debug("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
         if (wiFiManager.isConnected()) {
@@ -296,11 +334,19 @@ void MainController::processCommand(String command, std::vector<String> params)
             eventManager.debug("Failed to initialize LittleFS", 0);
             return;
         }
+#ifdef ESP8266
         FSInfo fs_info;
         LittleFS.info(fs_info);
-        eventManager.debug("Total bytes: " + String(fs_info.totalBytes), 0);
-        eventManager.debug("Used bytes: " + String(fs_info.usedBytes), 0);
-        eventManager.debug("Free bytes: " + String(fs_info.totalBytes - fs_info.usedBytes), 0);
+        size_t totalBytes = fs_info.totalBytes;
+        size_t usedBytes = fs_info.usedBytes;
+#endif
+#ifdef ESP32
+        size_t totalBytes = LittleFS.totalBytes();
+        size_t usedBytes = LittleFS.usedBytes();
+#endif
+        eventManager.debug("Total bytes: " + String(totalBytes), 0);
+        eventManager.debug("Used bytes: " + String(usedBytes), 0);
+        eventManager.debug("Free bytes: " + String(totalBytes - usedBytes), 0);
     } else if (command == "date") {
         eventManager.debug(timeManager.getFormattedDateTime("%d/%m/%Y"), 0);
     } else if (command == "ota") {
@@ -453,12 +499,27 @@ void MainController::setPowerSaving(int value, bool save)
     powerSaving = value;
     if (powerSaving > 0) {
         eventManager.debug("Power saving enabled: process every " + String(powerSaving) + "ms", 1);
-        wifi_set_sleep_type(LIGHT_SLEEP_T);  // power saving when idle (delay 100ms in loop)
+        wiFiManager.setPowerSave(true);
     } else {
-        eventManager.debug("Power saving disabled", 1);
-        wifi_set_sleep_type(NONE_SLEEP_T);
+        if (save) {
+            eventManager.debug("Power saving disabled", 1);
+        } else {
+            eventManager.debug("Power saving suspended", 3);
+        }
+        wiFiManager.setPowerSave(false);
     }
     if (save) {
         config.setPreference("power_saving", powerSaving);
     }
+}
+
+void MainController::internalLed(bool state)
+{
+    digitalWrite(LED_BUILTIN, state ? LOW : HIGH);
+    return;
+}
+
+bool MainController::internalLedState()
+{
+    return digitalRead(LED_BUILTIN) == LOW;
 }

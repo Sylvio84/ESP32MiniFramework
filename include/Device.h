@@ -5,13 +5,15 @@
 #include <Configuration.h>
 #include <EventManager.h>
 #include <TimeManager.h>
+#ifndef DISABLE_ESPUI
 #include <ESPUI.h>
+#endif
 #include <functional>
 #include <map>
 
 class Device
 {
-   public:
+  public:
     // Attributs publics
     String id;
     String name;
@@ -52,10 +54,12 @@ class Device
     void saveName(String name);
     String retrieveName();
 
+#ifndef DISABLE_ESPUI
     void initEspUI();
     void EspUiCallback(Control* sender, int type);
+#endif
 
-   protected:
+  protected:
     Configuration& config;
     TimeManager& timeManager;
 

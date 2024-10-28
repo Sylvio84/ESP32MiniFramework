@@ -2,6 +2,11 @@
 
 EventManager* TimeManager::eventManager = nullptr;
 
+TimeManager::TimeManager(Configuration& config, EventManager& eventMgr): config(config)
+{
+    this->eventManager = &eventMgr;
+}
+
 void TimeManager::init() {}
 
 void TimeManager::loop()
@@ -161,4 +166,34 @@ void TimeManager::clearScheduler(uint id)
     if (id >= 0 && id < schedulers.size()) {
         schedulers.erase(schedulers.begin() + id);
     }
+}
+
+std::tm TimeManager::timeToDate(const std::string& time, const std::tm& now) {
+    std::tm date = now;
+    int hours = std::stoi(time.substr(0, 2));
+    int minutes = std::stoi(time.substr(3, 2));
+    date.tm_hour = hours;
+    date.tm_min = minutes;
+    date.tm_sec = 0;
+    return date;
+}
+
+bool TimeManager::isNight() {
+    if (!update()) {  // Ensure time is up-to-date
+        return false;
+    }
+
+    std::time_t t = std::time(nullptr);
+    std::tm now = *std::localtime(&t);
+    int currentMonth = now.tm_mon + 1;
+
+    SunTime currentSunTime = sunTimes[currentMonth];
+    std::tm sunriseTime = timeToDate(currentSunTime.sunrise, now);
+    std::tm sunsetTime = timeToDate(currentSunTime.sunset, now);
+
+    std::time_t nowTime = std::mktime(&now);
+    std::time_t sunrise = std::mktime(&sunriseTime);
+    std::time_t sunset = std::mktime(&sunsetTime);
+
+    return nowTime < sunrise || nowTime >= sunset;
 }
