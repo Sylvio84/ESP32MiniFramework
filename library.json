@@ -38,20 +38,8 @@
             "frameworks": "arduino"
         },
         {
-            "name": "ESP Async WebServer",
-            "owner": "me-no-dev",
-            "authors": "Hristo Gochkov",
-            "frameworks": "arduino"
-        },
-        {
             "name": "ArduinoJson",
             "owner": "bblanchon",
-            "frameworks": "arduino"
-        },
-        {
-            "name": "ESPUI",
-            "owner": "s00500",
-            "version": "~2.2.4",
             "frameworks": "arduino"
         },
         {

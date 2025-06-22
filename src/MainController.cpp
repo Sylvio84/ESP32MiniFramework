@@ -8,7 +8,7 @@ MainController::MainController(Configuration& config)
       ,
       displayManager(config)
 #endif
-      wiFiManager(config, eventManager),
+          wiFiManager(config, eventManager),
       mqttManager(config, eventManager),
       timeManager(config, eventManager)
 #ifndef DISABLE_ESPUI
@@ -56,7 +56,9 @@ void MainController::init()
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + config.getHostname() + "!", 0);
     setPowerSaving(config.getPreference("power_saving", 10));
+#ifdef ESP32
     setCpuFrequencyMhz(80);
+#endif
 }
 
 void MainController::loop()
@@ -268,7 +270,11 @@ void MainController::processCommand(String command, std::vector<String> params)
     }
 
     if (command == "temp") {
+#ifdef ESP32
         eventManager.debug("Temperature: " + String(temperatureRead()) + "°C", 0);
+#else
+        eventManager.debug("Temperature not supported on this device", 0);
+#endif
     } else if (command == "led") {
         if (params.size() > 0) {
             if (params[0] == "on") {
@@ -284,6 +290,7 @@ void MainController::processCommand(String command, std::vector<String> params)
             eventManager.debug("Missing parameter: on/off", 0);
         }
     } else if (command == "freq") {
+#ifdef ESP32        
         if (params.size() > 0) {
             if (params[0] == "80" || params[0] == "160" || params[0] == "240") {
                 if (params[0] == "240" && ESP.getChipModel() == "ESP32C3") {
@@ -298,6 +305,9 @@ void MainController::processCommand(String command, std::vector<String> params)
         } else {
             eventManager.debug("CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz", 0);
         }
+#else
+        eventManager.debug("Frequency command not supported on this device", 0);
+#endif
     } else if (command == "info") {
         eventManager.debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
         eventManager.debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);

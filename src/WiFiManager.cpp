@@ -167,6 +167,7 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
         } else {
             eventManager->debug("Current network: " + getSSID(), 0);
         }
+#ifdef ESP32
     } else if (command == "ping") {
         if (params.size() > 0) {
             eventManager->debug("Ping: " + params[0], 0);
@@ -183,7 +184,7 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
         } else {
             eventManager->debug("Missing IP address", 1);
         }
-
+#endif
     } else {
         return false;
     }
