@@ -41,7 +41,7 @@ void MQTTManager::loop()
     static unsigned long lastMQTTReconnect = 0;
     static unsigned long retry = 1;
     static unsigned long lastMQTTLoop = 0;
-    static unsigned long reconnectDelay = 0;
+    static unsigned long reconnectDelay = 1;
     unsigned long currentMillis = millis();
 
     /*if (!wifiClient.available()) {
@@ -54,7 +54,7 @@ void MQTTManager::loop()
             eventManager->debug("MQTT: Try to connect....", 1);
             if (!reconnect()) {
                 retry++;
-                int reconnectDelay = retry;
+                reconnectDelay = retry;
                 if (reconnectDelay > 60) {
                     reconnectDelay = 60;
                 }
@@ -287,9 +287,9 @@ bool MQTTManager::processCommand(String command, std::vector<String> params)
         }
     } else if (command == "status") {
         if (isConnected()) {
-            eventManager->debug("MQTT: Not connected", 0);
-        } else {
             eventManager->debug("MQTT: Connected", 0);
+        } else {
+            eventManager->debug("MQTT: Not connected", 0);
         }
     } else if (command == "connect") {
         reconnect();
@@ -360,13 +360,8 @@ bool MQTTManager::storePublication(String topic, String payload)
 {
     eventManager->debug("Storing MQTT publication: " + topic + " = " + payload, 3);
     auto it = publications.find(topic);
-    if (it != publications.end()) {
-        publications[topic] = payload;
-        return true;
-    } else {
-        publications[topic] = payload;
-        return false;
-    }
+    publications[topic] = payload;
+    return it != publications.end();
 }
 
 bool MQTTManager::removePublication(String topic)
