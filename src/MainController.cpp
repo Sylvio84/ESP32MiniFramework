@@ -268,8 +268,11 @@ void MainController::processCommand(String command, std::vector<String> params)
         params.insert(params.begin(), String(command[0]));
         command = "debuglevel";
     }
-
-    if (command == "temp") {
+    if (command == "version") {
+        eventManager.debug("Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")", 0);
+    } else if (command == "uptime") {
+        eventManager.debug("Uptime: " + String(millis() / 1000) + " seconds", 0);
+    } else if (command == "temp") {
 #ifdef ESP32
         eventManager.debug("Temperature: " + String(temperatureRead()) + "°C", 0);
 #else

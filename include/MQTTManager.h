@@ -83,6 +83,9 @@ class MQTTManager
 
     bool connected = false;
 
+    unsigned long lastPing = 0;
+    const unsigned long pingInterval = 60000; // 60 seconds
+
     std::vector<String> subscriptions;
 
     std::map<String, String> publications;

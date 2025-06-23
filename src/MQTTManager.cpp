@@ -49,6 +49,11 @@ void MQTTManager::loop()
         return;
     }*/
 
+    if (mqttClient.connected() && (currentMillis - lastPing >= pingInterval)) {
+        publish(config.getHostname() + "/status", "online", false);
+        lastPing = currentMillis;
+    }
+
     if (currentMillis - lastMQTTReconnect >= (reconnectDelay * 10000)) {
         if ((status >= 2) && server != "" && !mqttClient.connected()) {
             eventManager->debug("MQTT: Try to connect....", 1);

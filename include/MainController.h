@@ -20,6 +20,9 @@
 
 #define DEBUG_LOG() debugLog(__FILE__, __LINE__)
 
+#define RELEASE_VERSION "1.0.0"
+#define RELEASE_DATE "2025-06-23"
+
 inline void debugLog( const char* file, int line)
 {
     Serial.printf("(File: %s, Line: %d)\n", file, line);

@@ -167,6 +167,8 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
         } else {
             eventManager->debug("Current network: " + getSSID(), 0);
         }
+    } else if (command == "telnet") {
+        setupTelnet();
 #ifdef ESP32
     } else if (command == "ping") {
         if (params.size() > 0) {
