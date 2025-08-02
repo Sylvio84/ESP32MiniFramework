@@ -175,12 +175,14 @@ bool Configuration::writeVariable(const String key, String value)
 
 int Configuration::readVariableInt(const String key, int defaultValue)
 {
-    return json_preferences.containsKey(key) ? json_preferences[key].as<int>() : defaultValue;
+    //return json_preferences.containsKey(key) ? json_preferences[key].as<int>() : defaultValue;
+    return json_preferences[key].is<int>() ? json_preferences[key].as<int>() : defaultValue;
 }
 
 String Configuration::readVariableString(const String key, String defaultValue)
 {
-    return json_preferences.containsKey(key) ? json_preferences[key].as<String>() : defaultValue;
+    //return json_preferences.containsKey(key) ? json_preferences[key].as<String>() : defaultValue;
+    return json_preferences[key].is<String>() ? json_preferences[key].as<String>() : defaultValue;
 }
 
 void Configuration::debugJsonPreferences()
@@ -192,3 +194,14 @@ void Configuration::debugJsonPreferences()
 }
 
 #endif
+
+bool Configuration::saveProgramsJson(const String& json)
+{
+    return setPreference("device_programs", json);
+}
+
+bool Configuration::loadProgramsJson(String& outJson)
+{
+    outJson = getPreference("device_programs", "");
+    return outJson.length() > 0;
+}

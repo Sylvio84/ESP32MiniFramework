@@ -54,6 +54,9 @@ class Device
     void saveName(String name);
     String retrieveName();
 
+    virtual void onProgramStart();
+    virtual void onProgramEnd();
+
 #ifndef DISABLE_ESPUI
     void initEspUI();
     void EspUiCallback(Control* sender, int type);

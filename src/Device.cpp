@@ -167,3 +167,11 @@ void Device::EspUiCallback(Control* sender, int type)
     }
 }
 #endif
+
+void Device::onProgramStart() {
+    eventManager->debug("Device #" + id + " program started", 1);
+}
+
+void Device::onProgramEnd() {
+    eventManager->debug("Device #" + id + " program ended", 1);
+}

@@ -54,6 +54,9 @@ public:
     int getPreference(const String key, int defaultValue = 0);
     String getPreference(const String key, const String &defaultValue = "");
 
+    bool saveProgramsJson(const String& json);
+    bool loadProgramsJson(String& outJson);
+
     String getHostname();
 
 #ifndef ESP32

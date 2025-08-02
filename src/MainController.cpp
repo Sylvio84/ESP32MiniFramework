@@ -53,6 +53,8 @@ void MainController::init()
     }
 #endif
 
+    loadPrograms();
+
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + config.getHostname() + "!", 0);
     setPowerSaving(config.getPreference("power_saving", 10));
@@ -293,7 +295,7 @@ void MainController::processCommand(String command, std::vector<String> params)
             eventManager.debug("Missing parameter: on/off", 0);
         }
     } else if (command == "freq") {
-#ifdef ESP32        
+#ifdef ESP32
         if (params.size() > 0) {
             if (params[0] == "80" || params[0] == "160" || params[0] == "240") {
                 if (params[0] == "240" && ESP.getChipModel() == "ESP32C3") {
@@ -535,4 +537,69 @@ void MainController::internalLed(bool state)
 bool MainController::internalLedState()
 {
     return digitalRead(LED_BUILTIN) == LOW;
+}
+
+std::vector<DeviceProgram>& MainController::getPrograms()
+{
+    return devicePrograms;
+}
+
+bool MainController::loadPrograms()
+{
+    String json;
+    if (!config.loadProgramsJson(json))
+        return false;
+
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, json);
+    if (err)
+        return false;
+
+    if (!doc.is<JsonArray>())
+        return false;
+
+    devicePrograms.clear();
+
+    for (JsonObject obj : doc.as<JsonArray>()) {
+        String progStr;
+        serializeJson(obj, progStr);
+        DeviceProgram p;
+        String error;
+        if (p.fromJson(progStr, devices, timeManager, error)) {
+            devicePrograms.push_back(p);
+        } else {
+            Serial.println("Erreur chargement programme : " + error);
+        }
+    }
+
+    return true;
+}
+
+bool MainController::savePrograms()
+{
+    JsonDocument doc;
+    JsonArray arr = doc.to<JsonArray>();
+    for (const auto& prog : devicePrograms) {
+        String progJson = prog.toJson();
+        JsonDocument tmp;
+        deserializeJson(tmp, progJson);
+        arr.add(tmp);
+    }
+
+    String output;
+    serializeJson(doc, output);
+    return config.saveProgramsJson(output);
+}
+
+bool MainController::addProgram(const DeviceProgram& program)
+{
+    for (const auto& p : devicePrograms) {
+        if (p.name == program.name) {
+            eventManager.debug("Program with name '" + program.name + "' already exists", 0);
+            return false;
+        }
+    }
+
+    devicePrograms.push_back(program);
+    return savePrograms();
 }

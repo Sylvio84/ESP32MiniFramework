@@ -14,6 +14,7 @@
 #endif
 #include <EventManager.h>
 #include <TimeManager.h>
+#include <DeviceProgram.h>
 #include <Tools.h>
 #include <Device.h>
 #include <LittleFS.h>
@@ -50,6 +51,7 @@ protected:
     bool timeSet = false;
 
     std::vector<Device*> devices;
+    std::vector<DeviceProgram> devicePrograms;
 
     uint powerSavingRemumeTimer = 0;
     void setPowerSaving(int value, bool save = true);
@@ -68,6 +70,11 @@ public:
 
     void internalLed(bool state);
     bool internalLedState();
+
+    std::vector<DeviceProgram>& getPrograms();
+    bool addProgram(const DeviceProgram& program);
+    bool loadPrograms();
+    bool savePrograms();
 
 #ifndef DISABLE_ESPUI
     virtual void processUI(String action, std::vector<String> params);
