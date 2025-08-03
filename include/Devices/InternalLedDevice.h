@@ -23,27 +23,37 @@ class InternalLedDevice : public Device
         addCommand("?", std::bind(&InternalLedDevice::getState, this));
     }
 
-    void detectLedPin() {
+    void detectLedPin()
+    {
+#if defined(ESP32)
         esp_chip_info_t chip_info;
         esp_chip_info(&chip_info);
 
         switch (chip_info.model) {
-          case CHIP_ESP32:
-            pin = 2;  // DevKit, NodeMCU, etc.
-            break;
-          case CHIP_ESP32S2:
-            pin = 18;
-            break;
-          case CHIP_ESP32S3:
-            pin = 48;
-            break;
-          case CHIP_ESP32C3:
-            pin = 8;
-            break;
-          default:
-            pin = 2;  // Fallback default
-            break;
+            case CHIP_ESP32:
+                pin = 2;
+                break;
+            case CHIP_ESP32S2:
+                pin = 18;
+                break;
+            case CHIP_ESP32S3:
+                pin = 48;
+                break;
+            case CHIP_ESP32C3:
+                pin = 8;
+                break;
+            case CHIP_ESP32H2:
+                pin = 2;
+                break;
         }
+
+#elif defined(ESP8266)
+        pin = 2;  // NodeMCU, Wemos D1 Mini, etc.
+#else
+        pin = 2;  // Unknown platform fallback
+#endif
+
+        return;
     }
 
     void setPin(int ledPin)
@@ -56,9 +66,14 @@ class InternalLedDevice : public Device
     {
         Device::init();
         detectLedPin();
+        eventManager->debug("Detected LED pin: " + String(pin), 0);
+        if (pin < 0) {
+            eventManager->debug("LED pin not set or detected", 1);
+            return;
+        }
         eventManager->debug("Detected LED pin: " + String(pin), 1);
         pinMode(pin, OUTPUT);
-        digitalWrite(pin, LOW);  // Ensure LED is off initially
+        ledOff();
         eventManager->debug("ESP32C3SuperMiniLedDevice initialized on pin " + String(pin), 1);
     }
 
@@ -79,16 +94,14 @@ class InternalLedDevice : public Device
     void activate()
     {
         active = true;
-        digitalWrite(pin, LOW);
-        ledState = true;
+        ledOn();
         eventManager->debug("LED ON", 2);
     }
 
     void deactivate()
     {
         active = false;
-        digitalWrite(pin, HIGH);
-        ledState = false;
+        ledOff();
         eventManager->debug("LED OFF", 2);
     }
 
@@ -101,14 +114,34 @@ class InternalLedDevice : public Device
 
     void toggle()
     {
-        ledState = !ledState;
         if (ledState) {
-            digitalWrite(pin, HIGH);
+            ledOff();
             eventManager->debug("LED toggled OFF", 3);
         } else {
-            digitalWrite(pin, LOW);
-            eventManager->debug("LED toggled ON", 3);
+            ledOn();
         }
+    }
+
+    void ledOff()
+    {
+        if (pin < 0) {
+            eventManager->debug("LED pin not set or detected", 1);
+            return;
+        }
+        digitalWrite(pin, HIGH);
+        ledState = false;
+        eventManager->debug("LED turned OFF", 2);
+    }
+
+    void ledOn()
+    {
+        if (pin < 0) {
+            eventManager->debug("LED pin not set or detected", 1);
+            return;
+        }
+        digitalWrite(pin, LOW);
+        ledState = true;
+        eventManager->debug("LED turned ON", 2);
     }
 
     bool processCommand(String command, std::vector<String> params) override

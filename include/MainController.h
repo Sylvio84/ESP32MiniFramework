@@ -2,6 +2,7 @@
 #define MAINCONTROLLER_H
 
 #include <Arduino.h>
+#include <esp_chip_info.h>
 #include <Configuration.h>
 #include <SerialCommandManager.h>
 #ifndef DISABLE_DISPLAY
