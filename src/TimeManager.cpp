@@ -1,4 +1,4 @@
-#include "../include/TimeManager.h"
+#include <TimeManager.h>
 
 EventManager* TimeManager::eventManager = nullptr;
 

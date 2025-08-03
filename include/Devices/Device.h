@@ -5,11 +5,12 @@
 #include <Configuration.h>
 #include <EventManager.h>
 #include <TimeManager.h>
+#include <functional>
+#include <DeviceProgram.h>
+#include <map>
 #ifndef DISABLE_ESPUI
 #include <ESPUI.h>
 #endif
-#include <functional>
-#include <map>
 
 class Device
 {
@@ -20,6 +21,9 @@ class Device
     String topic;
     int state;
     String type;
+
+    Device& operator=(const Device&) = delete;
+    Device& operator=(Device&&) = delete;
 
     // Constructeur virtuel
     Device(String id, Configuration& config, EventManager& eventMgr, TimeManager& timeManager) : config(config), timeManager(timeManager)
@@ -56,6 +60,10 @@ class Device
 
     virtual void onProgramStart();
     virtual void onProgramEnd();
+
+    bool importProgram(const String& json);
+    //String exportProgram();
+    
 
 #ifndef DISABLE_ESPUI
     void initEspUI();

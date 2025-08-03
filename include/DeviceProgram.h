@@ -6,11 +6,16 @@
 #include <functional>
 #include <ArduinoJson.h>
 #include <TimeManager.h>
-#include "Device.h"
+#include <DeviceManager.h>
+#include <Devices/Device.h>
+
+class Device;
+class DeviceManager;
 
 class DeviceProgram {
   public:
     String name;
+    String id;
     bool enabled = true;
     TimeManager::Program program;
     std::vector<Device*> devices;
@@ -32,7 +37,7 @@ class DeviceProgram {
     //void applyToDevicesOnStop();
 
     String toJson() const;
-    bool fromJson(const String& json, const std::vector<Device*>& availableDevices, TimeManager& timeManager, String& errorMsg);
+    bool fromJson(const String& json, DeviceManager& deviceManager, TimeManager& timeManager, String& errorMsg);
 };
 
 #endif

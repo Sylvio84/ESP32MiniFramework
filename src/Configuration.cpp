@@ -1,4 +1,4 @@
-#include "../include/Configuration.h"
+#include <Configuration.h>
 
 EventManager* Configuration::eventManager = nullptr;
 

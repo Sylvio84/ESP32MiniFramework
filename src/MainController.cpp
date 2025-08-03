@@ -1,4 +1,4 @@
-#include "../include/MainController.h"
+#include <MainController.h>
 
 MainController::MainController(Configuration& config)
     : eventManager(),
@@ -10,7 +10,9 @@ MainController::MainController(Configuration& config)
 #endif
           wiFiManager(config, eventManager),
       mqttManager(config, eventManager),
-      timeManager(config, eventManager)
+      timeManager(config, eventManager),
+      deviceManager(config, eventManager),
+      deviceProgramManager(config, eventManager, deviceManager, timeManager)
 #ifndef DISABLE_ESPUI
       ,
       espUIManager(config, eventManager)
@@ -41,9 +43,8 @@ void MainController::init()
     wiFiManager.initEspUI();
     mqttManager.initEspUI();
 #endif
-    for (auto& device : devices) {
-        device->init();
-    }
+    deviceManager.initDevices();
+
 #ifndef DISABLE_DISPLAY
     displayManager.clear();
     if (wiFiManager.isConnected()) {
@@ -53,7 +54,7 @@ void MainController::init()
     }
 #endif
 
-    loadPrograms();
+    deviceProgramManager.loadDevicePrograms();
 
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + config.getHostname() + "!", 0);
@@ -74,9 +75,7 @@ void MainController::loop()
             delay(powerSaving);
         }
     }
-    for (auto& device : devices) {
-        device->loop();
-    }
+    deviceManager.loopDevices();
 }
 
 #ifndef DISABLE_ESPUI
@@ -142,9 +141,10 @@ void MainController::processEvent(String type, String event, std::vector<String>
     espUIManager.processEvent(type, event, params);
 #endif
     // displayManager.processEvent(type, event, params);
-    for (auto& device : devices) {
-        device->processEvent(type, event, params);
-    }
+
+    deviceManager.processEventDevices(type, event, params);
+
+
     if (type == "wifi") {
         if (event == "connected" || event == "recovered") {
             timeManager.update();
@@ -415,11 +415,11 @@ void MainController::processCommand(String command, std::vector<String> params)
     } else if (command == "device") {
         if (params.size() == 0) {
             eventManager.debug("List of devices:", 1);
-            for (auto& device : devices) {
+            for (const auto& device : deviceManager.getAllDevices()) {
                 eventManager.debug(" #" + device->id + " : " + device->name + " (" + device->topic + ")", 0);
             }
         } else {
-            Device* device = getDeviceById(params[0]);
+            auto device = deviceManager.getDeviceById(params[0]);
             if (device != nullptr) {
                 eventManager.debug("ID: " + device->id, 0);
                 eventManager.debug("Type: " + device->type, 0);
@@ -442,43 +442,6 @@ void MainController::processMQTT(String topic, String value)
 EventManager* MainController::getEventManager()
 {
     return &eventManager;
-}
-
-void MainController::addDevice(Device* device)
-{
-    devices.push_back(device);
-}
-
-std::vector<Device*> MainController::getDevices()
-{
-    return devices;
-}
-
-Device* MainController::getDeviceById(const String& id) const
-{
-    auto it = std::find_if(devices.begin(), devices.end(), [&id](const Device* device) { return device->id == id; });
-    if (it != devices.end()) {
-        return *it;
-    }
-    return nullptr;
-}
-
-Device* MainController::getDeviceByName(const String& name) const
-{
-    auto it = std::find_if(devices.begin(), devices.end(), [&name](const Device* device) { return device->name == name; });
-    if (it != devices.end()) {
-        return *it;
-    }
-    return nullptr;
-}
-
-Device* MainController::getDeviceByTopic(const String& topic) const
-{
-    auto it = std::find_if(devices.begin(), devices.end(), [&topic](const Device* device) { return device->topic == topic; });
-    if (it != devices.end()) {
-        return *it;
-    }
-    return nullptr;
 }
 
 void MainController::processDebugMessage(String message, int level, bool displayTime)
@@ -537,69 +500,4 @@ void MainController::internalLed(bool state)
 bool MainController::internalLedState()
 {
     return digitalRead(LED_BUILTIN) == LOW;
-}
-
-std::vector<DeviceProgram>& MainController::getPrograms()
-{
-    return devicePrograms;
-}
-
-bool MainController::loadPrograms()
-{
-    String json;
-    if (!config.loadProgramsJson(json))
-        return false;
-
-    JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, json);
-    if (err)
-        return false;
-
-    if (!doc.is<JsonArray>())
-        return false;
-
-    devicePrograms.clear();
-
-    for (JsonObject obj : doc.as<JsonArray>()) {
-        String progStr;
-        serializeJson(obj, progStr);
-        DeviceProgram p;
-        String error;
-        if (p.fromJson(progStr, devices, timeManager, error)) {
-            devicePrograms.push_back(p);
-        } else {
-            Serial.println("Erreur chargement programme : " + error);
-        }
-    }
-
-    return true;
-}
-
-bool MainController::savePrograms()
-{
-    JsonDocument doc;
-    JsonArray arr = doc.to<JsonArray>();
-    for (const auto& prog : devicePrograms) {
-        String progJson = prog.toJson();
-        JsonDocument tmp;
-        deserializeJson(tmp, progJson);
-        arr.add(tmp);
-    }
-
-    String output;
-    serializeJson(doc, output);
-    return config.saveProgramsJson(output);
-}
-
-bool MainController::addProgram(const DeviceProgram& program)
-{
-    for (const auto& p : devicePrograms) {
-        if (p.name == program.name) {
-            eventManager.debug("Program with name '" + program.name + "' already exists", 0);
-            return false;
-        }
-    }
-
-    devicePrograms.push_back(program);
-    return savePrograms();
 }

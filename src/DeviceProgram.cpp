@@ -55,6 +55,7 @@ String DeviceProgram::toJson() const
     JsonDocument doc;
 
     doc["name"] = name;
+    doc["id"] = id;
     doc["enabled"] = enabled;
 
     JsonArray deviceArray = doc["devices"].to<JsonArray>();
@@ -81,7 +82,7 @@ String DeviceProgram::toJson() const
     return out;
 }
 
-bool DeviceProgram::fromJson(const String& json, const std::vector<Device*>& availableDevices, TimeManager& timeManager, String& errorMsg)
+bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, TimeManager& timeManager, String& errorMsg)
 {
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, json);
@@ -90,11 +91,17 @@ bool DeviceProgram::fromJson(const String& json, const std::vector<Device*>& ava
         return false;
     }
 
+    if (!doc["id"].is<String>()) {
+        errorMsg = "Missing or invalid 'id'";
+        return false;
+    }
+
     if (!doc["name"].is<String>()) {
         errorMsg = "Missing or invalid 'name'";
         return false;
     }
 
+    id = doc["id"].as<String>();
     name = doc["name"].as<String>();
     enabled = doc["enabled"] | true;
 
@@ -105,20 +112,16 @@ bool DeviceProgram::fromJson(const String& json, const std::vector<Device*>& ava
             if (!v.is<String>())
                 continue;
             String id = v.as<String>();
-            bool found = false;
 
-            for (Device* d : availableDevices) {
-                if (d && d->id == id) {
-                    devices.push_back(d);
-                    found = true;
-                    break;
-                }
-            }
+            auto device = deviceManager.getDeviceById(id);
 
-            if (!found) {
-                errorMsg = "Device not found: " + id;
+            if (device) {
+                devices.push_back(device);
+            } else {
+                errorMsg = "Device with id '" + id + "' not found";
                 return false;
             }
+            //eventManager->debug("Device added to program: " + device->id, 2);
         }
     }
 

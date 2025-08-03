@@ -16,8 +16,10 @@
 #include <TimeManager.h>
 #include <DeviceProgram.h>
 #include <Tools.h>
-#include <Device.h>
+//#include <Devices/Device.h>
 #include <LittleFS.h>
+#include <DeviceManager.h>
+#include <DeviceProgramManager.h>
 
 #define DEBUG_LOG() debugLog(__FILE__, __LINE__)
 
@@ -50,8 +52,8 @@ protected:
     int powerSaving = 0; // 0 = disabled, else = idle time in ms while power saving (100 is a good value)
     bool timeSet = false;
 
-    std::vector<Device*> devices;
-    std::vector<DeviceProgram> devicePrograms;
+    DeviceManager deviceManager;
+    DeviceProgramManager deviceProgramManager;
 
     uint powerSavingRemumeTimer = 0;
     void setPowerSaving(int value, bool save = true);
@@ -62,19 +64,8 @@ public:
     virtual void init();
     virtual void loop();
 
-    void addDevice(Device* device);
-    std::vector<Device*> getDevices();
-    Device* getDeviceById(const String &id) const;
-    Device* getDeviceByName(const String &name) const;
-    Device* getDeviceByTopic(const String &topic) const;
-
     void internalLed(bool state);
     bool internalLedState();
-
-    std::vector<DeviceProgram>& getPrograms();
-    bool addProgram(const DeviceProgram& program);
-    bool loadPrograms();
-    bool savePrograms();
 
 #ifndef DISABLE_ESPUI
     virtual void processUI(String action, std::vector<String> params);

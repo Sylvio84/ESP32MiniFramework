@@ -1,4 +1,4 @@
-#include "../include/Device.h"
+#include <Devices/Device.h>
 
 EventManager* Device::eventManager = nullptr;
 
@@ -174,4 +174,15 @@ void Device::onProgramStart() {
 
 void Device::onProgramEnd() {
     eventManager->debug("Device #" + id + " program ended", 1);
+}
+
+bool Device::importProgram(const String& json) {
+    eventManager->debug("Importing program for device #" + id, 1);
+    /*DeviceProgram program;
+    program.fromJson(json);
+    program.addDevice(this);*/
+
+    // @todo: Implement the logic to import a program from JSON ?
+
+    return true;
 }

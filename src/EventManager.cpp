@@ -1,4 +1,4 @@
-#include "../include/EventManager.h"
+#include <EventManager.h>
 
 void EventManager::registerMainCallback(MainCallback callback) {
     mainCallback = callback;

@@ -1,5 +1,5 @@
 #ifndef DISABLE_ESPUI
-#include "../include/ESPUIManager.h"
+#include <ESPUIManager.h>
 
 // Définition et initialisation du membre statique
 EventManager *ESPUIManager::eventManager = nullptr;

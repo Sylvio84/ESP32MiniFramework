@@ -1,5 +1,5 @@
 #ifndef DISABLE_DISPLAY
-#include "../include/DisplayManager.h"
+#include <DisplayManager.h>
 
 
 DisplayManager::DisplayManager(Configuration& config) : lcd(config.LCD_ADDRESS, config.LCD_COLS, config.LCD_ROWS)
