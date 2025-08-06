@@ -78,3 +78,23 @@ void DeviceManager::processEventDevices(String type, String event, std::vector<S
         device->processEvent(type, event, params);
     }
 }
+
+/*void DeviceManager::processMQTTDevices(String topic, String value)
+{
+    for (auto device : devices) {
+        if (device->processMQTT(topic, value)) {
+            return; // If one device processes the MQTT message, we stop further processing
+        }
+    }
+}
+
+void DeviceManager::processCommandDevices(String command, std::vector<String> params)
+{
+    for (auto device : devices) {
+        if (device->processCommand(command, params)) {
+            return true; // If one device processes the command, we stop further processing
+        }
+    }
+    return false; // No device processed the command
+}
+*/

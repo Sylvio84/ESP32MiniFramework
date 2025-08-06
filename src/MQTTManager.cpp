@@ -49,8 +49,12 @@ void MQTTManager::loop()
         return;
     }*/
 
-    if (mqttClient.connected() && (currentMillis - lastPing >= pingInterval)) {
-        publish(config.getHostname() + "/status", "online", false);
+    if (currentMillis - lastPing >= pingInterval) {
+        if (mqttClient.connected()) {
+            publish(config.getHostname() + "/status", "online", false);
+        } else {
+            eventManager->debug("MQTT status #" + String(status) + ": " + (mqttClient.connected() ? "connected" : "disconnected"), 1);
+        }
         lastPing = currentMillis;
     }
 

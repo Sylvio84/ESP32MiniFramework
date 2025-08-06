@@ -263,52 +263,61 @@ void TimeManager::initProgram(Program& program)
     programs.push_back(program);
 }
 
-TimeManager::Program TimeManager::addProgram(const String& json, std::function<void(String)> onStartCbBuilder, std::function<void(String)> onStopCbBuilder)
+TimeManager::Program* TimeManager::addProgram(const String& json, std::function<void(String)> onStartCbBuilder, std::function<void(String)> onStopCbBuilder)
 {
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, json);
-    Program program;
+    Program* program = new Program();
 
     if (error) {
         eventManager->debug("Erreur parsing JSON Program", 1);
-        return program;
+        delete program;
+        return nullptr;
     }
 
     // Champs obligatoires
-    if (doc["startTime"].isNull() || doc["duration"].isNull()) {
-        eventManager->debug("startTime et duration sont requis", 1);
-        return program;
+    if (!doc["startTime"].is<const char*>()) {
+        eventManager->debug("Champ startTime invalide ou manquant", 1);
+        return nullptr;
+    }
+    if (!doc["duration"].is<uint16_t>()) {
+        eventManager->debug("Champ duration invalide ou manquant", 1);
+        return nullptr;
     }
 
-    program.startTime = doc["startTime"].as<String>();
-    program.duration = doc["duration"].as<uint16_t>();
+
+    String dump;
+    serializeJson(doc, dump);
+    
+    program->startTime = doc["startTime"].as<String>();
+    program->duration = doc["duration"].as<uint16_t>();
 
     // Valeurs par défaut
-    program.startDate = doc["startDate"] | "";
-    program.endDate = doc["endDate"] | "";
-    program.active = doc["active"] | true;
+    program->startDate = doc["startDate"] | "";
+    program->endDate = doc["endDate"] | "";
+    program->active = doc["active"] | true;
 
     if ((doc["days"].isNull() == false) && doc["days"].is<JsonArray>()) {
         for (JsonVariant v : doc["days"].as<JsonArray>()) {
-            program.daysOfWeek.push_back(v.as<int>());
+            program->daysOfWeek.push_back(v.as<int>());
         }
     }
 
     if ((doc["onStart"].isNull() == false) && !doc["onStart"].isNull()) {
         String id = doc["onStart"].as<String>();
-        program.onStart = [id, onStartCbBuilder]() {
+        program->onStart = [id, onStartCbBuilder]() {
             onStartCbBuilder(id);
         };
     }
 
     if ((doc["onStop"].isNull() == false) && !doc["onStop"].isNull()) {
         String id = doc["onStop"].as<String>();
-        program.onStop = [id, onStopCbBuilder]() {
+        program->onStop = [id, onStopCbBuilder]() {
             onStopCbBuilder(id);
         };
     }
 
-    initProgram(program);
+    initProgram(*program);
 
     return program;
 }

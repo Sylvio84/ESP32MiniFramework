@@ -37,7 +37,8 @@ void MainController::init()
     wiFiManager.init();
     timeManager.init();
     mqttManager.init();
-    mqttManager.addSubscription(config.getHostname() + "/cmd");
+    mqttManager.addSubscription(config.getHostname() + "/cmd/#");
+    //mqttManager.addSubscription(config.getHostname() + "/#");
 #ifndef DISABLE_ESPUI
     espUIManager.init();
     wiFiManager.initEspUI();
@@ -54,7 +55,11 @@ void MainController::init()
     }
 #endif
 
-    deviceProgramManager.loadDevicePrograms();
+    if (deviceProgramManager.loadDevicePrograms()) {
+        eventManager.debug("Device programs loaded successfully", 1);
+    } else {
+        eventManager.debug("Failed to load device programs", 0);
+    }
 
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + config.getHostname() + "!", 0);
@@ -143,7 +148,6 @@ void MainController::processEvent(String type, String event, std::vector<String>
     // displayManager.processEvent(type, event, params);
 
     deviceManager.processEventDevices(type, event, params);
-
 
     if (type == "wifi") {
         if (event == "connected" || event == "recovered") {
@@ -238,8 +242,16 @@ bool MainController::processInput(const String input)
         eventManager.debug("Empty input", 1);
         return false;
     }
-    int nsIndex = input.indexOf(':');
+
     int cmdIndex = input.indexOf(' ');
+    int topicIndex = input.indexOf('/');
+    if (topicIndex > -1) {
+        String topic = input.substring(0, cmdIndex);
+        eventManager.triggerEvent("mqtt", "publishAsap", {topic, input.substring(cmdIndex + 1)});
+        return true;
+    }
+
+    int nsIndex = input.indexOf(':');
 
     if (nsIndex == -1 || (cmdIndex != -1 && cmdIndex < nsIndex)) {
         eventManager.debug("Erreur: Format de commande incorrect: " + input, 0);
@@ -249,13 +261,12 @@ bool MainController::processInput(const String input)
     // Extraction du namespace et de la commande
     String ns = input.substring(0, nsIndex);
     String command = cmdIndex == -1 ? input.substring(nsIndex + 1) : input.substring(nsIndex + 1, cmdIndex);
-
-    // Extraction des paramètres
     String paramStr = cmdIndex == -1 ? "" : input.substring(cmdIndex + 1);
+    // Extraction des paramètres
     std::vector<String> params = paramStr.isEmpty() ? std::vector<String>() : splitParameters(paramStr);
 
-    //eventManager.triggerEvent("serial", "command", {input});
     eventManager.triggerEvent(ns, "@" + command, params);
+
     return true;
 }
 
@@ -315,10 +326,11 @@ void MainController::processCommand(String command, std::vector<String> params)
 #endif
     } else if (command == "info") {
         eventManager.debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
+        eventManager.debug("Total Heap: " + String(ESP.getHeapSize() / 1024) + " KB", 0);
+        eventManager.debug("Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB", 0);
         eventManager.debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);
-        eventManager.debug("Free heap: " + String(ESP.getFreeHeap()), 0);
-        eventManager.debug("Sketch size: " + String(ESP.getSketchSize()), 0);
-        eventManager.debug("Free sketch space: " + String(ESP.getFreeSketchSpace()), 0);
+        eventManager.debug("Sketch size: " + String(ESP.getSketchSize() / 1024) + " KB", 0);
+        eventManager.debug("Free sketch space: " + String(ESP.getFreeSketchSpace() / 1024) + " KB", 0);
 #ifdef ESP32
         eventManager.debug("Chip ID: " + String(ESP.getEfuseMac()), 0);
         eventManager.debug("Chip model: " + String(ESP.getChipModel()), 0);
@@ -429,6 +441,28 @@ void MainController::processCommand(String command, std::vector<String> params)
                 eventManager.debug("Device not found: " + params[0], 0);
             }
         }
+    } else if (command == "import_program") {
+        // list all params
+        if (params.size() > 0) {
+            eventManager.debug("Importing program from JSON: " + params[0], 0);
+            // @todo implement JSON import
+            String errorMsg;
+            if (!deviceProgramManager.importDeviceProgram(params[0], errorMsg)) {
+                eventManager.debug("Error importing program: " + errorMsg, 0);
+            } else {
+                eventManager.debug("Program imported successfully", 0);
+            }
+        }
+    } else if (command == "display_program") {
+        auto programs = deviceProgramManager.getAllDevicePrograms();
+        if (programs.empty()) {
+            eventManager.debug("No programs found", 0);
+        } else {
+            eventManager.debug("List of programs:", 1);
+            for (const auto& program : programs) {
+                eventManager.debug(" #" + program->id + " : " + program->name, 0);
+            }
+        }
     } else {
         eventManager.debug("Unknown command: " + command, 0);
     }
@@ -437,6 +471,32 @@ void MainController::processCommand(String command, std::vector<String> params)
 void MainController::processMQTT(String topic, String value)
 {
     eventManager.debug("Received MQTT message: " + topic + " = " + value, 2);
+
+    String hostname = config.getHostname();
+    //    if (topic == hostname + "/cmd") {
+    //        processInput(value);
+    //    }
+    // if topic starts with hostname + "/cmd/"
+    if (topic.startsWith(hostname + "/cmd/")) {
+        String command = topic.substring(hostname.length() + 5);  // 5 = length of "/cmd/"
+        String ns = command.substring(0, command.indexOf('/'));
+        command = command.substring(command.indexOf('/') + 1);
+
+        eventManager.debug("Processing command: " + ns + ":" + command + " with value: " + value, 1);
+
+        // @todo manage json value
+        if (value.startsWith("{") && value.endsWith("}")) {
+            // Handle JSON value
+            eventManager.triggerEvent(ns, "@" + command, {value});
+        } else {
+            std::vector<String> params;
+            if (value.length() > 0) {
+                params.push_back(value);
+            }
+            //processInput(command + " " + value);
+            eventManager.triggerEvent(ns, "@" + command, params);
+        }
+    }
 }
 
 EventManager* MainController::getEventManager()

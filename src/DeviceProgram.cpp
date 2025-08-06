@@ -2,7 +2,7 @@
 
 DeviceProgram::DeviceProgram() {}
 
-DeviceProgram::DeviceProgram(const String& name, const TimeManager::Program& program) : name(name), program(program) {}
+DeviceProgram::DeviceProgram(const String& name, const TimeManager::Program& program) : name(name), program(new TimeManager::Program(program)) {}
 
 void DeviceProgram::setSettings(const String& json)
 {
@@ -74,7 +74,7 @@ String DeviceProgram::toJson() const
     }
 
     // Program
-    String programJson = TimeManager::exportProgramToJson(program);
+    String programJson = TimeManager::exportProgramToJson(*program);
     deserializeJson(doc["program"], programJson);  // merge dans l’objet
 
     String out;
@@ -84,6 +84,9 @@ String DeviceProgram::toJson() const
 
 bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, TimeManager& timeManager, String& errorMsg)
 {
+    //eventManager->debug("Importing DeviceProgram from JSON: " + json, 2);
+    //Serial.println("Importing DeviceProgram from JSON: " + json);
+
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, json);
     if (error) {
@@ -91,7 +94,7 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
         return false;
     }
 
-    if (!doc["id"].is<String>()) {
+    if (!doc["id"].is<int>() && !doc["id"].is<String>()) {
         errorMsg = "Missing or invalid 'id'";
         return false;
     }
@@ -101,7 +104,11 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
         return false;
     }
 
-    id = doc["id"].as<String>();
+    if (doc["id"].is<int>()) {
+        id = String(doc["id"].as<int>());
+    } else {
+        id = doc["id"].as<String>();
+    }
     name = doc["name"].as<String>();
     enabled = doc["enabled"] | true;
 
@@ -139,11 +146,23 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
         String programJson;
         serializeJson(doc["program"], programJson);
 
+        for (Device* d : devices) {
+            if (d == nullptr) {
+                errorMsg = "Un des périphériques du programme est null";
+                return false;
+            }
+        }
+
         program = timeManager.addProgram(
             programJson,
-            [this](const String&) {
+            [this](const String& id) {
                 for (Device* d : devices) {
-                    d->onProgramStart();
+                    if (d == nullptr) {
+                        Serial.println("Null device détecté dans la lambda !");
+                        //eventManager->debug("Null device détecté dans la lambda !", 0);
+                    } else {
+                        d->onProgramStart();
+                    }
                 }
             },
             [this](const String&) {

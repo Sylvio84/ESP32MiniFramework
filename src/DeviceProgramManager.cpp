@@ -2,7 +2,6 @@
 
 EventManager* DeviceProgramManager::eventManager = nullptr;
 
-
 void DeviceProgramManager::addDeviceProgram(DeviceProgram& deviceProgram)
 {
     devicePrograms.push_back(&deviceProgram);
@@ -21,7 +20,6 @@ void DeviceProgramManager::addDeviceProgram(DeviceProgram& deviceProgram)
     return savePrograms(config);
 }*/
 
-
 DeviceProgram* DeviceProgramManager::getDeviceProgramById(const String& id)
 {
     for (auto deviceProgram : devicePrograms) {
@@ -31,7 +29,6 @@ DeviceProgram* DeviceProgramManager::getDeviceProgramById(const String& id)
     }
     return nullptr;
 }
-
 
 DeviceProgram* DeviceProgramManager::getDeviceProgramByName(const String& name)
 {
@@ -43,18 +40,12 @@ DeviceProgram* DeviceProgramManager::getDeviceProgramByName(const String& name)
     return nullptr;
 }
 
-
 void DeviceProgramManager::removeDeviceProgram(const String& id)
 {
     auto deviceProgram = getDeviceProgramById(id);
     if (deviceProgram) {
-        devicePrograms.erase(
-            std::remove_if(devicePrograms.begin(), devicePrograms.end(), 
-                [&](DeviceProgram* dp) { 
-                    return dp && dp->id == id; 
-                }), 
-            devicePrograms.end()
-        );
+        devicePrograms.erase(std::remove_if(devicePrograms.begin(), devicePrograms.end(), [&](DeviceProgram* dp) { return dp && dp->id == id; }),
+                             devicePrograms.end());
     } else {
         eventManager->debug("Device program with id '" + id + "' not found", 0);
     }
@@ -67,19 +58,22 @@ const std::vector<DeviceProgram*>& DeviceProgramManager::getAllDevicePrograms()
 
 bool DeviceProgramManager::importDeviceProgram(const String& json, String& errorMsg)
 {
-    DeviceProgram deviceProgram;
-    if (deviceProgram.fromJson(json, deviceManager, timeManager, errorMsg)) {
+    DeviceProgram* deviceProgram = new DeviceProgram();
+    if (deviceProgram->fromJson(json, deviceManager, timeManager, errorMsg)) {
         for (auto existingProgram : devicePrograms) {
-            if (existingProgram->id == deviceProgram.id) {
-                errorMsg = "Un programme avec l'ID '" + deviceProgram.id + "' existe déjà.";
+            if (existingProgram->id == deviceProgram->id) {
+                errorMsg = "Un programme avec l'ID '" + deviceProgram->id + "' existe déjà.";
+                delete deviceProgram;
                 return false;
             }
         }
 
-        devicePrograms.push_back(&deviceProgram);
+        devicePrograms.push_back(deviceProgram);
+        saveDevicePrograms();
         return true;
     } else {
         errorMsg = "Erreur lors de l'importation du programme : " + errorMsg;
+        delete deviceProgram;
         return false;
     }
 }
@@ -87,6 +81,9 @@ bool DeviceProgramManager::importDeviceProgram(const String& json, String& error
 bool DeviceProgramManager::loadDevicePrograms(bool clearExisting)
 {
     if (clearExisting) {
+        for (auto program : devicePrograms) {
+            delete program;
+        }
         devicePrograms.clear();
     }
 
@@ -106,14 +103,17 @@ bool DeviceProgramManager::loadDevicePrograms(bool clearExisting)
     for (JsonObject obj : doc.as<JsonArray>()) {
         String progStr;
         serializeJson(obj, progStr);
+        eventManager->debug("Loading program from JSON: " + progStr, 1);
 
-        DeviceProgram deviceProgram;
+        DeviceProgram* deviceProgram = new DeviceProgram();
         String error;
-        if (deviceProgram.fromJson(progStr, deviceManager, timeManager, error)) {
+        if (deviceProgram->fromJson(progStr, deviceManager, timeManager, error)) {
             //devicePrograms.push_back(deviceProgram);  // Copie dans le vector
-            devicePrograms.push_back(&deviceProgram);
+            devicePrograms.push_back(deviceProgram);
+            eventManager->debug("Program loaded: #" + deviceProgram->id + " : " + deviceProgram->name, 0);
         } else {
-            eventManager->debug("Erreur chargement programme : " + error, 0);
+            eventManager->debug("Failed to load program: " + error, 1);
+            return false;
         }
     }
 
@@ -134,9 +134,9 @@ bool DeviceProgramManager::saveDevicePrograms()
 
     String output;
     serializeJson(doc, output);
+    eventManager->debug("Saving device programs JSON: " + output, 0);
     return config.saveProgramsJson(output);
 }
-
 
 void DeviceProgramManager::clearDevicePrograms()
 {

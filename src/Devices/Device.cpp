@@ -10,6 +10,9 @@ void Device::init()
     initEspUI();
 #endif
     subscribeMQTT(topic);
+
+    //addCommand("cmd", std::bind(&Device::executeCmd, this, std::placeholders::_1));
+
     eventManager->debug("Device #" + id + " initialized", 1);
 }
 
@@ -19,6 +22,7 @@ void Device::addCommand(const std::string& command, std::function<void()> action
 {
     commands[command] = action;
 }
+
 
 // Méthode pour traiter une commande reçue
 bool Device::handleCommand(const std::string& command)
@@ -60,12 +64,20 @@ String Device::retrieveName()
     return this->name;
 }
 
+void Device::publishName()
+{
+    eventManager->debug("Device name #" + id + ": " + name, 0);
+    eventManager->triggerEvent("mqtt", "publishAsap", {topic + "/log", name});
+}
+
 bool Device::subscribeMQTT(String topic)
 {
     if (topic == "") {
         return false;
     }
     eventManager->triggerEvent("mqtt", "subscribe", {topic});
+    eventManager->triggerEvent("mqtt", "subscribe", {topic + "/cmd"});
+    eventManager->triggerEvent("mqtt", "subscribe", {topic + "/import_program"});
     return true;
 }
 
@@ -75,6 +87,8 @@ bool Device::unsubscribeMQTT(String topic)
         return false;
     }
     eventManager->triggerEvent("mqtt", "unsubscribe", {topic});
+    eventManager->triggerEvent("mqtt", "unsubscribe", {topic + "/cmd"});
+    eventManager->triggerEvent("mqtt", "unsubscribe", {topic + "/import_program"});
     return true;
 }
 
@@ -120,6 +134,11 @@ bool Device::processMQTT(String topic, String value)
     if (topic == this->topic) {
         eventManager->debug("Topic " + topic + " matched, command:" + value, 3);
         return handleCommand(value.c_str());
+    }
+    if (topic == this->topic + "/cmd") {
+        if (value == "name") {
+            eventManager->triggerEvent("mqtt", "publishAsap", {this->topic + "/log", this->name});
+        }
     }
     return false;
 }
@@ -168,21 +187,12 @@ void Device::EspUiCallback(Control* sender, int type)
 }
 #endif
 
-void Device::onProgramStart() {
+void Device::onProgramStart()
+{
     eventManager->debug("Device #" + id + " program started", 1);
 }
 
-void Device::onProgramEnd() {
+void Device::onProgramEnd()
+{
     eventManager->debug("Device #" + id + " program ended", 1);
-}
-
-bool Device::importProgram(const String& json) {
-    eventManager->debug("Importing program for device #" + id, 1);
-    /*DeviceProgram program;
-    program.fromJson(json);
-    program.addDevice(this);*/
-
-    // @todo: Implement the logic to import a program from JSON ?
-
-    return true;
 }

@@ -39,6 +39,8 @@ class DeviceManager
     void initDevices();
     void loopDevices();
     void processEventDevices(String type, String event, std::vector<String> params);
+    //void processMQTTDevices(String topic, String value);
+    //void processCommandDevices(String command, std::vector<String> params);
 };
 
 #endif

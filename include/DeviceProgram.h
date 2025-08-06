@@ -2,27 +2,36 @@
 #define DEVICEPROGRAM_H
 
 #include <Arduino.h>
-#include <vector>
-#include <functional>
 #include <ArduinoJson.h>
-#include <TimeManager.h>
 #include <DeviceManager.h>
 #include <Devices/Device.h>
+#include <TimeManager.h>
+#include <functional>
+#include <vector>
 
 class Device;
 class DeviceManager;
 
-class DeviceProgram {
+class DeviceProgram
+{
   public:
     String name;
     String id;
     bool enabled = true;
-    TimeManager::Program program;
+    TimeManager::Program* program;
     std::vector<Device*> devices;
     String settingsJson;
 
     DeviceProgram();
     DeviceProgram(const String& name, const TimeManager::Program& program);
+
+    ~DeviceProgram()
+    {
+        if (program) {
+            delete program;
+            program = nullptr;
+        }
+    }
 
     void setSettings(const String& json);
     String getSettings() const;

@@ -22,7 +22,7 @@ public:
     void loop() override;
 
     void processEvent(String type, String action, std::vector<String> params) override;
-    void processMQTT(String topic, String value) override;
+    //void processMQTT(String topic, String value) override;
 
     void readTemperature();
 

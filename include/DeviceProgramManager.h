@@ -24,7 +24,7 @@ class DeviceProgramManager
     std::vector<DeviceProgram*> devicePrograms;
 
   public:
-    DeviceProgramManager(Configuration& config, EventManager& eventMgr, DeviceManager& deviceManager, TimeManager timeManager) : config(config), deviceManager(deviceManager), timeManager(timeManager)
+    DeviceProgramManager(Configuration& config, EventManager& eventMgr, DeviceManager& deviceManager, TimeManager& timeManager) : config(config), deviceManager(deviceManager), timeManager(timeManager)
     {
         if (eventManager == nullptr) {
             eventManager = &eventMgr;

@@ -57,6 +57,7 @@ class Device
 
     void saveName(String name);
     String retrieveName();
+    void publishName();
 
     virtual void onProgramStart();
     virtual void onProgramEnd();

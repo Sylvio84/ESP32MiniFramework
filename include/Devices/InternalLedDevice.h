@@ -18,6 +18,8 @@ class InternalLedDevice : public Device
     InternalLedDevice(String id, Configuration& config, EventManager& eventMgr, TimeManager& timeMgr) : Device(id, config, eventMgr, timeMgr)
     {
         name = "Internal Led";
+        topic = config.getHostname() + "/" + id;
+        eventManager->debug("InternalLedDevice initialized with topic: " + topic, 1);
         addCommand("1", std::bind(&InternalLedDevice::activate, this));
         addCommand("0", std::bind(&InternalLedDevice::deactivate, this));
         addCommand("?", std::bind(&InternalLedDevice::getState, this));
@@ -66,15 +68,13 @@ class InternalLedDevice : public Device
     {
         Device::init();
         detectLedPin();
-        eventManager->debug("Detected LED pin: " + String(pin), 0);
         if (pin < 0) {
             eventManager->debug("LED pin not set or detected", 1);
             return;
         }
-        eventManager->debug("Detected LED pin: " + String(pin), 1);
+        eventManager->debug("InternalLedDevice initialized on pin " + String(pin), 3);
         pinMode(pin, OUTPUT);
         ledOff();
-        eventManager->debug("ESP32C3SuperMiniLedDevice initialized on pin " + String(pin), 1);
     }
 
     void loop() override
@@ -109,6 +109,7 @@ class InternalLedDevice : public Device
     {
         int currentState = digitalRead(pin);
         eventManager->debug("LED state: " + String(currentState), 1);
+        eventManager->triggerEvent("mqtt", "publishAsap", {topic + "/status", ledState ? "1" : "0"});
         return currentState == HIGH;
     }
 
@@ -164,6 +165,17 @@ class InternalLedDevice : public Device
         }
         return false;
     }
+
+    /*bool processMQTT(String topic, String value) override
+    {
+        Device::processMQTT(topic, value);
+        eventManager->debug("InternalLedDevice #" + id + " MQTT message: " + topic + " = " + value, 0);
+        return false;
+    }*/
+
+    void onProgramStart() { activate(); }
+
+    void onProgramEnd() { deactivate(); }
 };
 
 #endif  // INTERNALLEDDEVICE_H
