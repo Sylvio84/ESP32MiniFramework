@@ -381,7 +381,9 @@ void MainController::processCommand(String command, std::vector<String> params)
         eventManager.debug("Used bytes: " + String(usedBytes), 0);
         eventManager.debug("Free bytes: " + String(totalBytes - usedBytes), 0);
     } else if (command == "date") {
-        eventManager.debug(timeManager.getFormattedDateTime("%d/%m/%Y"), 0);
+        eventManager.debug(timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
+    } else if (command == "time") {
+        eventManager.debug(timeManager.getFormattedDateTime("%H:%M:%S"), 0);
     } else if (command == "ota") {
         // the firmware should not exceed 510KB
         wiFiManager.otaUpdate();
@@ -461,6 +463,17 @@ void MainController::processCommand(String command, std::vector<String> params)
             } else {
                 eventManager.debug("Program imported successfully", 0);
             }
+        }
+    } else if (command == "remove_program") {
+        if (params.size() > 0) {
+            eventManager.debug("Removing program with ID: " + params[0], 0);
+            if (deviceProgramManager.removeDeviceProgram(params[0])) {
+                eventManager.debug("Program removed successfully", 1);
+            } else {
+                eventManager.debug("Failed to remove program with ID: " + params[0], 0);
+            }
+        } else {
+            eventManager.debug("Usage: remove_program <program_id>", 0);
         }
     } else if (command == "display_program") {
         auto programs = deviceProgramManager.getAllDevicePrograms();

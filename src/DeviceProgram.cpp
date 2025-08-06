@@ -1,8 +1,15 @@
 #include "DeviceProgram.h"
 
-DeviceProgram::DeviceProgram() {}
+EventManager* DeviceProgram::eventManager = nullptr;
 
-DeviceProgram::DeviceProgram(const String& name, const TimeManager::Program& program) : name(name), program(new TimeManager::Program(program)) {}
+DeviceProgram::DeviceProgram(EventManager& eventMgr)
+{
+    if (eventManager == nullptr) {
+        eventManager = &eventMgr;
+    }
+}
+
+//DeviceProgram::DeviceProgram(const String& name, EventManager& eventMgr,  const TimeManager::Program& program) : name(name), program(new TimeManager::Program(program)) {}
 
 void DeviceProgram::setSettings(const String& json)
 {
@@ -32,6 +39,34 @@ void DeviceProgram::activate()
 void DeviceProgram::deactivate()
 {
     enabled = false;
+}
+
+void DeviceProgram::startDevices()
+{
+    eventManager->debug("Starting devices for program: " + name, 1);
+    for (Device* d : devices) {
+        if (d) {
+            try {
+                d->onProgramStart();
+            } catch (const std::exception& e) {
+                Serial.println("Error in onProgramStart: " + String(e.what()));
+            }
+        }
+    }
+}
+
+void DeviceProgram::stopDevices()
+{
+    eventManager->debug("Stopping devices for program: " + name, 1);
+    for (Device* d : devices) {
+        if (d) {
+            try {
+                d->onProgramEnd();
+            } catch (const std::exception& e) {
+                Serial.println("Error in onProgramEnd: " + String(e.what()));
+            }
+        }
+    }
 }
 
 /*
@@ -148,28 +183,44 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
 
         for (Device* d : devices) {
             if (d == nullptr) {
-                errorMsg = "Un des périphériques du programme est null";
+                errorMsg = "One of the devices in the program is null";
                 return false;
             }
         }
 
-        program = timeManager.addProgram(
+        program = timeManager.addProgram(programJson, std::bind(&DeviceProgram::startDevices, this), std::bind(&DeviceProgram::stopDevices, this));
+
+        /*program = timeManager.addProgram(
             programJson,
             [this](const String& id) {
+                // Vérifier que 'this' est toujours valide
+                if (!this || !enabled)
+                    return;
+
                 for (Device* d : devices) {
-                    if (d == nullptr) {
-                        Serial.println("Null device détecté dans la lambda !");
-                        //eventManager->debug("Null device détecté dans la lambda !", 0);
-                    } else {
-                        d->onProgramStart();
+                    if (d != nullptr) {
+                        try {
+                            d->onProgramStart();
+                        } catch (...) {
+                            Serial.println("Erreur lors de l'appel à onProgramStart()");
+                        }
                     }
                 }
             },
-            [this](const String&) {
+            [this](const String& id) {
+                if (!this || !enabled)
+                    return;
+
                 for (Device* d : devices) {
-                    d->onProgramEnd();
+                    if (d != nullptr) {
+                        try {
+                            d->onProgramEnd();
+                        } catch (...) {
+                            Serial.println("Erreur lors de l'appel à onProgramEnd()");
+                        }
+                    }
                 }
-            });
+            });*/
     } else {
         errorMsg = "Missing or invalid 'program'";
         return false;

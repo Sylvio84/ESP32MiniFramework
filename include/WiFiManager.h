@@ -45,7 +45,7 @@ class WiFiManager
 
     static EventManager* eventManager;  // Pointeur vers EventManager
 
-    void setConnected();
+    void setConnected(bool recovered = false);
 
 #ifndef DISABLE_ESPUI
     // ESPUI:

@@ -173,9 +173,9 @@ class InternalLedDevice : public Device
         return false;
     }*/
 
-    void onProgramStart() { activate(); }
+    void onProgramStart() override { activate(); }
 
-    void onProgramEnd() { deactivate(); }
+    void onProgramEnd() override { deactivate(); }
 };
 
 #endif  // INTERNALLEDDEVICE_H

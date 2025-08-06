@@ -6,6 +6,7 @@
 #include <DeviceManager.h>
 #include <Devices/Device.h>
 #include <TimeManager.h>
+#include <EventManager.h>
 #include <functional>
 #include <vector>
 
@@ -14,6 +15,10 @@ class DeviceManager;
 
 class DeviceProgram
 {
+  private:
+    
+    static EventManager* eventManager;  // Pointeur vers EventManager
+
   public:
     String name;
     String id;
@@ -22,8 +27,8 @@ class DeviceProgram
     std::vector<Device*> devices;
     String settingsJson;
 
-    DeviceProgram();
-    DeviceProgram(const String& name, const TimeManager::Program& program);
+    DeviceProgram(EventManager& eventMgr);
+    //DeviceProgram(const String& name, EventManager& eventMgr, const TimeManager::Program& program);
 
     ~DeviceProgram()
     {
@@ -41,6 +46,9 @@ class DeviceProgram
 
     void activate();
     void deactivate();
+
+    void startDevices();
+    void stopDevices();
 
     //void applyToDevicesOnStart();
     //void applyToDevicesOnStop();

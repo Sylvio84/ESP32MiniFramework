@@ -51,6 +51,7 @@ String Configuration::getValue(const String key, String defaultValue)
 bool Configuration::setPreference(const String key, int value)
 {
     if (key.length() > 16 || key.length() == 0) {
+        eventManager->debug("Key too long for NVS", 0);
         return false;
     }
 

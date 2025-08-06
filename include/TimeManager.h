@@ -85,7 +85,7 @@ class TimeManager
     void clearScheduler(uint id);
 
     void initProgram(Program& program);
-    TimeManager::Program* addProgram(const String& json, std::function<void(String)> onStartCbBuilder, std::function<void(String)> onStopCbBuilder);
+    TimeManager::Program* addProgram(const String& json, std::function<void()> onStart, std::function<void()> onStop);
     static String exportProgramToJson(const Program& program);
 
     bool isNight();
@@ -119,6 +119,7 @@ class TimeManager
         String endDate;               // Format "DD/MM"
         std::function<void()> callback;
         bool active;
+        String lastTriggeredDate;
     };
 
     std::vector<Timeout> timeouts;

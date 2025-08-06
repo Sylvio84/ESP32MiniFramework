@@ -40,14 +40,21 @@ DeviceProgram* DeviceProgramManager::getDeviceProgramByName(const String& name)
     return nullptr;
 }
 
-void DeviceProgramManager::removeDeviceProgram(const String& id)
+bool DeviceProgramManager::removeDeviceProgram(const String& id, bool saveAfterRemoval)
 {
     auto deviceProgram = getDeviceProgramById(id);
     if (deviceProgram) {
         devicePrograms.erase(std::remove_if(devicePrograms.begin(), devicePrograms.end(), [&](DeviceProgram* dp) { return dp && dp->id == id; }),
                              devicePrograms.end());
+        if (saveAfterRemoval) {
+            return saveDevicePrograms();
+        } else {
+            eventManager->debug("Device program with id '" + id + "' removed without saving", 3);
+            return true;
+        }
     } else {
         eventManager->debug("Device program with id '" + id + "' not found", 0);
+        return false;
     }
 }
 
@@ -58,13 +65,15 @@ const std::vector<DeviceProgram*>& DeviceProgramManager::getAllDevicePrograms()
 
 bool DeviceProgramManager::importDeviceProgram(const String& json, String& errorMsg)
 {
-    DeviceProgram* deviceProgram = new DeviceProgram();
+    DeviceProgram* deviceProgram = new DeviceProgram(*eventManager);
     if (deviceProgram->fromJson(json, deviceManager, timeManager, errorMsg)) {
         for (auto existingProgram : devicePrograms) {
             if (existingProgram->id == deviceProgram->id) {
-                errorMsg = "Un programme avec l'ID '" + deviceProgram->id + "' existe déjà.";
-                delete deviceProgram;
-                return false;
+                //errorMsg = "Un programme avec l'ID '" + deviceProgram->id + "' existe déjà.";
+                //delete deviceProgram;
+                //return false;
+                removeDeviceProgram(existingProgram->id, false);
+                eventManager->debug("A program with ID '" + deviceProgram->id + "' already exists. Replacing it.", 1);
             }
         }
 
@@ -104,7 +113,7 @@ bool DeviceProgramManager::loadDevicePrograms(bool clearExisting)
         serializeJson(obj, progStr);
         eventManager->debug("Loading program from JSON: " + progStr, 1);
 
-        DeviceProgram* deviceProgram = new DeviceProgram();
+        DeviceProgram* deviceProgram = new DeviceProgram(*eventManager);
         String error;
         if (deviceProgram->fromJson(progStr, deviceManager, timeManager, error)) {
             //devicePrograms.push_back(deviceProgram);  // Copie dans le vector

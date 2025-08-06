@@ -140,6 +140,10 @@ void TimeManager::checkSchedulers()
     // Convert tm_wday (0=Sunday, 1=Monday, ..., 6=Sat) To 1=Monday, ..., 7=Sunday
     int currentDayOfWeek = (timeinfo.tm_wday == 0) ? 7 : timeinfo.tm_wday;
 
+    char currentDateTime[11];
+    strftime(currentDateTime, sizeof(currentDateTime), "%Y-%m-%d", &timeinfo);
+    String todayStr = String(currentDateTime);
+
     for (auto& scheduler : schedulers) {
         if (!scheduler.active)
             continue;
@@ -157,7 +161,15 @@ void TimeManager::checkSchedulers()
 
         // Vérifie heure/minute
         if (scheduler.hour == currentHour && scheduler.minute == currentMinute) {
-            scheduler.callback();
+            if (scheduler.lastTriggeredDate != todayStr) {
+                eventManager->debug("Scheduler triggered at " + String(currentHour) + ":" + String(currentMinute), 1);
+                try {
+                    scheduler.callback();
+                } catch (const std::exception& e) {
+                    eventManager->debug("Scheduler callback error: " + String(e.what()), 0);
+                }
+                scheduler.lastTriggeredDate = todayStr;
+            }
         }
     }
 }
@@ -263,7 +275,7 @@ void TimeManager::initProgram(Program& program)
     programs.push_back(program);
 }
 
-TimeManager::Program* TimeManager::addProgram(const String& json, std::function<void(String)> onStartCbBuilder, std::function<void(String)> onStopCbBuilder)
+TimeManager::Program* TimeManager::addProgram(const String& json, std::function<void()> onStart, std::function<void()> onStop)
 {
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, json);
@@ -285,10 +297,9 @@ TimeManager::Program* TimeManager::addProgram(const String& json, std::function<
         return nullptr;
     }
 
-
     String dump;
     serializeJson(doc, dump);
-    
+
     program->startTime = doc["startTime"].as<String>();
     program->duration = doc["duration"].as<uint16_t>();
 
@@ -303,7 +314,7 @@ TimeManager::Program* TimeManager::addProgram(const String& json, std::function<
         }
     }
 
-    if ((doc["onStart"].isNull() == false) && !doc["onStart"].isNull()) {
+    /*if ((doc["onStart"].isNull() == false) && !doc["onStart"].isNull()) {
         String id = doc["onStart"].as<String>();
         program->onStart = [id, onStartCbBuilder]() {
             onStartCbBuilder(id);
@@ -315,7 +326,10 @@ TimeManager::Program* TimeManager::addProgram(const String& json, std::function<
         program->onStop = [id, onStopCbBuilder]() {
             onStopCbBuilder(id);
         };
-    }
+    }*/
+
+    program->onStart = onStart;
+    program->onStop = onStop;
 
     initProgram(*program);
 

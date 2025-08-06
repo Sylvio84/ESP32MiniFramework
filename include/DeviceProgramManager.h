@@ -35,7 +35,7 @@ class DeviceProgramManager
     DeviceProgram* getDeviceProgramById(const String& id);
     DeviceProgram* getDeviceProgramByName(const String& name);
     
-    void removeDeviceProgram(const String& id);
+    bool removeDeviceProgram(const String& id, bool saveAfterRemoval = true);
     const std::vector<DeviceProgram*>& getAllDevicePrograms();
     bool importDeviceProgram(const String& json, String& errorMsg);
 

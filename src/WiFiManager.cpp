@@ -85,9 +85,7 @@ void WiFiManager::loop()
         } else if (connectionStatus == 3)  // Connection lost
         {
             if (WiFi.status() == WL_CONNECTED) {
-                connectionStatus = 10;
-                this->connected = true;
-                eventManager->triggerEvent("wifi", "recovered", {});
+                setConnected(true);
             }
         }
         lastMillis = currentMillis;
@@ -227,15 +225,14 @@ bool WiFiManager::connect()
     delay(100);
 
     if (WiFi.status() == WL_CONNECTED) {
-        this->connected = true;
-        connectionStatus = 10;
+        setConnected();
         return true;
     } else {
         return false;
     }
 }
 
-void WiFiManager::setConnected()
+void WiFiManager::setConnected(bool recovered)
 {
     connected = true;
     keepConnected = true;
@@ -244,7 +241,7 @@ void WiFiManager::setConnected()
     std::vector<String> params;
     params.push_back(WiFi.SSID());
     params.push_back(WiFi.localIP().toString());
-    eventManager->triggerEvent("wifi", "connected", params);
+    eventManager->triggerEvent("wifi", recovered ? "recovered" : "connected", params);
 }
 
 void WiFiManager::disconnect()
