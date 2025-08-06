@@ -2,7 +2,10 @@
 #define MAINCONTROLLER_H
 
 #include <Arduino.h>
+#ifdef ESP32
 #include <esp_chip_info.h>
+#endif
+
 #include <Configuration.h>
 #include <SerialCommandManager.h>
 #ifndef DISABLE_DISPLAY

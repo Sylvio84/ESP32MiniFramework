@@ -76,8 +76,7 @@ bool Device::subscribeMQTT(String topic)
         return false;
     }
     eventManager->triggerEvent("mqtt", "subscribe", {topic});
-    eventManager->triggerEvent("mqtt", "subscribe", {topic + "/cmd"});
-    eventManager->triggerEvent("mqtt", "subscribe", {topic + "/import_program"});
+    //eventManager->triggerEvent("mqtt", "subscribe", {topic + "/cmd"});
     return true;
 }
 
@@ -87,8 +86,7 @@ bool Device::unsubscribeMQTT(String topic)
         return false;
     }
     eventManager->triggerEvent("mqtt", "unsubscribe", {topic});
-    eventManager->triggerEvent("mqtt", "unsubscribe", {topic + "/cmd"});
-    eventManager->triggerEvent("mqtt", "unsubscribe", {topic + "/import_program"});
+    //eventManager->triggerEvent("mqtt", "unsubscribe", {topic + "/cmd"});
     return true;
 }
 

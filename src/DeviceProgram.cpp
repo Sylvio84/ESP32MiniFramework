@@ -46,11 +46,15 @@ void DeviceProgram::startDevices()
     eventManager->debug("Starting devices for program: " + name, 1);
     for (Device* d : devices) {
         if (d) {
+#ifdef ESP32
             try {
                 d->onProgramStart();
             } catch (const std::exception& e) {
                 Serial.println("Error in onProgramStart: " + String(e.what()));
             }
+#else
+            d->onProgramStart();
+#endif
         }
     }
 }
@@ -60,11 +64,16 @@ void DeviceProgram::stopDevices()
     eventManager->debug("Stopping devices for program: " + name, 1);
     for (Device* d : devices) {
         if (d) {
+#ifdef ESP32
             try {
                 d->onProgramEnd();
             } catch (const std::exception& e) {
                 Serial.println("Error in onProgramEnd: " + String(e.what()));
             }
+#else
+            // For other platforms, we might not have the same exception handling
+            d->onProgramEnd();
+#endif
         }
     }
 }

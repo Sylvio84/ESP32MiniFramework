@@ -13,7 +13,7 @@
 #ifdef ESP32
 #include <WiFi.h>
 #include <esp_https_ota.h>
-#include <ESP32Ping.h>
+//#include <ESP32Ping.h>
 #endif
 #ifdef ESP8266
 #include <ESP8266WiFi.h>

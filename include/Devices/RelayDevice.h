@@ -10,7 +10,7 @@ class RelayDevice : public Device
 
   public:
     //int pin = 0;
-    int pin = 14;
+    int pin = 12;
     int state = LOW;
 
     int timeoutId = 0;
@@ -27,6 +27,7 @@ class RelayDevice : public Device
     void init() override
     {
         Device::init();
+        eventManager->debug("Initializing RelayDevice #" + id + " with pin: " + String(pin), 1);
         pinMode(pin, OUTPUT);
         state = LOW;
         digitalWrite(pin, state);

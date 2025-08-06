@@ -57,6 +57,12 @@
             "name": "ESPTelnet",
             "version": "git@github.com:Sylvio84/ESPTelnet.git",
             "frameworks": "arduino"
+        },
+        {
+            "name": "ESP32Ping",
+            "owner": "marian-craciunescu",
+            "version": "^1.7",
+            "frameworks": "arduino"
         }
     ],
     "frameworks": "arduino",

@@ -327,7 +327,9 @@ void MainController::processCommand(String command, std::vector<String> params)
     } else if (command == "info") {
         eventManager.debug("ESP32 Mini Framework Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")", 0);
         eventManager.debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
+#ifdef ESP32
         eventManager.debug("Total Heap: " + String(ESP.getHeapSize() / 1024) + " KB", 0);
+#endif
         eventManager.debug("Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB", 0);
         eventManager.debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);
         eventManager.debug("Sketch size: " + String(ESP.getSketchSize() / 1024) + " KB", 0);
@@ -438,7 +440,7 @@ void MainController::processCommand(String command, std::vector<String> params)
         }
     } else if (command == "device") {
         if (params.size() == 0) {
-            eventManager.debug("List of devices:", 1);
+            eventManager.debug("List of devices:", 0);
             for (const auto& device : deviceManager.getAllDevices()) {
                 eventManager.debug(" #" + device->id + " : " + device->name + " (" + device->topic + ")", 0);
             }

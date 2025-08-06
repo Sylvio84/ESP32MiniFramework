@@ -163,11 +163,15 @@ void TimeManager::checkSchedulers()
         if (scheduler.hour == currentHour && scheduler.minute == currentMinute) {
             if (scheduler.lastTriggeredDate != todayStr) {
                 eventManager->debug("Scheduler triggered at " + String(currentHour) + ":" + String(currentMinute), 1);
+                #ifdef ESP32
                 try {
                     scheduler.callback();
                 } catch (const std::exception& e) {
                     eventManager->debug("Scheduler callback error: " + String(e.what()), 0);
                 }
+                #else
+                scheduler.callback();
+                #endif
                 scheduler.lastTriggeredDate = todayStr;
             }
         }
