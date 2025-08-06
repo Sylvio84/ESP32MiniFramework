@@ -325,6 +325,7 @@ void MainController::processCommand(String command, std::vector<String> params)
         eventManager.debug("Frequency command not supported on this device", 0);
 #endif
     } else if (command == "info") {
+        eventManager.debug("ESP32 Mini Framework Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")", 0);
         eventManager.debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
         eventManager.debug("Total Heap: " + String(ESP.getHeapSize() / 1024) + " KB", 0);
         eventManager.debug("Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB", 0);
@@ -355,6 +356,11 @@ void MainController::processCommand(String command, std::vector<String> params)
             eventManager.debug("IP address: " + wiFiManager.retrieveIP(), 0);
         } else {
             eventManager.debug("Not connected to WiFi", 0);
+        }
+        if (mqttManager.isConnected()) {
+            eventManager.debug("Connected to MQTT server: " + mqttManager.retrieveServer(), 0);
+        } else {
+            eventManager.debug("Not connected to MQTT server", 0);
         }
     } else if (command == "fs") {
         if (!LittleFS.begin()) {
@@ -415,7 +421,11 @@ void MainController::processCommand(String command, std::vector<String> params)
             config.setJsonConfig(params[0]);
             eventManager.debug("Configuration updated", 1);
         } else {
-            eventManager.debug(config.getJsonConfig(), 0);
+            //eventManager.debug(config.getJsonConfig(), 0);
+            auto vars = config.getPreferences();
+            for (const auto& pair : vars) {
+                eventManager.debug(pair.first + " = " + pair.second, 0);
+            }
         }
     } else if (command == "ntp") {
         if (timeManager.update(true)) {
@@ -445,7 +455,6 @@ void MainController::processCommand(String command, std::vector<String> params)
         // list all params
         if (params.size() > 0) {
             eventManager.debug("Importing program from JSON: " + params[0], 0);
-            // @todo implement JSON import
             String errorMsg;
             if (!deviceProgramManager.importDeviceProgram(params[0], errorMsg)) {
                 eventManager.debug("Error importing program: " + errorMsg, 0);

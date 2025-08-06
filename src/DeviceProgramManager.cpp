@@ -69,8 +69,7 @@ bool DeviceProgramManager::importDeviceProgram(const String& json, String& error
         }
 
         devicePrograms.push_back(deviceProgram);
-        saveDevicePrograms();
-        return true;
+        return saveDevicePrograms();
     } else {
         errorMsg = "Erreur lors de l'importation du programme : " + errorMsg;
         delete deviceProgram;

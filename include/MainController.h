@@ -24,8 +24,8 @@
 
 #define DEBUG_LOG() debugLog(__FILE__, __LINE__)
 
-#define RELEASE_VERSION "1.0.0"
-#define RELEASE_DATE "2025-06-23"
+#define RELEASE_VERSION "1.1.0"
+#define RELEASE_DATE "2025-08-06"
 
 inline void debugLog( const char* file, int line)
 {

@@ -4,6 +4,21 @@ EventManager* Configuration::eventManager = nullptr;
 
 #ifdef ESP32
 Configuration::Configuration() {}
+
+std::vector<String> Configuration::getPreferenceKeys()
+{
+    std::vector<String> keys;
+
+    nvs_iterator_t it = nvs_entry_find("nvs", "config", NVS_TYPE_ANY);
+    while (it != NULL) {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        keys.push_back(String(info.key));
+        it = nvs_entry_next(it);
+    }
+
+    return keys;
+}
 #else
 Configuration::Configuration() : json_preferences()
 {
@@ -49,7 +64,8 @@ bool Configuration::setPreference(const String key, int value)
 
 bool Configuration::setPreference(const String key, String value)
 {
-    if (key.length() > 16 || key.length() == 0 || value.length() > 255) {
+    if (key.length() > 16 || key.length() == 0 || value.length() > 1984) {
+        eventManager->debug("Value too long for NVS", 0);
         return false;
     }
 #ifdef ESP32
@@ -93,7 +109,26 @@ String Configuration::getJsonConfig()
 {
     String jsonString;
 #ifdef ESP32
-    eventManager->debug("Not possible to get JSON config on ESP32", 0);
+    JsonDocument doc;
+    prefs.begin("config", true);
+
+    auto keys = getPreferenceKeys();
+    for (auto& key : keys) {
+        int intVal = prefs.getInt(key.c_str(), INT_MIN);
+        if (intVal != INT_MIN) {
+            doc[key] = intVal;
+        } else {
+            String val = prefs.getString(key.c_str(), "__NO_STRING__");
+            if (val != "__NO_STRING__") {
+                doc[key] = val;
+            } else {
+                doc[key] = nullptr;
+            }
+        }
+    }
+    prefs.end();
+
+    serializeJson(doc, jsonString);
 #else
     serializeJson(json_preferences, jsonString);
 #endif
@@ -109,6 +144,59 @@ bool Configuration::setJsonConfig(const String json)
     json_preferences = json;
     return writeJsonPreferences();
 #endif
+}
+
+std::map<String, String> Configuration::getPreferences()
+{
+    std::map<String, String> vars;
+
+#ifdef ESP32
+    prefs.begin("config", true);
+    auto keys = getPreferenceKeys();
+
+    for (auto& key : keys) {
+        // Essaye int d'abord
+        int intVal = prefs.getInt(key.c_str(), INT_MIN);
+        if (intVal != INT_MIN) {
+            vars[key] = String(intVal);
+        } else {
+            String val = prefs.getString(key.c_str(), "");
+            vars[key] = val;
+        }
+    }
+    prefs.end();
+
+#else  // ESP8266
+    for (JsonPair kv : json_preferences.as<JsonObject>()) {
+        String key = kv.key().c_str();
+        // Convertir la valeur en string (en fonction du type)
+        if (kv.value().is<const char*>()) {
+            vars[key] = String(kv.value().as<const char*>());
+        } else if (kv.value().is<int>()) {
+            vars[key] = String(kv.value().as<int>());
+        } else if (kv.value().is<float>()) {
+            vars[key] = String(kv.value().as<float>());
+        } else {
+            // fallback : serialize JSON value to string
+            String tmp;
+            serializeJson(kv.value(), tmp);
+            vars[key] = tmp;
+        }
+    }
+#endif
+
+    return vars;
+}
+
+bool Configuration::saveProgramsJson(const String& json)
+{
+    return setPreference("device_programs", json);
+}
+
+bool Configuration::loadProgramsJson(String& outJson)
+{
+    outJson = getPreference("device_programs", "");
+    return outJson.length() > 0;
 }
 
 #ifdef ESP8266
@@ -194,14 +282,3 @@ void Configuration::debugJsonPreferences()
 }
 
 #endif
-
-bool Configuration::saveProgramsJson(const String& json)
-{
-    return setPreference("device_programs", json);
-}
-
-bool Configuration::loadProgramsJson(String& outJson)
-{
-    outJson = getPreference("device_programs", "");
-    return outJson.length() > 0;
-}

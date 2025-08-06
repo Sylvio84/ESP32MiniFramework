@@ -7,6 +7,8 @@
 #ifdef ESP32
 #include <Preferences.h>
 #include <ArduinoJson.h>
+#include <nvs.h>
+#include <vector>
 #else
 #include <EEPROM.h>
 #include <ArduinoJson.h>
@@ -51,6 +53,8 @@ public:
     String getJsonConfig();
     bool setJsonConfig(const String json);
 
+    std::map<String, String> getPreferences();
+
     int getPreference(const String key, int defaultValue = 0);
     String getPreference(const String key, const String &defaultValue = "");
 
@@ -71,6 +75,7 @@ private:
 
 #ifdef ESP32
     Preferences prefs;
+    std::vector<String> getPreferenceKeys();
 #else
     EEPROMClass eeprom;
 

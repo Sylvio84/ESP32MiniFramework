@@ -45,6 +45,8 @@ class WiFiManager
 
     static EventManager* eventManager;  // Pointeur vers EventManager
 
+    void setConnected();
+
 #ifndef DISABLE_ESPUI
     // ESPUI:
     uint16_t ssidInput = 0;

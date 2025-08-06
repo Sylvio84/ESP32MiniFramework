@@ -72,14 +72,7 @@ void WiFiManager::loop()
                 }
                 eventManager->debug("WiFi: connection in progress #" + String(tryCount) + "...", 2);
             } else {
-                connected = true;
-                keepConnected = true;
-                connectionStatus = 10;
-                tryCount = 0;
-                std::vector<String> params;
-                params.push_back(WiFi.SSID());
-                params.push_back(WiFi.localIP().toString());
-                eventManager->triggerEvent("wifi", "connected", params);
+                setConnected();
             }
         } else if (connectionStatus == 10)  // Connected
         {
@@ -240,6 +233,18 @@ bool WiFiManager::connect()
     } else {
         return false;
     }
+}
+
+void WiFiManager::setConnected()
+{
+    connected = true;
+    keepConnected = true;
+    connectionStatus = 10;
+    tryCount = 0;
+    std::vector<String> params;
+    params.push_back(WiFi.SSID());
+    params.push_back(WiFi.localIP().toString());
+    eventManager->triggerEvent("wifi", "connected", params);
 }
 
 void WiFiManager::disconnect()

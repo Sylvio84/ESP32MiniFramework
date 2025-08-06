@@ -39,10 +39,17 @@ void MQTTManager::init()
 void MQTTManager::loop()
 {
     static unsigned long lastMQTTReconnect = 0;
-    static unsigned long retry = 1;
+    static unsigned long retry = 0;
     static unsigned long lastMQTTLoop = 0;
-    static unsigned long reconnectDelay = 1;
+    static unsigned long reconnectDelay = 1; // initial delay in seconds
     unsigned long currentMillis = millis();
+
+//  every seconds display status
+//  static unsigned long lastStatusDisplay = 0;
+//  if (currentMillis - lastStatusDisplay >= 1000) {
+//       lastStatusDisplay = currentMillis;
+//       eventManager->debug("MQTT status #" + String(status) + ": " + (mqttClient.connected() ? "connected" : "disconnected"), 1);
+//  }
 
     /*if (!wifiClient.available()) {
         eventManager->debug("No WiFi connection, MQTT disabled", 1);
@@ -58,24 +65,37 @@ void MQTTManager::loop()
         lastPing = currentMillis;
     }
 
-    if (currentMillis - lastMQTTReconnect >= (reconnectDelay * 10000)) {
+    if (currentMillis - lastMQTTReconnect >= (reconnectDelay * 1000)) {
         if ((status >= 2) && server != "" && !mqttClient.connected()) {
             eventManager->debug("MQTT: Try to connect....", 1);
             if (!reconnect()) {
                 retry++;
-                reconnectDelay = retry;
+                reconnectDelay = 1;
+                for (unsigned long i = 0; i < retry && reconnectDelay < 60; i++) {
+                    reconnectDelay *= 2;
+                }
                 if (reconnectDelay > 60) {
                     reconnectDelay = 60;
                 }
-                eventManager->debug("MQTT connection failed, try again in " + String(reconnectDelay * 10) + "s", 1);
+                eventManager->debug("MQTT connection failed, try again in " + String(reconnectDelay) + "s (attempt " + String(retry + 1) + ")", 1);
+            } else {
+                // Successful connection, reset retry count and delay
+                retry = 0;
+                reconnectDelay = 1;
+                eventManager->debug("MQTT connected successfully", 1);
             }
         }
         lastMQTTReconnect = currentMillis;
     }
+
     if ((lastMQTTLoop == 0) || (currentMillis - lastMQTTLoop >= 25)) {
-        if (mqttClient.loop() && retry != 0) {
-            retry = 0;
-            reconnectDelay = 1000;
+        if (mqttClient.loop()) {
+            // Si la connexion est maintenue et qu'on avait des échecs précédents
+            if (retry > 0) {
+                retry = 0;
+                reconnectDelay = 1;
+                eventManager->debug("MQTT connection restored", 1);
+            }
         }
         lastMQTTLoop = currentMillis;
     }
