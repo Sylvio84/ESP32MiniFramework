@@ -4,7 +4,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <Configuration.h>
+#include <FrameworkContext.h>
 #include <LiquidCrystal_I2C.h> // lib_deps = marcoschwartz/LiquidCrystal_I2C@^1.1.4
 
 /*
@@ -23,8 +23,15 @@ private:
 
     bool isInitialized = false;
 
+private:
+    FrameworkContext* context;
+    
 public:
-    DisplayManager(Configuration& config);
+    // New constructor with FrameworkContext
+    DisplayManager(FrameworkContext& ctx) : context(&ctx), lcd(0x27, 16, 2), cols(16), rows(2), sdaPin(21), sclPin(22), lcdAddress(0x27) {}
+    
+    // Legacy constructor for compatibility
+    DisplayManager(Configuration& config) : context(nullptr), lcd(0x27, 16, 2), cols(16), rows(2), sdaPin(21), sclPin(22), lcdAddress(0x27) {}
 
     bool init();
 

@@ -1,4 +1,6 @@
 #include <DeviceManager.h>
+#include <Configuration.h>
+#include <EventManager.h>
 
 EventManager* DeviceManager::eventManager = nullptr;
 

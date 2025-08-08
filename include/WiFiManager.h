@@ -2,12 +2,11 @@
 #define WIFIMANAGER_H
 
 #include <Arduino.h>
-#include <Configuration.h>
+#include <FrameworkContext.h>
 #include <ESPTelnet.h>
 #ifndef DISABLE_ESPUI
 #include <ESPUI.h>
 #endif
-#include <EventManager.h>
 #include <Tools.h>
 
 #ifdef ESP32
@@ -31,7 +30,7 @@ class WiFiManager
   private:
     static const uint CONNECTION_TIMEOUT = 10000;
 
-    Configuration& config;
+    FrameworkContext* context;
     ESPTelnet telnet;
     uint16_t telnetPort = 23;
 
@@ -54,7 +53,17 @@ class WiFiManager
 #endif
 
   public:
-    WiFiManager(Configuration& config, EventManager& eventMgr) : config(config)
+    // New constructor with FrameworkContext
+    WiFiManager(FrameworkContext& ctx) : context(&ctx)
+    {
+        this->apIP = IPAddress(192, 168, 1, 249);
+        if (eventManager == nullptr) {
+            eventManager = ctx.getService<EventManager>();
+        }
+    }
+    
+    // Legacy constructor for compatibility
+    WiFiManager(Configuration& config, EventManager& eventMgr) : context(nullptr)
     {
         this->apIP = IPAddress(192, 168, 1, 249);
         if (eventManager == nullptr) {

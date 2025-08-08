@@ -1,6 +1,27 @@
 #include "SerialCommandManager.h"
+#include <Configuration.h>
+#include <EventManager.h>
 
 EventManager* SerialCommandManager::eventManager = nullptr;
+
+// New constructor with FrameworkContext
+SerialCommandManager::SerialCommandManager(FrameworkContext& ctx) : context(&ctx)
+{
+    Configuration* config = ctx.getService<Configuration>();
+    baudRate = config ? config->getPreference("serial_speed", baudRate) : baudRate;
+    if (eventManager == nullptr) {
+        eventManager = ctx.getService<EventManager>();
+    }
+}
+
+// Legacy constructor for compatibility
+SerialCommandManager::SerialCommandManager(Configuration& config, EventManager& eventMgr) : context(nullptr)
+{
+    baudRate = config.getPreference("serial_speed", baudRate);
+    if (eventManager == nullptr) {
+        eventManager = &eventMgr;
+    }
+}
 
 void SerialCommandManager::init()
 {

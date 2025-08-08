@@ -2,7 +2,7 @@
 #define TIMEMANAGER_H
 
 #include <Arduino.h>
-#include <Configuration.h>
+#include <FrameworkContext.h>
 #include <ctime>
 #include <functional>
 #include <map>
@@ -13,7 +13,6 @@
 #include <ESP8266WiFi.h>
 #endif
 #include <ArduinoJson.h>
-#include <EventManager.h>
 
 class TimeManager
 {
@@ -60,6 +59,10 @@ class TimeManager
 
     bool isInitialized = false;
 
+    // New constructor with FrameworkContext
+    TimeManager(FrameworkContext& ctx);
+    
+    // Legacy constructor for compatibility  
     TimeManager(Configuration& config, EventManager& eventMgr);
 
     virtual void init();
@@ -91,7 +94,7 @@ class TimeManager
     bool isNight();
 
   protected:
-    Configuration& config;
+    FrameworkContext* context;
     static EventManager* eventManager;  // Pointeur vers EventManager
 
     struct Timeout

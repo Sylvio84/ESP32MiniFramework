@@ -1,23 +1,40 @@
 #include <MainController.h>
 
 MainController::MainController(Configuration& config)
-    : eventManager(),
+    : context(),
+      eventManager(),
       config(config),
-      serialCommandManager(config, eventManager),
+      serialCommandManager(context),
 #ifndef DISABLE_DISPLAY
-      ,
-      displayManager(config)
+      displayManager(context),
 #endif
-          wiFiManager(config, eventManager),
-      mqttManager(config, eventManager),
-      timeManager(config, eventManager),
-      deviceManager(config, eventManager),
-      deviceProgramManager(config, eventManager, deviceManager, timeManager)
+      wiFiManager(context),
+      mqttManager(context),
+      timeManager(context),
 #ifndef DISABLE_ESPUI
-      ,
-      espUIManager(config, eventManager)
+      espUIManager(context),
 #endif
+      deviceManager(context),
+      deviceProgramManager(context)
 {
+    // Register all services in the context FIRST
+    context.registerService(&config);
+    context.registerService(&eventManager);
+    
+    // Initialize managers after context is set up
+    context.registerService(&serialCommandManager);
+    context.registerService(&wiFiManager);
+    context.registerService(&mqttManager);
+    context.registerService(&timeManager);
+    context.registerService(&deviceManager);
+    context.registerService(&deviceProgramManager);
+#ifndef DISABLE_DISPLAY
+    context.registerService(&displayManager);
+#endif
+#ifndef DISABLE_ESPUI
+    context.registerService(&espUIManager);
+#endif
+
     eventManager.registerMainCallback(
         [this](const String& eventType, const String& event, const std::vector<String>& params) { this->processEvent(eventType, event, params); });
     eventManager.registerDebugCallback(

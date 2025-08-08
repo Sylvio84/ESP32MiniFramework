@@ -4,12 +4,12 @@
 #include <Arduino.h>
 #include <PubSubClient.h>
 #include <vector>
+#include <map>
 // #include <WiFiManager.h>
-#include <Configuration.h>
+#include <FrameworkContext.h>
 #ifndef DISABLE_ESPUI
 #include <ESPUI.h>
 #endif
-#include <EventManager.h>
 #ifdef ESP32
 #include <WiFi.h>
 #else
@@ -20,7 +20,13 @@ class MQTTManager
 {
 
   public:
-    MQTTManager(Configuration& config, EventManager& eventMgr) : config(config), mqttClient(wifiClient) { 
+    // New constructor with FrameworkContext
+    MQTTManager(FrameworkContext& ctx) : context(&ctx), mqttClient(wifiClient) { 
+        this->eventManager = ctx.getService<EventManager>();
+    }
+    
+    // Legacy constructor for compatibility
+    MQTTManager(Configuration& config, EventManager& eventMgr) : context(nullptr), mqttClient(wifiClient) { 
         this->eventManager = &eventMgr;
     }
 
@@ -75,7 +81,7 @@ class MQTTManager
 #endif
 
   private:
-    Configuration& config;
+    FrameworkContext* context;
 
     WiFiClient wifiClient;
     PubSubClient mqttClient;

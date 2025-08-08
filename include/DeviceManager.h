@@ -5,8 +5,7 @@
 #include <vector>
 #include <memory>
 #include <Devices/Device.h>
-#include <Configuration.h>
-#include <EventManager.h>
+#include <FrameworkContext.h>
 
 class Device;
 
@@ -14,14 +13,23 @@ class DeviceManager
 {
   private:
 
-    Configuration& config;
+    FrameworkContext* context;
 
     static EventManager* eventManager;  // Pointeur vers EventManager
 
     std::vector<Device*> devices;
 
   public:
-    DeviceManager(Configuration& config, EventManager& eventMgr) : config(config)
+    // New constructor with FrameworkContext
+    DeviceManager(FrameworkContext& ctx) : context(&ctx)
+    {
+        if (eventManager == nullptr) {
+            eventManager = ctx.getService<EventManager>();
+        }
+    }
+    
+    // Legacy constructor for compatibility
+    DeviceManager(Configuration& config, EventManager& eventMgr) : context(nullptr)
     {
         if (eventManager == nullptr) {
             eventManager = &eventMgr;

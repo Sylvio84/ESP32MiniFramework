@@ -2,8 +2,7 @@
 #define SERIAL_COMMAND_MANAGER_H
 
 #include <Arduino.h>
-#include <Configuration.h>
-#include <EventManager.h>
+#include <FrameworkContext.h>
 #include <functional>
 #include <map>
 #include <vector>
@@ -11,20 +10,18 @@
 class SerialCommandManager
 {
   public:
-    SerialCommandManager(Configuration& config, EventManager& eventMgr) : config(config)
-    {
-        baudRate = config.getPreference("serial_speed", baudRate);
-        if (eventManager == nullptr) {
-            eventManager = &eventMgr;
-        }
-    }
+    // New constructor with FrameworkContext
+    SerialCommandManager(FrameworkContext& ctx);
+    
+    // Legacy constructor for compatibility
+    SerialCommandManager(Configuration& config, EventManager& eventMgr);
 
     void init();
     void loop();
 
   private:
     int baudRate = 115200;
-    Configuration& config;
+    FrameworkContext* context;
 
     String inputBuffer;
 

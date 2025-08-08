@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <Configuration.h>
+#include <FrameworkContext.h>
 #include <Devices/Device.h>
 
 class RelayDevice : public Device
@@ -15,6 +16,16 @@ class RelayDevice : public Device
 
     int timeoutId = 0;
 
+    // Constructeur avec FrameworkContext
+    RelayDevice(String id, FrameworkContext& ctx) : Device(id, ctx)
+    {
+        //pin = config.getValue("relay_pin", 0);
+        addCommand("1", std::bind(&RelayDevice::activate, this));
+        addCommand("0", std::bind(&RelayDevice::deactivate, this));
+        addCommand("?", std::bind(&RelayDevice::getState, this));
+    }
+    
+    // Constructeur original pour compatibilité
     RelayDevice(String id, Configuration& config, EventManager& eventMgr, TimeManager& timeMgr) : Device(id, config, eventMgr, timeMgr)
     {
         //pin = config.getValue("relay_pin", 0);

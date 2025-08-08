@@ -1,8 +1,32 @@
 #ifndef DISABLE_DISPLAY
 #include <DisplayManager.h>
+#include <Configuration.h>
 
 
-DisplayManager::DisplayManager(Configuration& config) : lcd(config.LCD_ADDRESS, config.LCD_COLS, config.LCD_ROWS)
+// New constructor with FrameworkContext
+DisplayManager::DisplayManager(FrameworkContext& ctx) : context(&ctx)
+{
+    Configuration* config = ctx.getService<Configuration>();
+    if (config) {
+        this->lcd = LiquidCrystal_I2C(config->LCD_ADDRESS, config->LCD_COLS, config->LCD_ROWS);
+        this->cols = config->LCD_COLS;
+        this->rows = config->LCD_ROWS;
+        this->sdaPin = config->LCD_SDA;
+        this->sclPin = config->LCD_SCL;
+        this->lcdAddress = config->LCD_ADDRESS;
+    } else {
+        // Default values if no config available
+        this->lcd = LiquidCrystal_I2C(0x27, 16, 2);
+        this->cols = 16;
+        this->rows = 2;
+        this->sdaPin = 21;
+        this->sclPin = 22;
+        this->lcdAddress = 0x27;
+    }
+}
+
+// Legacy constructor for compatibility
+DisplayManager::DisplayManager(Configuration& config) : context(nullptr), lcd(config.LCD_ADDRESS, config.LCD_COLS, config.LCD_ROWS)
 {
     this->cols = config.LCD_COLS;
     this->rows = config.LCD_ROWS;

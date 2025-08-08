@@ -5,6 +5,7 @@
 #include <Configuration.h>
 #include <EventManager.h>
 #include <TimeManager.h>
+#include <FrameworkContext.h>
 #include <functional>
 #include <DeviceProgram.h>
 #include <map>
@@ -25,8 +26,17 @@ class Device
     Device& operator=(const Device&) = delete;
     Device& operator=(Device&&) = delete;
 
-    // Constructeur virtuel
-    Device(String id, Configuration& config, EventManager& eventMgr, TimeManager& timeManager) : config(config), timeManager(timeManager)
+    // Constructeur avec FrameworkContext
+    Device(String id, FrameworkContext& ctx) : context(&ctx), config(*ctx.getService<Configuration>()), timeManager(*ctx.getService<TimeManager>())
+    {
+        this->id = id;
+        if (eventManager == nullptr) {
+            eventManager = ctx.getService<EventManager>();
+        }
+    };
+    
+    // Constructeur original pour compatibilité
+    Device(String id, Configuration& config, EventManager& eventMgr, TimeManager& timeManager) : context(nullptr), config(config), timeManager(timeManager)
     {
         this->id = id;
         if (eventManager == nullptr) {
@@ -72,6 +82,7 @@ class Device
 #endif
 
   protected:
+    FrameworkContext* context;
     Configuration& config;
     TimeManager& timeManager;
 

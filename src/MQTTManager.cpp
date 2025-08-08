@@ -1,4 +1,6 @@
 #include <MQTTManager.h>
+#include <Configuration.h>
+#include <EventManager.h>
 
 EventManager* MQTTManager::eventManager = nullptr;
 
@@ -58,7 +60,9 @@ void MQTTManager::loop()
 
     if (currentMillis - lastPing >= pingInterval) {
         if (mqttClient.connected()) {
-            publish(config.getHostname() + "/status", "online", false);
+            Configuration* config = context ? context->getService<Configuration>() : nullptr;
+            String hostname = config ? config->getHostname() : "ESP32";
+            publish(hostname + "/status", "online", false);
         } else {
             eventManager->debug("MQTT status #" + String(status) + ": " + (mqttClient.connected() ? "connected" : "disconnected"), 1);
         }
@@ -116,9 +120,11 @@ bool MQTTManager::reconnect()
     if (!mqttClient.connected()) {
         eventManager->triggerEvent("mqtt", "ConnectionInProgress", {});
         eventManager->debug("Attempting MQTT connection...", 1);
-        if (mqttClient.connect(config.getHostname().c_str(), username.c_str(), password.c_str())) {
+        Configuration* config = context ? context->getService<Configuration>() : nullptr;
+        String hostname = config ? config->getHostname() : "ESP32";
+        if (mqttClient.connect(hostname.c_str(), username.c_str(), password.c_str())) {
             eventManager->triggerEvent("mqtt", "Connected", {this->server});
-            eventManager->debug("MQTT connected (hostname = " + config.getHostname() + ")", 1);
+            eventManager->debug("MQTT connected (hostname = " + hostname + ")", 1);
             for (const auto& topic : subscriptions) {
                 eventManager->debug("Process subscription " + topic, 2);
                 subscribe(topic);
@@ -133,7 +139,7 @@ bool MQTTManager::reconnect()
             eventManager->triggerEvent("mqtt", "ConnectionFailed", {});
             eventManager->debug("MQTT error: " + String(mqttClient.state()), 2);
             IPAddress serverIP;
-            if (WiFi.hostByName(config.getHostname().c_str(), serverIP)) {
+            if (WiFi.hostByName(hostname.c_str(), serverIP)) {
                 eventManager->debug("Server IP: " + serverIP.toString(), 2);
             } else {
                 eventManager->debug("DNS lookup failed", 1);
@@ -179,51 +185,59 @@ void MQTTManager::saveServer(String server)
 {
     this->server = server;
     eventManager->debug("Saving MQTT server: " + server, 1);
-    config.setPreference("mq_serv", server);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    if (config) config->setPreference("mq_serv", server);
 }
 
 void MQTTManager::savePort(int port)
 {
     this->port = port;
     eventManager->debug("Saving MQTT port: " + String(port), 1);
-    config.setPreference("mq_port", port);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    if (config) config->setPreference("mq_port", port);
 }
 
 void MQTTManager::saveUsername(String username)
 {
     this->username = username;
     eventManager->debug("Saving MQTT username: " + username, 1);
-    config.setPreference("mq_user", username);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    if (config) config->setPreference("mq_user", username);
 }
 
 void MQTTManager::savePassword(String password)
 {
     this->password = password;
     eventManager->debug("Saving MQTT password: " + password, 1);
-    config.setPreference("mq_pass", password);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    if (config) config->setPreference("mq_pass", password);
 }
 
 String MQTTManager::retrieveServer()
 {
-    server = config.getPreference("mq_serv", server);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    server = config ? config->getPreference("mq_serv", server) : server;
     return server;
 }
 
 int MQTTManager::retrievePort()
 {
-    port = config.getPreference("mq_port", port);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    port = config ? config->getPreference("mq_port", port) : port;
     return port;
 }
 
 String MQTTManager::retrieveUsername()
 {
-    username = config.getPreference("mq_user", this->username);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    username = config ? config->getPreference("mq_user", this->username) : this->username;
     return username;
 }
 
 String MQTTManager::retrievePassword()
 {
-    password = config.getPreference("mq_pass", this->password);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    password = config ? config->getPreference("mq_pass", this->password) : this->password;
     return password;
 }
 

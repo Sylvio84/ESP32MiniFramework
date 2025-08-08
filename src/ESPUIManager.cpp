@@ -1,5 +1,7 @@
 #ifndef DISABLE_ESPUI
 #include <ESPUIManager.h>
+#include <Configuration.h>
+#include <EventManager.h>
 
 // Définition et initialisation du membre statique
 EventManager *ESPUIManager::eventManager = nullptr;
@@ -9,7 +11,9 @@ void ESPUIManager::init()
     Serial.println("ESPUIManager init...");
     ESPUI.setVerbosity(Verbosity::Quiet);
 
-    ESPUI.begin(config.getHostname().c_str());
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    String hostname = config ? config->getHostname() : "ESP32";
+    ESPUI.begin(hostname.c_str());
     initInfoTab();
     initDebugTab();
 }

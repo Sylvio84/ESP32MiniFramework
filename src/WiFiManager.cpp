@@ -1,4 +1,6 @@
 #include <WiFiManager.h>
+#include <Configuration.h>
+#include <EventManager.h>
 
 EventManager* WiFiManager::eventManager = nullptr;
 
@@ -7,7 +9,8 @@ void WiFiManager::init(bool auto_connect)
     eventManager->debug("Init WiFiManager", 1);
     retrieveSSID();
     retrievePassword();
-    apMode = static_cast<wm_ap_mode>(config.getPreference("ap_mode", 2));
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    apMode = static_cast<wm_ap_mode>(config ? config->getPreference("ap_mode", 2) : 2);
 
     if (!this->ssid.length() || this->ssid == "") {
         eventManager->debug("No SSID, Start Access Point", 0);
@@ -164,6 +167,9 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
     } else if (command == "ping") {
         if (params.size() > 0) {
             eventManager->debug("Ping: " + params[0], 0);
+            // NOTE: Ping functionality currently disabled due to library dependency
+            eventManager->debug("Ping functionality not available", 1);
+            /*
             IPAddress ip;
             if (ip.fromString(params[0])) {
                 if (Ping.ping(ip, 1)) {
@@ -174,6 +180,7 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
             } else {
                 eventManager->debug("Invalid IP address", 1);
             }
+            */
         } else {
             eventManager->debug("Missing IP address", 1);
         }
@@ -264,12 +271,14 @@ void WiFiManager::startAccessPoint(bool restart)
     }
 
     //disconnect();
-    eventManager->debug("Creating Hotspot: " + config.getHostname(), 0);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    String hostname = config ? config->getHostname() : "ESP32";
+    eventManager->debug("Creating Hotspot: " + hostname, 0);
     eventManager->debug("IP Address: " + this->apIP.toString(), 0);
     WiFi.mode(WIFI_AP_STA);
     delay(100);
     WiFi.softAPConfig(this->apIP, this->apIP, IPAddress(255, 255, 255, 0));
-    WiFi.softAP(this->config.getHostname().c_str());
+    WiFi.softAP(hostname.c_str());
     setupTelnet();
     //connectionStatus = 5;
     //connected = false;
@@ -346,7 +355,8 @@ void WiFiManager::saveSSID(String ssid, bool reconnect)
 {
     this->ssid = ssid;
     eventManager->debug("New WiFi SSID: " + this->ssid, 1);
-    config.setPreference("wf_ssid", ssid);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    if (config) config->setPreference("wf_ssid", ssid);
     if (reconnect) {
         disconnect();
         connect();
@@ -357,7 +367,8 @@ void WiFiManager::savePassword(String password, bool reconnect)
 {
     this->password = password;
     eventManager->debug("New WiFi password: " + this->password, 1);
-    config.setPreference("wf_pass", password);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    if (config) config->setPreference("wf_pass", password);
     if (reconnect) {
         disconnect();
         connect();
@@ -371,13 +382,15 @@ String WiFiManager::getDebugInfos()
 
 String WiFiManager::retrieveSSID()
 {
-    ssid = config.getPreference("wf_ssid", ssid);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    ssid = config ? config->getPreference("wf_ssid", ssid) : ssid;
     return ssid;
 }
 
 String WiFiManager::retrievePassword()
 {
-    password = config.getPreference("wf_pass", password);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    password = config ? config->getPreference("wf_pass", password) : password;
     return password;
 }
 
@@ -568,16 +581,17 @@ bool WiFiManager::otaUpdate()
         return false;
     }
 
-    String otaHost = config.getPreference("ota_host", config.OTA_HOST);
-    int otaPort = config.getPreference("ota_port", config.OTA_PORT);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    String otaHost = config ? config->getPreference("ota_host", config->OTA_HOST) : "";
+    int otaPort = config ? config->getPreference("ota_port", config->OTA_PORT) : 443;
     if (otaHost.length() == 0) {
         eventManager->debug("No OTA Host", 1);
         return false;
     }
 
-    String otaFingerprint = config.OTA_FINGERPRINT;
+    String otaFingerprint = config ? config->OTA_FINGERPRINT : "";
 
-    String otaUrl = config.getPreference("ota_url", config.OTA_URL);
+    String otaUrl = config ? config->getPreference("ota_url", config->OTA_URL) : "";
     if (otaUrl.length() == 0) {
         eventManager->debug("No OTA URL", 1);
         return false;
@@ -627,9 +641,10 @@ bool WiFiManager::otaUpdate()
         return false;
     }
 
-    String otaHost = config.getPreference("ota_host", config.OTA_HOST);
-    int otaPort = config.getPreference("ota_port", config.OTA_PORT);
-    String otaUrl = config.getPreference("ota_url", config.OTA_URL);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    String otaHost = config ? config->getPreference("ota_host", config->OTA_HOST) : "";
+    int otaPort = config ? config->getPreference("ota_port", config->OTA_PORT) : 443;
+    String otaUrl = config ? config->getPreference("ota_url", config->OTA_URL) : "";
 
     if (otaHost.length() == 0) {
         eventManager->debug("No OTA Host", 1);
@@ -647,7 +662,7 @@ bool WiFiManager::otaUpdate()
     // Configuration pour la mise à jour OTA
     esp_http_client_config_t ota_config = {
         .url = fullUrl.c_str(),
-        .cert_pem = config.OTA_CERT_PEM,  //NULL,  // Utilisez un certificat si nécessaire pour la sécurité
+        .cert_pem = config ? config->OTA_CERT_PEM : nullptr,  //NULL,  // Utilisez un certificat si nécessaire pour la sécurité
         //.skip_cert_common_name_check = true,
     };
 

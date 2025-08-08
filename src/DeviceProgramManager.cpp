@@ -1,4 +1,8 @@
 #include "DeviceProgramManager.h"
+#include <Configuration.h>
+#include <EventManager.h>
+#include <DeviceManager.h>
+#include <TimeManager.h>
 
 EventManager* DeviceProgramManager::eventManager = nullptr;
 
@@ -66,7 +70,9 @@ const std::vector<DeviceProgram*>& DeviceProgramManager::getAllDevicePrograms()
 bool DeviceProgramManager::importDeviceProgram(const String& json, String& errorMsg)
 {
     DeviceProgram* deviceProgram = new DeviceProgram(*eventManager);
-    if (deviceProgram->fromJson(json, deviceManager, timeManager, errorMsg)) {
+    DeviceManager* deviceManager = context ? context->getService<DeviceManager>() : nullptr;
+    TimeManager* timeManager = context ? context->getService<TimeManager>() : nullptr;
+    if (deviceManager && timeManager && deviceProgram->fromJson(json, *deviceManager, *timeManager, errorMsg)) {
         for (auto existingProgram : devicePrograms) {
             if (existingProgram->id == deviceProgram->id) {
                 //errorMsg = "Un programme avec l'ID '" + deviceProgram->id + "' existe déjà.";
@@ -80,7 +86,11 @@ bool DeviceProgramManager::importDeviceProgram(const String& json, String& error
         devicePrograms.push_back(deviceProgram);
         return saveDevicePrograms();
     } else {
-        errorMsg = "Erreur lors de l'importation du programme : " + errorMsg;
+        if (!deviceManager || !timeManager) {
+            errorMsg = "DeviceManager or TimeManager not available";
+        } else {
+            errorMsg = "Erreur lors de l'importation du programme : " + errorMsg;
+        }
         delete deviceProgram;
         return false;
     }
@@ -96,7 +106,8 @@ bool DeviceProgramManager::loadDevicePrograms(bool clearExisting)
     }
 
     String json;
-    if (!config.loadProgramsJson(json)) {
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    if (!config || !config->loadProgramsJson(json)) {
         return false;
     }
 
@@ -115,12 +126,15 @@ bool DeviceProgramManager::loadDevicePrograms(bool clearExisting)
 
         DeviceProgram* deviceProgram = new DeviceProgram(*eventManager);
         String error;
-        if (deviceProgram->fromJson(progStr, deviceManager, timeManager, error)) {
+        DeviceManager* deviceManager = context ? context->getService<DeviceManager>() : nullptr;
+        TimeManager* timeManager = context ? context->getService<TimeManager>() : nullptr;
+        if (deviceManager && timeManager && deviceProgram->fromJson(progStr, *deviceManager, *timeManager, error)) {
             //devicePrograms.push_back(deviceProgram);  // Copie dans le vector
             devicePrograms.push_back(deviceProgram);
             eventManager->debug("Program loaded: #" + deviceProgram->id + " : " + deviceProgram->name, 0);
         } else {
             eventManager->debug("Failed to load program: " + error, 1);
+            delete deviceProgram;
             return false;
         }
     }
@@ -143,7 +157,8 @@ bool DeviceProgramManager::saveDevicePrograms()
     String output;
     serializeJson(doc, output);
     eventManager->debug("Saving device programs JSON: " + output, 0);
-    return config.saveProgramsJson(output);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    return config ? config->saveProgramsJson(output) : false;
 }
 
 void DeviceProgramManager::clearDevicePrograms()

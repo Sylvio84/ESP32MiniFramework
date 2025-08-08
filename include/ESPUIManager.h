@@ -4,8 +4,7 @@
 
 #include <ESPUI.h>
 #include <Arduino.h>
-#include <Configuration.h>
-#include <EventManager.h>
+#include <FrameworkContext.h>
 #include <vector>
 
 class ESPUIManager
@@ -13,7 +12,7 @@ class ESPUIManager
 
 private:
 
-    Configuration& config;
+    FrameworkContext* context;
     // callback
     void (*callback)(Control *sender, int type);
 
@@ -26,7 +25,17 @@ private:
     std::vector<String> debugMessages;
 
 public:
-    ESPUIManager(Configuration& config, EventManager &eventMgr): config(config)
+    // New constructor with FrameworkContext
+    ESPUIManager(FrameworkContext& ctx) : context(&ctx)
+    {
+        if (eventManager == nullptr)
+        {
+            eventManager = ctx.getService<EventManager>();
+        }
+    }
+    
+    // Legacy constructor for compatibility
+    ESPUIManager(Configuration& config, EventManager &eventMgr): context(nullptr)
     {
         if (eventManager == nullptr)
         {

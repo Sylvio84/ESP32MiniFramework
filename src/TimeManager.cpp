@@ -1,8 +1,19 @@
 #include <TimeManager.h>
+#include <Configuration.h>
+#include <EventManager.h>
 
 EventManager* TimeManager::eventManager = nullptr;
 
-TimeManager::TimeManager(Configuration& config, EventManager& eventMgr) : config(config)
+// New constructor with FrameworkContext
+TimeManager::TimeManager(FrameworkContext& ctx) : context(&ctx)
+{
+    if (eventManager == nullptr) {
+        eventManager = ctx.getService<EventManager>();
+    }
+}
+
+// Legacy constructor for compatibility  
+TimeManager::TimeManager(Configuration& config, EventManager& eventMgr) : context(nullptr)
 {
     this->eventManager = &eventMgr;
 }
@@ -25,9 +36,12 @@ bool TimeManager::update(bool force)
         eventManager->debug("WiFi not connected, cannot update time", 1, false);
         return false;
     }
-    eventManager->debug("Updating time from " + String(config.NTP_SERVER), 1, false);
-    configTime(0, 0, config.NTP_SERVER);
-    setenv("TZ", config.TIMEZONE, 1);
+    Configuration* config = context ? context->getService<Configuration>() : nullptr;
+    const char* ntpServer = config ? config->NTP_SERVER : "pool.ntp.org";
+    eventManager->debug("Updating time from " + String(ntpServer), 1, false);
+    configTime(0, 0, ntpServer);
+    const char* timezone = config ? config->TIMEZONE : "CET-1CEST,M3.5.0,M10.5.0/3";
+    setenv("TZ", timezone, 1);
     tzset();
     isInitialized = true;
     eventManager->debug("Time set to: " + getFormattedDateTime("%H:%M:%S"), 1);

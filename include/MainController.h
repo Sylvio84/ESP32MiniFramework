@@ -7,6 +7,7 @@
 #endif
 
 #include <Configuration.h>
+#include <FrameworkContext.h>
 #include <SerialCommandManager.h>
 #ifndef DISABLE_DISPLAY
 #include <DisplayManager.h>
@@ -38,6 +39,7 @@ inline void debugLog( const char* file, int line)
 class MainController
 {
 protected:
+    FrameworkContext context;
     
     EventManager eventManager;
     Configuration& config;
@@ -81,6 +83,7 @@ public:
     virtual void processMQTT(String topic, String value);
 
     EventManager* getEventManager();
+    FrameworkContext& getContext() { return context; }
 
     void processDebugMessage(String message, int level = 0, bool displayTime = true);
 };
