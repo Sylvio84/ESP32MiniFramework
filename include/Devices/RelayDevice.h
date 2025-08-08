@@ -10,7 +10,7 @@ class RelayDevice : public Device
 
   public:
     //int pin = 0;
-    int pin = 12;
+    int pin = 12; // entree1 = 12 / entree2 = 14
     int state = LOW;
 
     int timeoutId = 0;
