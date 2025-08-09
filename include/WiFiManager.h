@@ -9,6 +9,8 @@
 #include <ESPUI.h>
 #endif
 #include <Tools.h>
+#include <vector>
+#include <ArduinoJson.h>
 
 #ifdef ESP32
 #include <WiFi.h>
@@ -57,6 +59,25 @@ class WiFiManager : public Manager
     uint checkDelay = 100;
     uint tryCount = 0;
 
+    // Configuration and state (moved to private for proper encapsulation)
+    wm_ap_mode apMode = WM_AP_MODE_ON_ERROR;
+    IPAddress apIP;
+    String ssid = "";
+    String password = "";
+    
+    // Saved networks functionality (private for security)
+    struct SavedNetwork {
+        String ssid;
+        String password;
+        int priority = 0;  // Higher values = higher priority
+    };
+    
+    std::vector<SavedNetwork> savedNetworks;
+    
+    // Interactive password prompt system (private state)
+    bool waitingForPassword = false;
+    String pendingSSID = "";
+    bool pendingAutoConnect = true;
 
     void setConnected(bool recovered = false);
 
@@ -72,14 +93,6 @@ class WiFiManager : public Manager
     {
         this->apIP = IPAddress(192, 168, 1, 249);
     }
-    
-
-    wm_ap_mode apMode = WM_AP_MODE_ON_ERROR;
-    
-    IPAddress apIP;
-
-    String ssid = "";
-    String password = "";
 
     void init() override;
     void init(bool auto_connect);
@@ -89,6 +102,16 @@ class WiFiManager : public Manager
     bool onCommand(const String& command, const std::vector<String>& params) override;
     
     void registerCommands();
+    
+    // Public getters for formerly public variables (proper encapsulation)
+    wm_ap_mode getAPMode() const { return apMode; }
+    void setAPMode(wm_ap_mode mode) { apMode = mode; }
+    IPAddress getAPIP() const { return apIP; }
+    void setAPIP(IPAddress ip) { apIP = ip; }
+    String getCurrentSSID() const { return ssid; }
+    String getCurrentPassword() const { return password; } // Note: consider removing for security
+    size_t getSavedNetworkCount() const { return savedNetworks.size(); }
+    bool isWaitingForPassword() const { return waitingForPassword; }
     
     bool autoConnect();
     bool connect();
@@ -115,6 +138,20 @@ class WiFiManager : public Manager
     void setNetwork(int n, bool save = false);
     String getNetworkInfo(int n, String name);
     void setPowerSave(bool value);
+    
+    // Saved networks management
+    bool saveNetwork(const String& ssid, const String& password, int priority = 0);
+    bool removeNetwork(const String& ssid);
+    void listSavedNetworks();
+    void clearSavedNetworks();
+    void loadSavedNetworks();
+    void saveSavedNetworksToPrefs();
+    bool connectToSavedNetwork();
+    
+    // Interactive prompt methods
+    void promptForPassword(const String& ssid, bool autoConnect = true);
+    bool handlePasswordInput(const String& input);
+    void cancelPasswordPrompt();
 
     //void WiFiEvent(WiFiEvent_t event);
 
