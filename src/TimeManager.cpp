@@ -2,6 +2,7 @@
 #include <ConfigurationManager.h>
 #include <EventManager.h>
 #include <CommandManager.h>
+#include <algorithm>
 
 
 // Constructor is now inline in header
@@ -112,23 +113,25 @@ void TimeManager::checkIntervals()
 
 uint TimeManager::setInterval(std::function<void()> callback, unsigned long intervalTime)
 {
-    Interval newInterval = {millis(), intervalTime, callback, true};
+    uint id = nextIntervalId++;
+    Interval newInterval = {id, millis(), intervalTime, callback, true};
     intervals.push_back(newInterval);
-    return intervals.size() - 1;
+    return id;
 }
 
 uint TimeManager::setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime)
 {
-    Interval newInterval = {millis(), intervalTime, [obj, callback]() { callback(obj); }, true};
+    uint id = nextIntervalId++;
+    Interval newInterval = {id, millis(), intervalTime, [obj, callback]() { callback(obj); }, true};
     intervals.push_back(newInterval);
-    return intervals.size() - 1;
+    return id;
 }
 
 void TimeManager::clearInterval(uint id)
 {
-    if (id >= 0 && id < intervals.size()) {
-        intervals[id].active = false;
-    }
+    intervals.erase(std::remove_if(intervals.begin(), intervals.end(),
+                                    [id](const Interval& i) { return i.id == id; }),
+                    intervals.end());
 }
 
 void TimeManager::checkTimeouts()
@@ -144,23 +147,25 @@ void TimeManager::checkTimeouts()
 
 uint TimeManager::setTimeout(std::function<void()> callback, unsigned long delay)
 {
-    Timeout newTimeout = {millis(), delay, callback, true};
+    uint id = nextTimeoutId++;
+    Timeout newTimeout = {id, millis(), delay, callback, true};
     timeouts.push_back(newTimeout);
-    return timeouts.size() - 1;  // Retourner l'index comme ID de délai
+    return id;
 }
 
 uint TimeManager::setTimeoutObj(void* obj, std::function<void(void*)> callback, unsigned long delay)
 {
-    Timeout newTimeout = {millis(), delay, [obj, callback]() { callback(obj); }, true};
+    uint id = nextTimeoutId++;
+    Timeout newTimeout = {id, millis(), delay, [obj, callback]() { callback(obj); }, true};
     timeouts.push_back(newTimeout);
-    return timeouts.size() - 1;
+    return id;
 }
 
 void TimeManager::clearTimeout(uint id)
 {
-    if (id >= 0 && id < timeouts.size()) {
-        timeouts.erase(timeouts.begin() + id);
-    }
+    timeouts.erase(std::remove_if(timeouts.begin(), timeouts.end(),
+                                   [id](const Timeout& t) { return t.id == id; }),
+                   timeouts.end());
 }
 
 void TimeManager::checkSchedulers()
@@ -221,24 +226,26 @@ void TimeManager::checkSchedulers()
 uint TimeManager::setScheduler(std::function<void()> callback, int hour, int minute, const std::vector<int>& daysOfWeek, const String& startDate,
                                const String& endDate)
 {
-    Scheduler newScheduler = {hour, minute, daysOfWeek, startDate, endDate, callback, true};
+    uint id = nextSchedulerId++;
+    Scheduler newScheduler = {id, hour, minute, daysOfWeek, startDate, endDate, callback, true};
     schedulers.push_back(newScheduler);
-    return schedulers.size() - 1;
+    return id;
 }
 
 uint TimeManager::setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, const std::vector<int>& daysOfWeek,
                                   const String& startDate, const String& endDate)
 {
-    Scheduler newScheduler = {hour, minute, daysOfWeek, startDate, endDate, [obj, callback]() { callback(obj); }, true};
+    uint id = nextSchedulerId++;
+    Scheduler newScheduler = {id, hour, minute, daysOfWeek, startDate, endDate, [obj, callback]() { callback(obj); }, true};
     schedulers.push_back(newScheduler);
-    return schedulers.size() - 1;
+    return id;
 }
 
 void TimeManager::clearScheduler(uint id)
 {
-    if (id >= 0 && id < schedulers.size()) {
-        schedulers.erase(schedulers.begin() + id);
-    }
+    schedulers.erase(std::remove_if(schedulers.begin(), schedulers.end(),
+                                     [id](const Scheduler& s) { return s.id == id; }),
+                     schedulers.end());
 }
 
 std::tm TimeManager::timeToDate(const std::string& time, const std::tm& now)

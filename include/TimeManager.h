@@ -120,6 +120,7 @@ class TimeManager : public Manager
 
     struct Timeout
     {
+        uint id;
         unsigned long startTime;
         unsigned long delay;
         std::function<void()> callback;
@@ -128,6 +129,7 @@ class TimeManager : public Manager
 
     struct Interval
     {
+        uint id;
         unsigned long lastTime;
         unsigned long interval;
         std::function<void()> callback;
@@ -136,6 +138,7 @@ class TimeManager : public Manager
 
     struct Scheduler
     {
+        uint id;
         int hour;
         int minute;
         std::vector<int> daysOfWeek;  // 0 (Sunday) to 6 (Saturday)
@@ -150,6 +153,10 @@ class TimeManager : public Manager
     std::vector<Interval> intervals;
     std::vector<Scheduler> schedulers;
     std::vector<Program> programs;
+    
+    uint nextTimeoutId = 1;
+    uint nextIntervalId = 1;
+    uint nextSchedulerId = 1;
 
     void checkIntervals();
     void checkTimeouts();
