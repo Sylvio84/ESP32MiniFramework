@@ -1,12 +1,15 @@
 #include <MQTTManager.h>
-#include <Configuration.h>
+#include <ConfigurationManager.h>
 #include <EventManager.h>
+#include <CommandManager.h>
 
-EventManager* MQTTManager::eventManager = nullptr;
 
 void MQTTManager::init()
 {
-    eventManager->debug("MQTTManager init...", 1);
+    logDebug("MQTTManager init...", 1);
+
+    // Register MQTT commands with CommandManager FIRST
+    registerCommands();
 
     retrieveServer();
     retrievePort();
@@ -14,11 +17,12 @@ void MQTTManager::init()
     retrievePassword();
 
     if (server == "") {
-        eventManager->debug("No MQTT server configured", 1);
+        logDebug("No MQTT server configured", 1);
+        setInitialized(true);
         return;
     }
     if (username == "") {
-        eventManager->debug("No MQTT username configured", 1);
+        logDebug("No MQTT username configured", 1);
     }
     mqttClient.setServer(server.c_str(), port);
 
@@ -34,8 +38,10 @@ void MQTTManager::init()
         for (unsigned int i = 0; i < length; ++i) {
             payloadString += (char)payload[i];
         }
-        eventManager->triggerEvent("mqtt", "message", {topic, payloadString});
+        context->getEventManager()->triggerEvent("mqtt", "message", {topic, payloadString});
     });
+    
+    setInitialized(true);
 }
 
 void MQTTManager::loop()
@@ -60,18 +66,18 @@ void MQTTManager::loop()
 
     if (currentMillis - lastPing >= pingInterval) {
         if (mqttClient.connected()) {
-            Configuration* config = context ? context->getService<Configuration>() : nullptr;
-            String hostname = config ? config->getHostname() : "ESP32";
+            auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+            String hostname = configMgr ? configMgr->getHostname() : "ESP32";
             publish(hostname + "/status", "online", false);
         } else {
-            eventManager->debug("MQTT status #" + String(status) + ": " + (mqttClient.connected() ? "connected" : "disconnected"), 1);
+            logDebug("MQTT status #" + String(status) + ": " + (mqttClient.connected() ? "connected" : "disconnected"), 1);
         }
         lastPing = currentMillis;
     }
 
     if (currentMillis - lastMQTTReconnect >= (reconnectDelay * 1000)) {
         if ((status >= 2) && server != "" && !mqttClient.connected()) {
-            eventManager->debug("MQTT: Try to connect....", 1);
+            logDebug("MQTT: Try to connect....", 1);
             if (!reconnect()) {
                 retry++;
                 reconnectDelay = 1;
@@ -81,12 +87,12 @@ void MQTTManager::loop()
                 if (reconnectDelay > 60) {
                     reconnectDelay = 60;
                 }
-                eventManager->debug("MQTT connection failed, try again in " + String(reconnectDelay) + "s (attempt " + String(retry + 1) + ")", 1);
+                logDebug("MQTT connection failed, try again in " + String(reconnectDelay) + "s (attempt " + String(retry + 1) + ")", 1);
             } else {
                 // Successful connection, reset retry count and delay
                 retry = 0;
                 reconnectDelay = 1;
-                eventManager->debug("MQTT connected successfully", 1);
+                logDebug("MQTT connected successfully", 1);
             }
         }
         lastMQTTReconnect = currentMillis;
@@ -98,7 +104,7 @@ void MQTTManager::loop()
             if (retry > 0) {
                 retry = 0;
                 reconnectDelay = 1;
-                eventManager->debug("MQTT connection restored", 1);
+                logDebug("MQTT connection restored", 1);
             }
         }
         lastMQTTLoop = currentMillis;
@@ -118,38 +124,38 @@ bool MQTTManager::isConnected()
 bool MQTTManager::reconnect()
 {
     if (!mqttClient.connected()) {
-        eventManager->triggerEvent("mqtt", "ConnectionInProgress", {});
-        eventManager->debug("Attempting MQTT connection...", 1);
-        Configuration* config = context ? context->getService<Configuration>() : nullptr;
-        String hostname = config ? config->getHostname() : "ESP32";
+        context->getEventManager()->triggerEvent("mqtt", "ConnectionInProgress", {});
+        logDebug("Attempting MQTT connection...", 1);
+        auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+        String hostname = configMgr ? configMgr->getHostname() : "ESP32";
         if (mqttClient.connect(hostname.c_str(), username.c_str(), password.c_str())) {
-            eventManager->triggerEvent("mqtt", "Connected", {this->server});
-            eventManager->debug("MQTT connected (hostname = " + hostname + ")", 1);
+            context->getEventManager()->triggerEvent("mqtt", "Connected", {this->server});
+            logDebug("MQTT connected (hostname = " + hostname + ")", 1);
             for (const auto& topic : subscriptions) {
-                eventManager->debug("Process subscription " + topic, 2);
+                logDebug("Process subscription " + topic, 2);
                 subscribe(topic);
             }
             for (const auto& pub : publications) {
-                eventManager->debug("Publishing stored publication: " + pub.first + " = " + pub.second, 2);
+                logDebug("Publishing stored publication: " + pub.first + " = " + pub.second, 2);
                 publish(pub.first, pub.second);
                 removePublication(pub.first);
             }
             return true;
         } else {
-            eventManager->triggerEvent("mqtt", "ConnectionFailed", {});
-            eventManager->debug("MQTT error: " + String(mqttClient.state()), 2);
+            context->getEventManager()->triggerEvent("mqtt", "ConnectionFailed", {});
+            logDebug("MQTT error: " + String(mqttClient.state()), 2);
             IPAddress serverIP;
             if (WiFi.hostByName(hostname.c_str(), serverIP)) {
-                eventManager->debug("Server IP: " + serverIP.toString(), 2);
+                logDebug("Server IP: " + serverIP.toString(), 2);
             } else {
-                eventManager->debug("DNS lookup failed", 1);
+                logDebug("DNS lookup failed", 1);
             }
             WiFiClient testClient;
             if (testClient.connect(serverIP, 1883)) {
-                eventManager->debug("TCP connection successful", 2);
+                logDebug("TCP connection successful", 2);
                 testClient.stop();
             } else {
-                eventManager->debug("TCP connection failed", 2);
+                logDebug("TCP connection failed", 2);
             }
             return false;
         }
@@ -160,10 +166,10 @@ bool MQTTManager::reconnect()
 void MQTTManager::publish(String topic, String payload, bool enableDebug)
 {
     if (enableDebug) {
-        eventManager->debug("Publishing to " + topic + ": " + payload, 2);
+        logDebug("Publishing to " + topic + ": " + payload, 2);
     }
     if (!mqttClient.connected()) {
-        eventManager->debug("MQTT not connected, can't publish: " + topic + " = " + payload, 1);
+        logDebug("MQTT not connected, can't publish: " + topic + " = " + payload, 1);
         return;
     }
     mqttClient.publish(topic.c_str(), payload.c_str());
@@ -171,73 +177,73 @@ void MQTTManager::publish(String topic, String payload, bool enableDebug)
 
 void MQTTManager::subscribe(String topic)
 {
-    eventManager->debug("Subscribing to " + topic, 2);
+    logDebug("Subscribing to " + topic, 2);
     mqttClient.subscribe(topic.c_str());
 }
 
 void MQTTManager::unsubscribe(String topic)
 {
-    eventManager->debug("Unsubscribing from " + topic, 2);
+    logDebug("Unsubscribing from " + topic, 2);
     mqttClient.unsubscribe(topic.c_str());
 }
 
 void MQTTManager::saveServer(String server)
 {
     this->server = server;
-    eventManager->debug("Saving MQTT server: " + server, 1);
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    if (config) config->setPreference("mq_serv", server);
+    logDebug("Saving MQTT server: " + server, 1);
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    if (configMgr) configMgr->setPreference("mq_serv", server);
 }
 
 void MQTTManager::savePort(int port)
 {
     this->port = port;
-    eventManager->debug("Saving MQTT port: " + String(port), 1);
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    if (config) config->setPreference("mq_port", port);
+    logDebug("Saving MQTT port: " + String(port), 1);
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    if (configMgr) configMgr->setPreference("mq_port", port);
 }
 
 void MQTTManager::saveUsername(String username)
 {
     this->username = username;
-    eventManager->debug("Saving MQTT username: " + username, 1);
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    if (config) config->setPreference("mq_user", username);
+    logDebug("Saving MQTT username: " + username, 1);
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    if (configMgr) configMgr->setPreference("mq_user", username);
 }
 
 void MQTTManager::savePassword(String password)
 {
     this->password = password;
-    eventManager->debug("Saving MQTT password: " + password, 1);
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    if (config) config->setPreference("mq_pass", password);
+    logDebug("Saving MQTT password: " + password, 1);
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    if (configMgr) configMgr->setPreference("mq_pass", password);
 }
 
 String MQTTManager::retrieveServer()
 {
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    server = config ? config->getPreference("mq_serv", server) : server;
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    server = configMgr ? configMgr->getPreference("mq_serv", server) : server;
     return server;
 }
 
 int MQTTManager::retrievePort()
 {
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    port = config ? config->getPreference("mq_port", port) : port;
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    port = configMgr ? configMgr->getPreference("mq_port", port) : port;
     return port;
 }
 
 String MQTTManager::retrieveUsername()
 {
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    username = config ? config->getPreference("mq_user", this->username) : this->username;
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    username = configMgr ? configMgr->getPreference("mq_user", this->username) : this->username;
     return username;
 }
 
 String MQTTManager::retrievePassword()
 {
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    password = config ? config->getPreference("mq_pass", this->password) : this->password;
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    password = configMgr ? configMgr->getPreference("mq_pass", this->password) : this->password;
     return password;
 }
 
@@ -246,37 +252,46 @@ String MQTTManager::getDebugInfos()
     return "Server: " + retrieveServer() + "\nPort: " + retrievePort() + "\nUsername: " + retrieveUsername() + "\nPassword: " + retrievePassword();
 }
 
-void MQTTManager::processEvent(String type, String event, std::vector<String> params)
+bool MQTTManager::onEvent(const String& type, const String& event, const std::vector<String>& params)
 {
-    eventManager->debug("Processing MQTT event: " + type + " / " + event, 3);
+    logDebug("Processing MQTT event: " + type + " / " + event, 3);
     for (const auto& param : params) {
-        eventManager->debug("Param: " + param, 3);
+        logDebug("Param: " + param, 3);
     }
     if (type == "mqtt") {
         if (event.startsWith("@")) {
-            processCommand(event.substring(1), params);
-        }
-        if (event == "subscribe") {
-            eventManager->debug("process event subscribe to " + params[0], 3);
+            return onCommand(event.substring(1), params);
+        } else if (event == "connected") {
+            logDebug("Connected to MQTT server: " + (params.size() > 0 ? params[0] : "unknown"), 1);
+            return true;
+        } else if (event == "message") {
+            // MQTT message received - this should be handled by MainController
+            // since it needs to call processMQTT()
+            return false; // Let MainController handle this
+        } else if (event == "subscribe") {
+            logDebug("process event subscribe to " + params[0], 3);
             if (params.size() > 0) {
                 addSubscription(params[0]);
                 subscribe(params[0]);
             } else {
-                eventManager->debug("Missing topic", 1);
+                logDebug("Missing topic", 1);
             }
+            return true;
         } else if (event == "unsubscribe") {
             if (params.size() > 0) {
                 removeSubscription(params[0]);
                 unsubscribe(params[0]);
             } else {
-                eventManager->debug("Missing topic", 1);
+                logDebug("Missing topic", 1);
             }
+            return true;
         } else if (event == "publish") {
             if (params.size() > 1) {
                 publish(params[0], params[1]);
             } else {
-                eventManager->debug("Missing topic or payload", 1);
+                logDebug("Missing topic or payload", 1);
             }
+            return true;
         } else if (event == "publishAsap") {
             if (params.size() > 1) {
                 if (isConnected()) {
@@ -285,54 +300,58 @@ void MQTTManager::processEvent(String type, String event, std::vector<String> pa
                     storePublication(params[0], params[1]);
                 }
             } else {
-                eventManager->debug("Missing topic or payload", 1);
+                logDebug("Missing topic or payload", 1);
             }
+            return true;
         } else if (event == "removePublication") {
             if (params.size() > 0) {
                 removePublication(params[0]);
             } else {
-                eventManager->debug("Missing topic", 1);
+                logDebug("Missing topic", 1);
             }
+            return true;
         }
     }
+    
+    return false; // Event not handled
 }
 
-bool MQTTManager::processCommand(String command, std::vector<String> params)
+bool MQTTManager::onCommand(const String& command, const std::vector<String>& params)
 {
-    eventManager->debug("Processing MQTT command: " + command, 3);
+    logDebug("Processing MQTT command: " + command, 3);
     if (command == "server") {
         if (params.size() > 0) {
             saveServer(params[0]);
-            eventManager->debug("Server set to: " + params[0], 0);
+            logDebug("Server set to: " + params[0], 0);
         } else {
-            eventManager->debug("Server: " + retrieveServer(), 0);
+            logDebug("Server: " + retrieveServer(), 0);
         }
     } else if (command == "port") {
         if (params.size() > 0) {
             savePort(params[0].toInt());
-            eventManager->debug("Port set to: " + params[0], 0);
+            logDebug("Port set to: " + params[0], 0);
         } else {
-            eventManager->debug("Port: " + String(retrievePort()), 0);
+            logDebug("Port: " + String(retrievePort()), 0);
         }
     } else if (command == "user") {
         if (params.size() > 0) {
             saveUsername(params[0]);
-            eventManager->debug("Username set to: " + params[0], 0);
+            logDebug("Username set to: " + params[0], 0);
         } else {
-            eventManager->debug("Username: " + retrieveUsername(), 0);
+            logDebug("Username: " + retrieveUsername(), 0);
         }
     } else if (command == "pass") {
         if (params.size() > 0) {
             savePassword(params[0]);
-            eventManager->debug("Password set to: " + params[0], 0);
+            logDebug("Password set to: " + params[0], 0);
         } else {
-            eventManager->debug("Password: " + retrievePassword(), 0);
+            logDebug("Password: " + retrievePassword(), 0);
         }
     } else if (command == "status") {
         if (isConnected()) {
-            eventManager->debug("MQTT: Connected", 0);
+            logDebug("MQTT: Connected", 0);
         } else {
-            eventManager->debug("MQTT: Not connected", 0);
+            logDebug("MQTT: Not connected", 0);
         }
     } else if (command == "connect") {
         reconnect();
@@ -341,31 +360,179 @@ bool MQTTManager::processCommand(String command, std::vector<String> params)
             addSubscription(params[0]);
             subscribe(params[0]);
         } else {
-            eventManager->debug("Missing topic", 1);
+            logDebug("Missing topic", 1);
         }
     } else if (command == "unsubscribe") {
         if (params.size() > 0) {
             removeSubscription(params[0]);
             unsubscribe(params[0]);
         } else {
-            eventManager->debug("Missing topic", 1);
+            logDebug("Missing topic", 1);
         }
     } else if (command == "publish") {
         if (params.size() > 1) {
             publish(params[0], params[1]);
         } else {
-            eventManager->debug("Missing topic or payload", 1);
+            logDebug("Missing topic or payload", 1);
         }
     } else if (command == "subscriptions") {
         for (const auto& topic : getSubscriptions()) {
-            eventManager->debug("- Subscription: " + topic, 0);
+            logDebug("- Subscription: " + topic, 0);
         }
     } else if (command == "debug") {
-        eventManager->debug(getDebugInfos(), 0);
+        logDebug(getDebugInfos(), 0);
     } else {
         return false;
     }
     return true;
+}
+
+void MQTTManager::registerCommands()
+{
+    auto* cmdMgr = static_cast<CommandManager*>(context ? context->getManager("CommandManager") : nullptr);
+    if (!cmdMgr) return;
+
+    // MQTT connection commands
+    cmdMgr->registerCommand(Command(
+        "mqtt", "server", "Get/Set MQTT server hostname",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                saveServer(args[0]);
+                return "MQTT server set to: " + args[0];
+            }
+            return "MQTT server: " + retrieveServer();
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "port", "Get/Set MQTT server port",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                savePort(args[0].toInt());
+                return "MQTT port set to: " + args[0];
+            }
+            return "MQTT port: " + String(retrievePort());
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "user", "Get/Set MQTT username",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                saveUsername(args[0]);
+                return "MQTT username set to: " + args[0];
+            }
+            return "MQTT username: " + retrieveUsername();
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "pass", "Get/Set MQTT password",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                savePassword(args[0]);
+                return "MQTT password set to: " + args[0];
+            }
+            return "MQTT password: " + retrievePassword();
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "status", "Show MQTT connection status",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            return isConnected() ? "MQTT: Connected to " + server + ":" + String(port) 
+                                : "MQTT: Not connected";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "connect", "Connect to MQTT server",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            return reconnect() ? "MQTT: Connection successful" : "MQTT: Connection failed";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "subscribe", "Subscribe to MQTT topic",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                addSubscription(args[0]);
+                subscribe(args[0]);
+                return "Subscribed to: " + args[0];
+            }
+            return "Usage: mqtt:subscribe <topic>";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "unsubscribe", "Unsubscribe from MQTT topic",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                removeSubscription(args[0]);
+                unsubscribe(args[0]);
+                return "Unsubscribed from: " + args[0];
+            }
+            return "Usage: mqtt:unsubscribe <topic>";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "publish", "Publish to MQTT topic",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 1) {
+                publish(args[0], args[1]);
+                return "Published to " + args[0] + ": " + args[1];
+            }
+            return "Usage: mqtt:publish <topic> <payload>";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "subscriptions", "List active MQTT subscriptions",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            String result = "MQTT subscriptions:\n";
+            auto subs = getSubscriptions();
+            if (subs.empty()) {
+                result += "  (none)";
+            } else {
+                for (const auto& topic : subs) {
+                    result += "  - " + topic + "\n";
+                }
+            }
+            return result;
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "mqtt", "info", "Show detailed MQTT information",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            String result = "MQTT Configuration:\n";
+            result += "  Server: " + retrieveServer() + "\n";
+            result += "  Port: " + String(retrievePort()) + "\n";
+            result += "  Username: " + retrieveUsername() + "\n";
+            result += "  Password: " + String(retrievePassword().isEmpty() ? "(none)" : "***") + "\n";
+            result += "  Status: " + String(isConnected() ? "Connected" : "Disconnected") + "\n";
+            result += "  Subscriptions: " + String(getSubscriptions().size());
+            return result;
+        }
+    ));
+
+
+    // Register common aliases
+    cmdMgr->registerAlias("ms", "mqtt:status");
+    cmdMgr->registerAlias("mi", "mqtt:info");
+    cmdMgr->registerAlias("mc", "mqtt:connect");
 }
 
 bool MQTTManager::addSubscription(String topic)
@@ -387,7 +554,7 @@ bool MQTTManager::removeSubscription(String topic)
     }
     auto it = std::find(subscriptions.begin(), subscriptions.end(), topic);
     if (it != subscriptions.end()) {
-        eventManager->debug("Removing subscription: " + topic, 3);
+        logDebug("Removing subscription: " + topic, 3);
         subscriptions.erase(it);
         return true;
     }
@@ -401,7 +568,7 @@ std::vector<String> MQTTManager::getSubscriptions()
 
 bool MQTTManager::storePublication(String topic, String payload)
 {
-    eventManager->debug("Storing MQTT publication: " + topic + " = " + payload, 3);
+    logDebug("Storing MQTT publication: " + topic + " = " + payload, 3);
     auto it = publications.find(topic);
     publications[topic] = payload;
     return it != publications.end();
@@ -409,7 +576,7 @@ bool MQTTManager::storePublication(String topic, String payload)
 
 bool MQTTManager::removePublication(String topic)
 {
-    eventManager->debug("Removing MQTT publication: " + topic, 3);
+    logDebug("Removing MQTT publication: " + topic, 3);
     auto it = publications.find(topic);
     if (it != publications.end()) {
         publications.erase(it);
@@ -421,7 +588,7 @@ bool MQTTManager::removePublication(String topic)
 #ifndef DISABLE_ESPUI
 void MQTTManager::initEspUI()
 {
-    eventManager->debug("Init MQTTManager ESPUI", 2);
+    logDebug("Init MQTTManager ESPUI", 2);
 
     auto callback = std::bind(&MQTTManager::EspUiCallback, this, std::placeholders::_1, std::placeholders::_2);
 
@@ -443,7 +610,7 @@ void MQTTManager::initEspUI()
 
 void MQTTManager::EspUiCallback(Control* sender, int type)
 {
-    eventManager->debug(
+    logDebug(
         "MQTT ESPUI callback: sender.value = " + sender->value + " sender.id = " + sender->id + " sender.type = " + sender->type + "  / type = " + String(type),
         2);
     if (type == B_DOWN) {
@@ -452,24 +619,24 @@ void MQTTManager::EspUiCallback(Control* sender, int type)
     if (sender->value == "MQTTSave") {
         std::vector<String> params1;
         params1.push_back(ESPUI.getControl(mqttServerInput)->value);
-        eventManager->triggerEvent("ESPUI", "MQTTSaveServer", params1);
+        context->getEventManager()->triggerEvent("ESPUI", "MQTTSaveServer", params1);
 
         std::vector<String> params2;
         params2.push_back(ESPUI.getControl(mqttPortInput)->value);
-        eventManager->triggerEvent("ESPUI", "MQTTSavePort", params2);
+        context->getEventManager()->triggerEvent("ESPUI", "MQTTSavePort", params2);
 
         std::vector<String> params3;
         params3.push_back(ESPUI.getControl(mqttUserInput)->value);
-        eventManager->triggerEvent("ESPUI", "MQTTSaveUser", params3);
+        context->getEventManager()->triggerEvent("ESPUI", "MQTTSaveUser", params3);
 
         String password = ESPUI.getControl(mqttPasswordInput)->value;
         if (password.length() > 0) {
             std::vector<String> params4;
             params4.push_back(password);
-            eventManager->triggerEvent("ESPUI", "MQTTSavePassword", params4);
+            context->getEventManager()->triggerEvent("ESPUI", "MQTTSavePassword", params4);
         }
     } else if (sender->value == "MQTTReconnect") {
-        eventManager->triggerEvent("ESPUI", "MQTTReconnect", {});
+        context->getEventManager()->triggerEvent("ESPUI", "MQTTReconnect", {});
     }
 }
 #endif

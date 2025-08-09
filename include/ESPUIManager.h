@@ -4,19 +4,22 @@
 
 #include <ESPUI.h>
 #include <Arduino.h>
+#include <Manager.h>
 #include <FrameworkContext.h>
 #include <vector>
 
-class ESPUIManager
+// Forward declarations
+class CommandManager;
+
+class ESPUIManager : public Manager
 {
 
 private:
-
     FrameworkContext* context;
+
     // callback
     void (*callback)(Control *sender, int type);
 
-    static EventManager *eventManager; // Pointeur vers EventManager
 
     uint16_t commandText = 0;
     uint16_t sendCommandButton = 0;
@@ -26,26 +29,12 @@ private:
 
 public:
     // New constructor with FrameworkContext
-    ESPUIManager(FrameworkContext& ctx) : context(&ctx)
-    {
-        if (eventManager == nullptr)
-        {
-            eventManager = ctx.getService<EventManager>();
-        }
-    }
+    ESPUIManager(FrameworkContext& ctx) : Manager(ctx), context(&ctx) { }
     
-    // Legacy constructor for compatibility
-    ESPUIManager(Configuration& config, EventManager &eventMgr): context(nullptr)
-    {
-        if (eventManager == nullptr)
-        {
-            eventManager = &eventMgr;
-        }
-    }
 
-    void init();
-    void processCommand(String command);
-    void processEvent(String type, String event, std::vector<String> params);
+    void init() override;
+    bool onCommand(const String& command, const std::vector<String>& params) override;
+    void onEvent(const String& type, const String& event, const std::vector<String>& params) override;
 
     void print(uint8_t labelId, String text);
     void addDebugMessage(String message, int level = 0);
@@ -55,6 +44,10 @@ public:
     
     void EspUiCallback(Control *sender, int type);
     
+    String getName() const override { return "ESPUIManager"; }
+    
+    void registerCommands();
+
     Control* getControl(uint16_t id);
 };
 

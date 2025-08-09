@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <Manager.h>
 #include <FrameworkContext.h>
 #include <Devices/Device.h>
 #include <DeviceManager.h>
@@ -11,31 +12,34 @@
 #include <memory>
 #include <vector>
 
-class DeviceProgramManager
+// Forward declarations
+class CommandManager;
+
+/**
+ * @brief DeviceProgramManager - Manages device programs in the ESP32 Mini Framework
+ * Provides:
+ * - Device program registration and lifecycle management
+ * - Device program command handling
+ * - Event-driven communication for device program events
+ * @note This manager is designed to handle multiple device programs.
+ * @note Ensure to call `initDevicePrograms()` and `loopDevicePrograms()` periodically to manage device program states.
+ * @note The manager supports device program-specific commands and events.
+ * @note The manager can be extended to support more complex device program operations.
+ */
+class DeviceProgramManager : public Manager
 {
   private:
     FrameworkContext* context;
 
-    static EventManager* eventManager;  // Pointeur vers EventManager
 
     std::vector<DeviceProgram*> devicePrograms;
 
   public:
     // New constructor with FrameworkContext
-    DeviceProgramManager(FrameworkContext& ctx) : context(&ctx)
-    {
-        if (eventManager == nullptr) {
-            eventManager = ctx.getService<EventManager>();
-        }
-    }
+    DeviceProgramManager(FrameworkContext& ctx) : Manager(ctx), context(&ctx) { }
     
-    // Legacy constructor for compatibility
-    DeviceProgramManager(Configuration& config, EventManager& eventMgr, DeviceManager& deviceManager, TimeManager& timeManager) : context(nullptr)
-    {
-        if (eventManager == nullptr) {
-            eventManager = &eventMgr;
-        }
-    }
+
+    void init() override;
 
     void addDeviceProgram(DeviceProgram& deviceProgram);
     DeviceProgram* getDeviceProgramById(const String& id);
@@ -47,6 +51,11 @@ class DeviceProgramManager
 
     bool loadDevicePrograms(bool clearExisting = false);
     bool saveDevicePrograms();
+
+    String getName() const override { return "DeviceProgramManager"; }
+    bool onCommand(const String& command, const std::vector<String>& params) override;
+    
+    void registerCommands();
 
     void clearDevicePrograms();
 };

@@ -2,59 +2,135 @@
 #define FRAMEWORKCONTEXT_H
 
 #include <Arduino.h>
+#include <vector>
+#include <map>
 
-// Forward declarations
-class Configuration;
+// Forward declarations - only what we actually need
+class Manager;
+class ConfigurationManager;
 class EventManager;
-class SerialCommandManager;
-class TimeManager;
-class WiFiManager;
-class MQTTManager;
-class DeviceManager;
-class DeviceProgramManager;
-class DisplayManager;
-class ESPUIManager;
 
+/**
+ * @brief FrameworkContext - Pure dependency injection container
+ * 
+ * Type-agnostic service container that manages the lifecycle and access to
+ * all framework managers without knowing their concrete types.
+ * 
+ * ## Key Principles:
+ * 
+ * ### SOLID Compliance
+ * - **Single Responsibility**: Pure service container functionality only
+ * - **Open/Closed**: Add new managers without modifying container code
+ * - **Dependency Inversion**: Depends only on Manager abstraction
+ * - **Interface Segregation**: Minimal, focused interface
+ * - **Liskov Substitution**: Any Manager subclass works identically
+ * 
+ * ### Type Agnosticism
+ * - **Zero Type Dependencies**: No knowledge of concrete manager types
+ * - **Name-Based Retrieval**: Managers accessed by string name
+ * - **Polymorphic Storage**: All managers stored as Manager* base class
+ * - **Runtime Casting**: Clients cast to concrete types as needed
+ * 
+ * ## Architecture:
+ * 
+ * ### Service Registration
+ * ```cpp
+ * context.registerManager(&wifiManager);     // Any Manager subclass
+ * context.registerService(&eventManager);    // Core services
+ * ```
+ * 
+ * ### Service Retrieval
+ * ```cpp
+ * // Type-safe casting by client
+ * auto* wifi = static_cast<WiFiManager*>(context.getManager("WiFiManager"));
+ * auto* events = context.getEventManager();  // Direct core service access
+ * ```
+ * 
+ * ### Lifecycle Management
+ * ```cpp
+ * // Iterate all managers for initialization
+ * for (auto* mgr : context.getManagers()) {
+ *     mgr->init();
+ * }
+ * ```
+ * 
+ * ## Design Benefits:
+ * - **Decoupling**: Container knows nothing about manager implementations
+ * - **Flexibility**: New managers added without framework changes
+ * - **Testability**: Easy to mock managers for unit testing
+ * - **Memory Efficient**: No template instantiations
+ * - **Controller-Defined**: MainController decides what services exist
+ * 
+ * ## Integration:
+ * - MainController creates and registers all managers
+ * - Managers use context to access other services
+ * - No circular dependencies between managers
+ * - Clean separation of concerns
+ */
 class FrameworkContext {
 public:
-    Configuration* config = nullptr;
-    EventManager* eventManager = nullptr;
-    SerialCommandManager* serialCommandManager = nullptr;
-    TimeManager* timeManager = nullptr;
-    WiFiManager* wiFiManager = nullptr;
-    MQTTManager* mqttManager = nullptr;
-    DeviceManager* deviceManager = nullptr;
-    DeviceProgramManager* deviceProgramManager = nullptr;
-    DisplayManager* displayManager = nullptr;
-    ESPUIManager* espUIManager = nullptr;
-
-    // Specific registration methods
-    void registerService(Configuration* service) { config = service; }
+    // === Service Registration ===
+    
+    /**
+     * @brief Register core services (don't extend Manager)
+     */
     void registerService(EventManager* service) { eventManager = service; }
-    void registerService(SerialCommandManager* service) { serialCommandManager = service; }
-    void registerService(TimeManager* service) { timeManager = service; }
-    void registerService(WiFiManager* service) { wiFiManager = service; }
-    void registerService(MQTTManager* service) { mqttManager = service; }
-    void registerService(DeviceManager* service) { deviceManager = service; }
-    void registerService(DeviceProgramManager* service) { deviceProgramManager = service; }
-    void registerService(DisplayManager* service) { displayManager = service; }
-    void registerService(ESPUIManager* service) { espUIManager = service; }
-
-    // Template method for generic access - only for getService
+    
+    /**
+     * @brief Register any manager (completely type-agnostic)
+     * @param manager Manager instance to register
+     * 
+     * Stores manager by its getName() for type-safe retrieval.
+     * FrameworkContext has no knowledge of concrete manager types.
+     */
+    void registerManager(Manager* manager);
+    
+    /**
+     * @brief Unified registration for any Manager-derived type
+     * @tparam T Manager type (must extend Manager)
+     * @param manager Manager instance to register
+     */
     template<typename T>
-    T* getService();
+    void registerService(T* manager) {
+        registerManager(manager);  // Implicit conversion to Manager*
+    }
+
+    // === Service Access (Dependency Injection) ===
+    
+    // No more getService<T>() - use getManager(name) for polymorphic access
+    
+    /**
+     * @brief Get manager by name (polymorphic access)
+     * @param name Manager name (from getName())
+     * @return Manager instance or nullptr
+     */
+    Manager* getManager(const String& name) const;
+    
+    // === Manager Lifecycle Support ===
+    
+    /**
+     * @brief Get all registered managers for lifecycle operations
+     * @return Vector of all managers
+     */
+    const std::vector<Manager*>& getManagers() const { return managers; }
+    
+    // === Core Services Access ===
+    
+    /**
+     * @brief Get EventManager service (doesn't extend Manager) 
+     */
+    EventManager* getEventManager() const { return eventManager; }
+    
+    // Legacy getConfiguration() removed - use getManager("ConfigurationManager") directly
+
+private:
+    // Core services (don't extend Manager)
+    EventManager* eventManager = nullptr;
+    
+    // Manager storage - completely type-agnostic
+    std::map<String, Manager*> managersByName;  // Storage by manager name
+    std::vector<Manager*> managers;             // Lifecycle operations
 };
 
-// Template specializations
-template<> inline Configuration* FrameworkContext::getService<Configuration>() { return config; }
-template<> inline EventManager* FrameworkContext::getService<EventManager>() { return eventManager; }
-template<> inline SerialCommandManager* FrameworkContext::getService<SerialCommandManager>() { return serialCommandManager; }
-template<> inline TimeManager* FrameworkContext::getService<TimeManager>() { return timeManager; }
-template<> inline WiFiManager* FrameworkContext::getService<WiFiManager>() { return wiFiManager; }
-template<> inline MQTTManager* FrameworkContext::getService<MQTTManager>() { return mqttManager; }
-template<> inline DeviceManager* FrameworkContext::getService<DeviceManager>() { return deviceManager; }
-template<> inline DeviceProgramManager* FrameworkContext::getService<DeviceProgramManager>() { return deviceProgramManager; }
-template<> inline DisplayManager* FrameworkContext::getService<DisplayManager>() { return displayManager; }
-template<> inline ESPUIManager* FrameworkContext::getService<ESPUIManager>() { return espUIManager; }
 
 #endif

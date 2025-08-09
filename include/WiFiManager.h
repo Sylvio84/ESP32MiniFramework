@@ -2,6 +2,7 @@
 #define WIFIMANAGER_H
 
 #include <Arduino.h>
+#include <Manager.h>
 #include <FrameworkContext.h>
 #include <ESPTelnet.h>
 #ifndef DISABLE_ESPUI
@@ -25,12 +26,26 @@ typedef enum {
     WM_AP_MODE_ON_ERROR = 2
 } wm_ap_mode;
 
-class WiFiManager
+
+/**
+ * @brief WiFiManager - Handles WiFi connection and management
+ * 
+ * Provides:
+ * - WiFi connection management
+ * - Access Point mode for configuration
+ * - Telnet server for remote access
+ * - Network scanning and selection
+ * - Event-driven communication for WiFi events
+ * @note This manager is designed to be used with a WiFi connection.
+ * @note Ensure to call `loop()` periodically to maintain connection status.
+ * @note The manager supports both STA and AP modes.
+ * @note The manager can be extended to support more complex WiFi operations.
+ */
+class WiFiManager : public Manager
 {
   private:
     static const uint CONNECTION_TIMEOUT = 10000;
 
-    FrameworkContext* context;
     ESPTelnet telnet;
     uint16_t telnetPort = 23;
 
@@ -42,7 +57,6 @@ class WiFiManager
     uint checkDelay = 100;
     uint tryCount = 0;
 
-    static EventManager* eventManager;  // Pointeur vers EventManager
 
     void setConnected(bool recovered = false);
 
@@ -54,22 +68,11 @@ class WiFiManager
 
   public:
     // New constructor with FrameworkContext
-    WiFiManager(FrameworkContext& ctx) : context(&ctx)
+    WiFiManager(FrameworkContext& ctx) : Manager(ctx)
     {
         this->apIP = IPAddress(192, 168, 1, 249);
-        if (eventManager == nullptr) {
-            eventManager = ctx.getService<EventManager>();
-        }
     }
     
-    // Legacy constructor for compatibility
-    WiFiManager(Configuration& config, EventManager& eventMgr) : context(nullptr)
-    {
-        this->apIP = IPAddress(192, 168, 1, 249);
-        if (eventManager == nullptr) {
-            eventManager = &eventMgr;
-        }
-    }
 
     wm_ap_mode apMode = WM_AP_MODE_ON_ERROR;
     
@@ -78,11 +81,15 @@ class WiFiManager
     String ssid = "";
     String password = "";
 
-    void init(bool auto_connect = true);
-    void loop();
+    void init() override;
+    void init(bool auto_connect);
+    void loop() override;
 
-    void processEvent(String type, String event, std::vector<String> params);
-    bool processCommand(String action, std::vector<String> params);
+    bool onEvent(const String& type, const String& event, const std::vector<String>& params) override;
+    bool onCommand(const String& command, const std::vector<String>& params) override;
+    
+    void registerCommands();
+    
     bool autoConnect();
     bool connect();
     bool keepConnection();
@@ -115,6 +122,8 @@ class WiFiManager
     void initEspUI();
     void EspUiCallback(Control* sender, int type);
 #endif
+
+    String getName() const override { return "WiFiManager"; }
 
     bool otaUpdate();
 };

@@ -6,9 +6,11 @@
 #include <esp_chip_info.h>
 #endif
 
-#include <Configuration.h>
 #include <FrameworkContext.h>
+#include <ConfigurationManager.h>
+#include <SystemManager.h>
 #include <SerialCommandManager.h>
+#include <CommandManager.h>
 #ifndef DISABLE_DISPLAY
 #include <DisplayManager.h>
 #endif
@@ -21,7 +23,6 @@
 #include <TimeManager.h>
 #include <DeviceProgram.h>
 #include <Tools.h>
-//#include <Devices/Device.h>
 #include <LittleFS.h>
 #include <DeviceManager.h>
 #include <DeviceProgramManager.h>
@@ -36,14 +37,98 @@ inline void debugLog( const char* file, int line)
     Serial.printf("(File: %s, Line: %d)\n", file, line);
 }
 
+/**
+ * @brief MainController - Central orchestrator of the ESP32MiniFramework
+ * 
+ * Base controller class that instantiates, registers, and coordinates all
+ * framework managers using polymorphic interfaces and dependency injection.
+ * 
+ * ## Core Responsibilities:
+ * 
+ * ### Manager Lifecycle
+ * - **Instantiation**: Creates all framework managers in constructor
+ * - **Registration**: Registers managers with FrameworkContext
+ * - **Initialization**: Calls init() on all managers in correct order
+ * - **Main Loop**: Calls loop() on all managers continuously
+ * 
+ * ### Event Processing
+ * - **Event Router**: Receives events from EventManager
+ * - **Manager Delegation**: Forwards events to managers via onEvent()
+ * - **Special Handling**: Processes MQTT messages and serial input
+ * - **Device Events**: Forwards events to device manager
+ * 
+ * ### Command Execution
+ * - **Serial Input**: Processes commands from SerialCommandManager
+ * - **Command Parsing**: Splits input into command and parameters
+ * - **CommandManager**: Delegates execution to CommandManager
+ * - **Result Display**: Prints command results to Serial
+ * 
+ * ## Architecture:
+ * 
+ * ### Manager Ownership
+ * ```cpp
+ * protected:
+ *     ConfigurationManager configManager;  // Instantiated by MainController
+ *     SystemManager systemManager;         // All managers owned here
+ *     CommandManager commandManager;       // etc...
+ * ```
+ * 
+ * ### Service Registration
+ * ```cpp
+ * MainController() {
+ *     context.registerManager(&configManager);
+ *     context.registerManager(&systemManager);
+ *     // Register all managers...
+ * }
+ * ```
+ * 
+ * ### Event Flow
+ * 1. EventManager triggers event
+ * 2. MainController::processEvent() receives it
+ * 3. Delegates to managers via onEvent()
+ * 4. Special cases handled directly (MQTT, serial)
+ * 
+ * ### Command Flow
+ * 1. SerialCommandManager triggers "serial/input" event
+ * 2. MainController::processInput() parses command
+ * 3. CommandManager::executeCommand() runs it
+ * 4. Result printed to Serial
+ * 
+ * ## Virtual Methods:
+ * - **init()**: Override to add custom initialization
+ * - **loop()**: Override to add custom loop processing
+ * - **processEvent()**: Override to handle custom events
+ * - **processMQTT()**: Override for custom MQTT handling
+ * - **processCommand()**: Override for custom commands
+ * 
+ * ## Design Patterns:
+ * - **Template Method**: Base implementation with extension points
+ * - **Dependency Injection**: Managers access services via context
+ * - **Observer Pattern**: Event-driven communication
+ * - **Command Pattern**: Decoupled command execution
+ * - **Factory Pattern**: Creates and owns all managers
+ * 
+ * ## Usage:
+ * ```cpp
+ * class MyController : public MainController {
+ * public:
+ *     void init() override {
+ *         MainController::init();  // Always call base
+ *         // Add custom initialization
+ *     }
+ * };
+ * ```
+ */
 class MainController
 {
 protected:
     FrameworkContext context;
     
     EventManager eventManager;
-    Configuration& config;
+    ConfigurationManager configManager;
+    SystemManager systemManager;
     SerialCommandManager serialCommandManager;
+    CommandManager commandManager;
     #ifndef DISABLE_DISPLAY
     DisplayManager displayManager;
     #endif
@@ -55,23 +140,15 @@ protected:
     ESPUIManager espUIManager;
     #endif
 
-    int powerSaving = 0; // 0 = disabled, else = idle time in ms while power saving (100 is a good value)
-    bool timeSet = false;
-
     DeviceManager deviceManager;
     DeviceProgramManager deviceProgramManager;
 
-    uint powerSavingRemumeTimer = 0;
-    void setPowerSaving(int value, bool save = true);
 
 public:
-    MainController(Configuration &config);
+    MainController();
 
     virtual void init();
     virtual void loop();
-
-    void internalLed(bool state);
-    bool internalLedState();
 
 #ifndef DISABLE_ESPUI
     virtual void processUI(String action, std::vector<String> params);

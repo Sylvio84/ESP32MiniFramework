@@ -1,24 +1,40 @@
 #include <TimeManager.h>
-#include <Configuration.h>
+#include <ConfigurationManager.h>
 #include <EventManager.h>
+#include <CommandManager.h>
 
-EventManager* TimeManager::eventManager = nullptr;
 
-// New constructor with FrameworkContext
-TimeManager::TimeManager(FrameworkContext& ctx) : context(&ctx)
-{
-    if (eventManager == nullptr) {
-        eventManager = ctx.getService<EventManager>();
+// Constructor is now inline in header
+
+
+void TimeManager::init() {
+    logDebug("Initializing TimeManager", 1);
+    
+    // Register time commands with CommandManager
+    registerCommands();
+    
+    setInitialized(true);
+    logDebug("TimeManager initialized successfully", 1);
+}
+
+bool TimeManager::onCommand(const String& command, const std::vector<String>& params) {
+    if (command == "date") {
+        debug(getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
+        return true;
+    } else if (command == "time") {
+        debug(getFormattedDateTime("%H:%M:%S"), 0);
+        return true;
+    } else if (command == "ntp") {
+        if (update(true)) {
+            debug("Time updated", 0);
+            debug("Time: " + getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
+        } else {
+            debug("Failed to update time", 0);
+        }
+        return true;
     }
+    return false; // Command not handled
 }
-
-// Legacy constructor for compatibility  
-TimeManager::TimeManager(Configuration& config, EventManager& eventMgr) : context(nullptr)
-{
-    this->eventManager = &eventMgr;
-}
-
-void TimeManager::init() {}
 
 void TimeManager::loop()
 {
@@ -33,18 +49,28 @@ bool TimeManager::update(bool force)
         return true;
     }
     if (!WiFi.isConnected()) {
-        eventManager->debug("WiFi not connected, cannot update time", 1, false);
+        debug("WiFi not connected, cannot update time", 1, false);
         return false;
     }
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    const char* ntpServer = config ? config->NTP_SERVER : "pool.ntp.org";
-    eventManager->debug("Updating time from " + String(ntpServer), 1, false);
-    configTime(0, 0, ntpServer);
-    const char* timezone = config ? config->TIMEZONE : "CET-1CEST,M3.5.0,M10.5.0/3";
-    setenv("TZ", timezone, 1);
+    // Safely get ConfigurationManager
+    Manager* mgr = context ? context->getManager("ConfigurationManager") : nullptr;
+    auto* configMgr = mgr ? static_cast<ConfigurationManager*>(mgr) : nullptr;
+    
+    // Use safe default values if ConfigurationManager is not available
+    String ntpServerStr = "pool.ntp.org";
+    String timezoneStr = "CET-1CEST,M3.5.0,M10.5.0/3";
+    
+    if (configMgr) {
+        ntpServerStr = configMgr->getPreference("ntp_server", "pool.ntp.org");
+        timezoneStr = configMgr->getPreference("timezone", "CET-1CEST,M3.5.0,M10.5.0/3");
+    }
+    
+    debug("Updating time from " + ntpServerStr, 1, false);
+    configTime(0, 0, ntpServerStr.c_str());
+    setenv("TZ", timezoneStr.c_str(), 1);
     tzset();
     isInitialized = true;
-    eventManager->debug("Time set to: " + getFormattedDateTime("%H:%M:%S"), 1);
+    debug("Time set to: " + getFormattedDateTime("%H:%M:%S"), 1);
     return true;
 }
 
@@ -52,21 +78,21 @@ String TimeManager::getFormattedDateTime(const char* format)
 {
     if (!isInitialized) {
         if (WiFi.isConnected()) {
-            eventManager->debug("Time not initialized, initializing...", 2, false);
+            debug("Time not initialized, initializing...", 2, false);
             update();
         } else {
             return String("");
         }
     }
     if (!isInitialized) {
-        eventManager->debug("Failed to initialize time", 1, false);
+        debug("Failed to initialize time", 1, false);
         return String("");
     }
     struct tm timeinfo;
 
     if (!getLocalTime(&timeinfo)) {
         // logMessage("Failed to obtain time");
-        eventManager->debug("Failed to obtain time", 2, false);
+        debug("Failed to obtain time", 2, false);
         return String("");
     }
     char formattedTime[20];
@@ -109,7 +135,7 @@ void TimeManager::checkTimeouts()
 {
     for (auto& timeout : timeouts) {
         if (timeout.active && (millis() - timeout.startTime >= timeout.delay)) {
-            eventManager->debug("Timeout triggered", 2);
+            debug("Timeout triggered", 2);
             timeout.callback();
             timeout.active = false;
         }
@@ -145,7 +171,7 @@ void TimeManager::checkSchedulers()
 
     struct tm timeinfo;
     if (!getLocalTime(&timeinfo)) {
-        eventManager->debug("Failed to obtain time", 1);
+        debug("Failed to obtain time", 1);
         return;
     }
 
@@ -176,12 +202,12 @@ void TimeManager::checkSchedulers()
         // Vérifie heure/minute
         if (scheduler.hour == currentHour && scheduler.minute == currentMinute) {
             if (scheduler.lastTriggeredDate != todayStr) {
-                eventManager->debug("Scheduler triggered at " + String(currentHour) + ":" + String(currentMinute), 1);
+                debug("Scheduler triggered at " + String(currentHour) + ":" + String(currentMinute), 1);
                 #ifdef ESP32
                 try {
                     scheduler.callback();
                 } catch (const std::exception& e) {
-                    eventManager->debug("Scheduler callback error: " + String(e.what()), 0);
+                    debug("Scheduler callback error: " + String(e.what()), 0);
                 }
                 #else
                 scheduler.callback();
@@ -300,18 +326,18 @@ TimeManager::Program* TimeManager::addProgram(const String& json, std::function<
     Program* program = new Program();
 
     if (error) {
-        eventManager->debug("Erreur parsing JSON Program", 1);
+        debug("Erreur parsing JSON Program", 1);
         delete program;
         return nullptr;
     }
 
     // Champs obligatoires
     if (!doc["startTime"].is<const char*>()) {
-        eventManager->debug("Champ startTime invalide ou manquant", 1);
+        debug("Champ startTime invalide ou manquant", 1);
         return nullptr;
     }
     if (!doc["duration"].is<uint16_t>()) {
-        eventManager->debug("Champ duration invalide ou manquant", 1);
+        debug("Champ duration invalide ou manquant", 1);
         return nullptr;
     }
 
@@ -378,4 +404,64 @@ String TimeManager::exportProgramToJson(const Program& program)
     String output;
     serializeJson(doc, output);
     return output;
+}
+
+void TimeManager::registerCommands()
+{
+    auto* cmdMgr = static_cast<CommandManager*>(context ? context->getManager("CommandManager") : nullptr);
+    if (!cmdMgr) return;
+
+    // Date command
+    cmdMgr->registerCommand(Command(
+        "time", "date", "Show current date",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            return getFormattedDateTime("%d/%m/%Y");
+        }
+    ));
+
+    // Time command
+    cmdMgr->registerCommand(Command(
+        "time", "time", "Show current time",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            return getFormattedDateTime("%H:%M:%S");
+        }
+    ));
+
+    // DateTime command
+    cmdMgr->registerCommand(Command(
+        "time", "datetime", "Show current date and time",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            return getFormattedDateTime("%d/%m/%Y %H:%M:%S");
+        }
+    ));
+
+    // NTP update command
+    cmdMgr->registerCommand(Command(
+        "time", "ntp", "Update time from NTP server",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (update(true)) {
+                return "Time updated from NTP: " + getFormattedDateTime("%d/%m/%Y %H:%M:%S");
+            } else {
+                return "Failed to update time from NTP";
+            }
+        }
+    ));
+
+    // Night status command
+    cmdMgr->registerCommand(Command(
+        "time", "night", "Check if it's night time",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            return String("Night time: ") + (isNight() ? "Yes" : "No");
+        }
+    ));
+
+
+    // Register useful aliases
+    cmdMgr->registerAlias("dt", "time:datetime");
+    cmdMgr->registerAlias("now", "time:datetime");
 }

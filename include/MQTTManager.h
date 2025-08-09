@@ -2,6 +2,7 @@
 #define MQTTMANAGER_H
 
 #include <Arduino.h>
+#include <Manager.h>
 #include <PubSubClient.h>
 #include <vector>
 #include <map>
@@ -16,19 +17,89 @@
 #include <ESP8266WiFi.h>
 #endif
 
-class MQTTManager
+/**
+ * @brief MQTTManager - Complete MQTT client implementation with command integration
+ * 
+ * Comprehensive MQTT client manager that provides publish/subscribe functionality
+ * with automatic reconnection, subscription management, and unified command interface.
+ * 
+ * ## Key Features:
+ * 
+ * ### Connection Management
+ * - **Auto-Reconnection**: Automatic reconnection with exponential backoff
+ * - **Connection Status**: Real-time connection monitoring and status reporting
+ * - **WiFi Integration**: Waits for WiFi connection before attempting MQTT
+ * - **Persistent Settings**: Server, port, credentials stored in NVS
+ * 
+ * ### Publish/Subscribe
+ * - **Topic Management**: Subscribe/unsubscribe with persistent subscription list
+ * - **Message Publishing**: Reliable message publishing with debug support
+ * - **Payload Handling**: Proper payload parsing and string conversion
+ * - **Event Integration**: MQTT messages trigger framework events
+ * 
+ * ### Command System Integration
+ * - **Unified Commands**: All MQTT operations available via command system
+ * - **Namespace**: Commands organized under `mqtt:` namespace
+ * - **Aliases**: Short aliases for common operations (ms, mi, mc)
+ * - **Help Integration**: Commands appear in help system with descriptions
+ * 
+ * ## Commands Available:
+ * 
+ * ### Connection Commands
+ * - `mqtt:server [hostname]` - Get/set MQTT broker hostname
+ * - `mqtt:port [port]` - Get/set MQTT broker port (default: 1883)
+ * - `mqtt:user [username]` - Get/set MQTT username (optional)
+ * - `mqtt:pass [password]` - Get/set MQTT password (optional)
+ * - `mqtt:status` / `ms` - Show connection status
+ * - `mqtt:connect` / `mc` - Force connection attempt
+ * - `mqtt:info` / `mi` - Show detailed configuration
+ * 
+ * ### Topic Commands
+ * - `mqtt:subscribe <topic>` - Subscribe to topic
+ * - `mqtt:unsubscribe <topic>` - Unsubscribe from topic
+ * - `mqtt:subscriptions` - List active subscriptions
+ * - `mqtt:publish <topic> <payload>` - Publish message
+ * 
+ * ## Configuration:
+ * ```cpp
+ * mqtt:server broker.example.com
+ * mqtt:port 1883
+ * mqtt:user mydevice
+ * mqtt:pass mypassword
+ * mqtt:connect
+ * ```
+ * 
+ * ## Event Flow:
+ * 1. WiFi connects → MQTT attempts connection
+ * 2. MQTT message received → "mqtt/message" event
+ * 3. MainController processes → calls processMQTT()
+ * 4. Message routed to appropriate handler
+ * 
+ * ## Architecture:
+ * - **PubSubClient Integration**: Uses reliable MQTT client library
+ * - **ConfigurationManager**: Persistent storage of settings
+ * - **EventManager**: Event-driven message handling
+ * - **CommandManager**: Unified command interface
+ * - **WiFi Dependency**: Monitors WiFi status for connection management
+ * 
+ * ## Status Values:
+ * - 0: Disabled
+ * - 1: Waiting for WiFi connection
+ * - 2: Keep connected (active)
+ * 
+ * ## Usage Notes:
+ * - Requires WiFi connection before MQTT will attempt to connect
+ * - Subscriptions persist across reconnections
+ * - Automatic ping/keepalive every 60 seconds
+ * - Exponential backoff on connection failures (1s → 60s max)
+ */
+class MQTTManager : public Manager
 {
 
   public:
     // New constructor with FrameworkContext
-    MQTTManager(FrameworkContext& ctx) : context(&ctx), mqttClient(wifiClient) { 
-        this->eventManager = ctx.getService<EventManager>();
-    }
+    MQTTManager(FrameworkContext& ctx) : Manager(ctx), context(&ctx), mqttClient(wifiClient) { }
     
-    // Legacy constructor for compatibility
-    MQTTManager(Configuration& config, EventManager& eventMgr) : context(nullptr), mqttClient(wifiClient) { 
-        this->eventManager = &eventMgr;
-    }
 
     // 0 = disabled, 1 = waiting wifi to connect, 2 = keep connected
     uint status = 0;
@@ -38,11 +109,11 @@ class MQTTManager
     String server = "";
     int port = 1883;
 
-    void init();
-    void loop();
+    void init() override;
+    void loop() override;
 
-    void processEvent(String type, String event, std::vector<String> params);
-    bool processCommand(String action, std::vector<String> params);
+    bool onEvent(const String& type, const String& event, const std::vector<String>& params) override;
+    bool onCommand(const String& command, const std::vector<String>& params) override;
 
     void setStatus(uint status);
 
@@ -75,6 +146,8 @@ class MQTTManager
     bool storePublication(String topic, String payload);
     bool removePublication(String topic);
 
+    String getName() const override { return "MQTTManager"; }
+
 #ifndef DISABLE_ESPUI
     void initEspUI();
     void EspUiCallback(Control* sender, int type);
@@ -82,10 +155,11 @@ class MQTTManager
 
   private:
     FrameworkContext* context;
+    
+    void registerCommands();
 
     WiFiClient wifiClient;
     PubSubClient mqttClient;
-    static EventManager* eventManager;  // Pointeur vers EventManager
 
     bool connected = false;
 

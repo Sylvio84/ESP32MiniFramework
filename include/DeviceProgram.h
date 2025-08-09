@@ -13,6 +13,14 @@
 class Device;
 class DeviceManager;
 
+/**
+ * @brief DeviceProgram - Represents a program that can control multiple devices
+ * Provides:
+ * - Device management (add/remove devices)
+ * - Program lifecycle management (start/stop)
+ * - JSON serialization/deserialization for program settings
+ * Based on the TimeManager's Program structure, but extended for device control.
+ */
 class DeviceProgram
 {
   private:

@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <FrameworkContext.h>
+#include <Manager.h>
 #include <ctime>
 #include <functional>
 #include <map>
@@ -14,7 +15,26 @@
 #endif
 #include <ArduinoJson.h>
 
-class TimeManager
+// Forward declarations
+class CommandManager;
+
+
+/**
+ * @brief TimeManager - Handles time-related operations and scheduling
+ * 
+ * Provides:
+ * - Date and time formatting
+ * - Timeout and interval scheduling
+ * - Scheduler for recurring tasks
+ * - NTP time synchronization
+ * - Sun time calculations
+ * @note This manager is designed to be used with a WiFi connection for NTP updates.
+ * @note Ensure to call `update()` periodically to keep the time accurate.
+ * @note The manager supports scheduling tasks based on time and date.
+ * @note The manager can be extended to support more complex scheduling and time-based operations.
+ */
+
+class TimeManager : public Manager
 {
 
   public:
@@ -59,14 +79,16 @@ class TimeManager
 
     bool isInitialized = false;
 
-    // New constructor with FrameworkContext
-    TimeManager(FrameworkContext& ctx);
+    // Constructor with dependency injection
+    TimeManager(FrameworkContext& ctx) : Manager(ctx) {}
     
-    // Legacy constructor for compatibility  
-    TimeManager(Configuration& config, EventManager& eventMgr);
-
-    virtual void init();
-    virtual void loop();
+    // Implement Manager interface
+    void init() override;
+    void loop() override;
+    String getName() const override { return "TimeManager"; }
+    bool onCommand(const String& command, const std::vector<String>& params) override;
+    
+    void registerCommands();
 
     bool update(bool force = false);
 
@@ -95,7 +117,6 @@ class TimeManager
 
   protected:
     FrameworkContext* context;
-    static EventManager* eventManager;  // Pointeur vers EventManager
 
     struct Timeout
     {

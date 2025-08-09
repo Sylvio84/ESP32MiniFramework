@@ -1,6 +1,5 @@
 #include <Devices/Device.h>
 
-EventManager* Device::eventManager = nullptr;
 
 void Device::init()
 {
@@ -13,7 +12,7 @@ void Device::init()
 
     //addCommand("cmd", std::bind(&Device::executeCmd, this, std::placeholders::_1));
 
-    eventManager->debug("Device #" + id + " initialized", 1);
+    debug("initialized", 1);
 }
 
 void Device::loop() {}
@@ -28,11 +27,11 @@ void Device::addCommand(const std::string& command, std::function<void()> action
 bool Device::handleCommand(const std::string& command)
 {
     if (commands.find(command) != commands.end()) {
-        eventManager->debug("Command found", 3);
+        debug("Command found", 3);
         commands[command]();  // Appelle la fonction associée
         return true;
     }
-    eventManager->debug("Command not found", 3);
+    debug("Command not found", 3);
     return false;
 }
 
@@ -41,13 +40,13 @@ void Device::saveTopic(String topic)
     unsubscribeMQTT(this->topic);
     this->topic = topic;
     Serial.println("Saving topic: " + topic);
-    config.setPreference(id + "_topic", topic);
+    static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"))->setPreference(id + "_topic", topic);
     subscribeMQTT(topic);
 }
 
 String Device::retrieveTopic()
 {
-    this->topic = config.getPreference(id + "_topic", topic);
+    this->topic = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"))->getPreference(id + "_topic", topic);
     return this->topic;
 }
 
@@ -55,19 +54,19 @@ void Device::saveName(const String name)
 {
     this->name = name;
     Serial.println("Saving name: " + name);
-    config.setPreference(id + "_name", name);
+    static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"))->setPreference(id + "_name", name);
 }
 
 String Device::retrieveName()
 {
-    this->name = config.getPreference(id + "_name", name);
+    this->name = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"))->getPreference(id + "_name", name);
     return this->name;
 }
 
 void Device::publishName()
 {
-    eventManager->debug("Device name #" + id + ": " + name, 0);
-    eventManager->triggerEvent("mqtt", "publishAsap", {topic + "/log", name});
+    debug("Device name: " + name, 0);
+    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/log", name});
 }
 
 bool Device::subscribeMQTT(String topic)
@@ -75,8 +74,8 @@ bool Device::subscribeMQTT(String topic)
     if (topic == "") {
         return false;
     }
-    eventManager->triggerEvent("mqtt", "subscribe", {topic});
-    //eventManager->triggerEvent("mqtt", "subscribe", {topic + "/cmd"});
+    context->getEventManager()->triggerEvent("mqtt", "subscribe", {topic});
+    //context->getService<EventManager>()->triggerEvent("mqtt", "subscribe", {topic + "/cmd"});
     return true;
 }
 
@@ -85,14 +84,14 @@ bool Device::unsubscribeMQTT(String topic)
     if (topic == "") {
         return false;
     }
-    eventManager->triggerEvent("mqtt", "unsubscribe", {topic});
-    //eventManager->triggerEvent("mqtt", "unsubscribe", {topic + "/cmd"});
+    context->getEventManager()->triggerEvent("mqtt", "unsubscribe", {topic});
+    //context->getService<EventManager>()->triggerEvent("mqtt", "unsubscribe", {topic + "/cmd"});
     return true;
 }
 
 void Device::processEvent(String type, String event, std::vector<String> params)
 {
-    eventManager->debug("Processing device #" + id + " event: " + type + " " + event, 3);
+    debug("Processing event: " + type + " " + event, 3);
     if ((type == id) && (event.startsWith("@"))) {
         processCommand(event.substring(1), params);
     }
@@ -105,12 +104,12 @@ void Device::processEvent(String type, String event, std::vector<String> params)
 
 bool Device::processCommand(String command, std::vector<String> params)
 {
-    eventManager->debug("Processing device #" + id + " command: " + command, 3);
+    debug("Processing command: " + command, 3);
     if (command == "name") {
         if (params.size() > 0) {
             saveName(params[0]);
         } else {
-            eventManager->debug("Name: " + retrieveName(), 0);
+            debug("Name: " + retrieveName(), 0);
         }
         return true;
     }
@@ -118,7 +117,7 @@ bool Device::processCommand(String command, std::vector<String> params)
         if (params.size() > 0) {
             saveTopic(params[0]);
         } else {
-            eventManager->debug("Topic: " + retrieveTopic(), 0);
+            debug("Topic: " + retrieveTopic(), 0);
         }
         return true;
     }
@@ -127,15 +126,15 @@ bool Device::processCommand(String command, std::vector<String> params)
 
 bool Device::processMQTT(String topic, String value)
 {
-    eventManager->debug("Processing device #" + id + " MQTT message: " + topic + " = " + value, 3);
-    eventManager->debug("MyTopic: " + this->topic, 3);
+    debug("Processing MQTT message: " + topic + " = " + value, 3);
+    debug("MyTopic: " + this->topic, 3);
     if (topic == this->topic) {
-        eventManager->debug("Topic " + topic + " matched, command:" + value, 3);
+        debug("Topic " + topic + " matched, command:" + value, 3);
         return handleCommand(value.c_str());
     }
     if (topic == this->topic + "/cmd") {
         if (value == "name") {
-            eventManager->triggerEvent("mqtt", "publishAsap", {this->topic + "/log", this->name});
+            context->getEventManager()->triggerEvent("mqtt", "publishAsap", {this->topic + "/log", this->name});
         }
     }
     return false;
@@ -149,7 +148,7 @@ bool Device::processUI(String action, std::vector<String> params)
 #ifndef DISABLE_ESPUI
 void Device::initEspUI()
 {
-    eventManager->debug("Init " + id + " ESPUI", 2);
+    debug("Init ESPUI", 2);
 
     auto callback = std::bind(&Device::EspUiCallback, this, std::placeholders::_1, std::placeholders::_2);
 
@@ -162,7 +161,7 @@ void Device::initEspUI()
 
 void Device::EspUiCallback(Control* sender, int type)
 {
-    eventManager->debug(id + " ESPUI callback: sender.value = " + sender->value + " sender.id = " + sender->id + " sender.type = " + sender->type +
+    debug("ESPUI callback: sender.value = " + sender->value + " sender.id = " + sender->id + " sender.type = " + sender->type +
                             "  / type = " + String(type),
                         2);
 
@@ -173,11 +172,11 @@ void Device::EspUiCallback(Control* sender, int type)
     if (sender->value == "Save") {
         /*std::vector<String> params1;
         params1.push_back(ESPUI.getControl(nameInput)->value);
-        eventManager->triggerEvent("ESPUI", id + "SaveName", params1);
+        context->getEventManager()->triggerEvent("ESPUI", id + "SaveName", params1);
 
         std::vector<String> params2;
         params2.push_back(ESPUI.getControl(topicInput)->value);
-        eventManager->triggerEvent("ESPUI", id + "SaveTopic", params2);
+        context->getEventManager()->triggerEvent("ESPUI", id + "SaveTopic", params2);
         */
         saveName(ESPUI.getControl(nameInput)->value);
         saveTopic(ESPUI.getControl(topicInput)->value);
@@ -187,10 +186,17 @@ void Device::EspUiCallback(Control* sender, int type)
 
 void Device::onProgramStart()
 {
-    eventManager->debug("Device #" + id + " program started", 1);
+    debug("program started", 1);
 }
 
 void Device::onProgramEnd()
 {
-    eventManager->debug("Device #" + id + " program ended", 1);
+    debug("program ended", 1);
+}
+
+// Simplified debug helper for devices
+void Device::debug(const String& message, int level, bool displayTime) {
+    if (auto* eventMgr = context->getEventManager()) {
+        eventMgr->debug("[Device:" + id + "] " + message, level, displayTime);
+    }
 }

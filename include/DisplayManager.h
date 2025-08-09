@@ -4,6 +4,7 @@
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <Manager.h>
 #include <FrameworkContext.h>
 #include <LiquidCrystal_I2C.h> // lib_deps = marcoschwartz/LiquidCrystal_I2C@^1.1.4
 
@@ -11,7 +12,7 @@
 @Todo: to transform into a Device child class
 */
 
-class DisplayManager
+class DisplayManager : public Manager
 {
 private:
     LiquidCrystal_I2C lcd;
@@ -28,12 +29,10 @@ private:
     
 public:
     // New constructor with FrameworkContext
-    DisplayManager(FrameworkContext& ctx) : context(&ctx), lcd(0x27, 16, 2), cols(16), rows(2), sdaPin(21), sclPin(22), lcdAddress(0x27) {}
+    DisplayManager(FrameworkContext& ctx) : Manager(ctx), context(&ctx), lcd(0x27, 16, 2), cols(16), rows(2), sdaPin(21), sclPin(22), lcdAddress(0x27) {}
     
-    // Legacy constructor for compatibility
-    DisplayManager(Configuration& config) : context(nullptr), lcd(0x27, 16, 2), cols(16), rows(2), sdaPin(21), sclPin(22), lcdAddress(0x27) {}
 
-    bool init();
+    void init() override;
 
     bool i2CAddrTest(uint8_t addr);
 
@@ -47,6 +46,8 @@ public:
     void printLine(uint8_t row, String &text);
 
     void createChars();
+
+    String getName() const override { return "DisplayManager"; }
 
     LiquidCrystal_I2C getLcd();
 };

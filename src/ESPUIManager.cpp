@@ -1,18 +1,22 @@
 #ifndef DISABLE_ESPUI
 #include <ESPUIManager.h>
-#include <Configuration.h>
+#include <ConfigurationManager.h>
 #include <EventManager.h>
+#include <CommandManager.h>
 
-// Définition et initialisation du membre statique
-EventManager *ESPUIManager::eventManager = nullptr;
 
 void ESPUIManager::init()
 {
-    Serial.println("ESPUIManager init...");
+    logDebug("ESPUIManager init...", 1);
+    
+    // Register ESPUI commands with CommandManager
+    registerCommands();
+    
+    setInitialized(true);
     ESPUI.setVerbosity(Verbosity::Quiet);
 
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    String hostname = config ? config->getHostname() : "ESP32";
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    String hostname = configMgr ? configMgr->getHostname() : "ESP32";
     ESPUI.begin(hostname.c_str());
     initInfoTab();
     initDebugTab();
@@ -41,11 +45,12 @@ uint16_t ESPUIManager::initDebugTab()
     return debugTab;
 }
 
-void ESPUIManager::processCommand(String command)
+bool ESPUIManager::onCommand(const String& command, const std::vector<String>& params)
 {
+    return false;
 }
 
-void ESPUIManager::processEvent(String type, String event, std::vector<String> params)
+void ESPUIManager::onEvent(const String& type, const String& event, const std::vector<String>& params)
 {
     if (type == "espui")
     {
@@ -79,7 +84,7 @@ void ESPUIManager::addDebugMessage(String message, int level)
 
 void ESPUIManager::EspUiCallback(Control *sender, int type)
 {
-    Serial.println("Button callback: sender.value = " + sender->value + " sender.id = " + sender->id + " sender.type = " + sender->type + "  / type = " + String(type));
+    logDebug("Button callback: sender.value = " + sender->value + " sender.id = " + sender->id + " sender.type = " + sender->type + "  / type = " + String(type), 2);
     //eventManager->debug("Button callback: sender.value = " + sender->value + " sender.id = " + sender->id + " sender.type = " + sender->type + "  / type = " + String(type), 1); // => don't uncomment, else reboot while loading ESPUI interface
     if (type == B_DOWN)
     {
@@ -88,17 +93,64 @@ void ESPUIManager::EspUiCallback(Control *sender, int type)
 
     if (sender->value == "Reboot")
     {
-        eventManager->triggerEvent("espui", "Reboot", {});
+        context->getEventManager()->triggerEvent("espui", "Reboot", {});
     }
 
     if (sender->value == "SendCommand")
     {
-        eventManager->triggerEvent("espui", "Command", {ESPUI.getControl(commandText)->value});
+        context->getEventManager()->triggerEvent("espui", "Command", {ESPUI.getControl(commandText)->value});
     }
 }
 
 Control *ESPUIManager::getControl(uint16_t id)
 {
     return ESPUI.getControl(id);
+}
+
+void ESPUIManager::registerCommands()
+{
+    auto* cmdMgr = static_cast<CommandManager*>(context ? context->getManager("CommandManager") : nullptr);
+    if (!cmdMgr) return;
+
+    // ESPUI status command
+    cmdMgr->registerCommand(Command(
+        "espui", "status", "Show ESPUI web interface status",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            return String("ESPUI web interface is ") + (isInitialized() ? "running" : "not running");
+        }
+    ));
+
+    // ESPUI debug command (add debug message to web interface)
+    cmdMgr->registerCommand(Command(
+        "espui", "debug", "Add debug message to web interface",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() == 0) {
+                return "Usage: espui:debug <message>";
+            }
+            
+            String message = args[0];
+            // Join all args if multiple words
+            for (size_t i = 1; i < args.size(); i++) {
+                message += " " + args[i];
+            }
+            
+            addDebugMessage(message, 0);
+            return "Debug message added to web interface";
+        }
+    ));
+
+    // ESPUI restart command 
+    cmdMgr->registerCommand(Command(
+        "espui", "restart", "Restart ESPUI web interface",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            // Restart ESPUI by triggering reboot event
+            context->getEventManager()->triggerEvent("espui", "Reboot", {});
+            return "ESPUI restart triggered";
+        }
+    ));
+
 }
 #endif

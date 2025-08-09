@@ -2,7 +2,7 @@
 #define DEVICE_H
 
 #include <Arduino.h>
-#include <Configuration.h>
+#include <ConfigurationManager.h>
 #include <EventManager.h>
 #include <TimeManager.h>
 #include <FrameworkContext.h>
@@ -26,23 +26,11 @@ class Device
     Device& operator=(const Device&) = delete;
     Device& operator=(Device&&) = delete;
 
-    // Constructeur avec FrameworkContext
-    Device(String id, FrameworkContext& ctx) : context(&ctx), config(*ctx.getService<Configuration>()), timeManager(*ctx.getService<TimeManager>())
+    // Constructor with FrameworkContext
+    Device(String id, FrameworkContext& ctx) : context(&ctx)
     {
         this->id = id;
-        if (eventManager == nullptr) {
-            eventManager = ctx.getService<EventManager>();
-        }
-    };
-    
-    // Constructeur original pour compatibilité
-    Device(String id, Configuration& config, EventManager& eventMgr, TimeManager& timeManager) : context(nullptr), config(config), timeManager(timeManager)
-    {
-        this->id = id;
-        if (eventManager == nullptr) {
-            eventManager = &eventMgr;
-        }
-    };
+    }
 
     // Méthode pour ajouter une commande et son action associée
     void addCommand(const std::string& command, std::function<void()> action);
@@ -83,13 +71,18 @@ class Device
 
   protected:
     FrameworkContext* context;
-    Configuration& config;
-    TimeManager& timeManager;
 
     // Carte des commandes et de leurs actions associées
     std::map<std::string, std::function<void()>> commands;
+    
+    /**
+     * @brief Simplified debug helper for devices
+     * @param message Debug message
+     * @param level Log level (0=info, 1=debug, 2=verbose)
+     * @param displayTime Whether to display timestamp
+     */
+    void debug(const String& message, int level = 0, bool displayTime = true);
 
-    static EventManager* eventManager;  // Pointeur vers EventManager
 
     // ESPUI:
     uint16_t nameInput = 0;

@@ -1,33 +1,24 @@
 #include "SerialCommandManager.h"
-#include <Configuration.h>
+#include <ConfigurationManager.h>
 #include <EventManager.h>
 
-EventManager* SerialCommandManager::eventManager = nullptr;
 
-// New constructor with FrameworkContext
-SerialCommandManager::SerialCommandManager(FrameworkContext& ctx) : context(&ctx)
+// Constructor with clean dependency injection
+SerialCommandManager::SerialCommandManager(FrameworkContext& ctx) : Manager(ctx), context(&ctx)
 {
-    Configuration* config = ctx.getService<Configuration>();
-    baudRate = config ? config->getPreference("serial_speed", baudRate) : baudRate;
-    if (eventManager == nullptr) {
-        eventManager = ctx.getService<EventManager>();
-    }
+    auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
+    baudRate = configMgr ? configMgr->getPreference("serial_speed", baudRate) : baudRate;
 }
 
-// Legacy constructor for compatibility
-SerialCommandManager::SerialCommandManager(Configuration& config, EventManager& eventMgr) : context(nullptr)
-{
-    baudRate = config.getPreference("serial_speed", baudRate);
-    if (eventManager == nullptr) {
-        eventManager = &eventMgr;
-    }
-}
 
 void SerialCommandManager::init()
 {
+    logDebug("Initializing SerialCommandManager with baud rate: " + String(baudRate), 1);
     Serial.begin(baudRate);
     Serial.println();
     Serial.println("SerialCommandManager initialized.");
+    setInitialized(true);
+    logDebug("SerialCommandManager initialized successfully", 1);
 }
 
 void SerialCommandManager::loop()
@@ -47,19 +38,19 @@ void SerialCommandManager::handleSerialInput()
 
         if (inputBuffer.length() == 0) {
             if (validate) {
-                eventManager->triggerEvent("sys", "power_saving_suspend", {"Power saving suspended"});
-                eventManager->triggerEvent("sys", "power_saving_resume", {"Power saving resumed", "60"});  // resume power saving after 60 seconds
+                context->getEventManager()->triggerEvent("sys", "power_saving_suspend", {"Power saving suspended"});
+                context->getEventManager()->triggerEvent("sys", "power_saving_resume", {"Power saving resumed", "60"});  // resume power saving after 60 seconds
                 return;
             } else {
-                eventManager->triggerEvent("sys", "power_saving_suspend", {});
+                context->getEventManager()->triggerEvent("sys", "power_saving_suspend", {});
             }
         }
 
         if (validate) {
             inputBuffer.trim();
-            eventManager->triggerEvent("serial", "input", {inputBuffer});
+            context->getEventManager()->triggerEvent("serial", "input", {inputBuffer});
             inputBuffer = "";
-            eventManager->triggerEvent("sys", "power_saving_resume", {"", "60"});
+            context->getEventManager()->triggerEvent("sys", "power_saving_resume", {"", "60"});
         } else if (receivedChar == '\b' || receivedChar == 127) {
             if (inputBuffer.length() > 0) {
                 inputBuffer.remove(inputBuffer.length() - 1);

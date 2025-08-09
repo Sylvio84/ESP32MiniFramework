@@ -3,10 +3,14 @@
 #include <Configuration.h>
 
 
-// New constructor with FrameworkContext
-DisplayManager::DisplayManager(FrameworkContext& ctx) : context(&ctx)
+
+
+void DisplayManager::init()
 {
-    Configuration* config = ctx.getService<Configuration>();
+    logDebug("DisplayManager init...", 1);
+    
+    // Configure LCD from context
+    Configuration* config = context ? context->getConfiguration() : nullptr;
     if (config) {
         this->lcd = LiquidCrystal_I2C(config->LCD_ADDRESS, config->LCD_COLS, config->LCD_ROWS);
         this->cols = config->LCD_COLS;
@@ -23,32 +27,17 @@ DisplayManager::DisplayManager(FrameworkContext& ctx) : context(&ctx)
         this->sclPin = 22;
         this->lcdAddress = 0x27;
     }
-}
-
-// Legacy constructor for compatibility
-DisplayManager::DisplayManager(Configuration& config) : context(nullptr), lcd(config.LCD_ADDRESS, config.LCD_COLS, config.LCD_ROWS)
-{
-    this->cols = config.LCD_COLS;
-    this->rows = config.LCD_ROWS;
-    this->sdaPin = config.LCD_SDA;
-    this->sclPin = config.LCD_SCL;
-    this->lcdAddress = config.LCD_ADDRESS;
-}
-
-bool DisplayManager::init()
-{
-    Serial.println("DisplayManager init...");
     Wire.begin(sdaPin, sclPin); // Initialize I2C with specific SDA and SCL pins
     if (!this->i2CAddrTest(lcdAddress))
     {
-        Serial.println("LCD not found");
-        return false;
+        logDebug("LCD not found", 0);
+        return;
     }
     isInitialized = true;
     lcd.init();
     lcd.backlight();
     lcd.setCursor(0, 0);
-    return true;
+    setInitialized(true);
 }
 
 bool DisplayManager::i2CAddrTest(uint8_t addr)

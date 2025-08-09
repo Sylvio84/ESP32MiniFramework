@@ -1,10 +1,13 @@
 #include <MainController.h>
+#include <CommandManager.h>
 
-MainController::MainController(Configuration& config)
+MainController::MainController()
     : context(),
       eventManager(),
-      config(config),
+      configManager(context),
+      systemManager(context),
       serialCommandManager(context),
+      commandManager(context),
 #ifndef DISABLE_DISPLAY
       displayManager(context),
 #endif
@@ -17,22 +20,24 @@ MainController::MainController(Configuration& config)
       deviceManager(context),
       deviceProgramManager(context)
 {
-    // Register all services in the context FIRST
-    context.registerService(&config);
+    // Register all services in the context
     context.registerService(&eventManager);
     
-    // Initialize managers after context is set up
-    context.registerService(&serialCommandManager);
-    context.registerService(&wiFiManager);
-    context.registerService(&mqttManager);
-    context.registerService(&timeManager);
-    context.registerService(&deviceManager);
-    context.registerService(&deviceProgramManager);
+    // Register all managers (including ConfigurationManager which is now a Manager)
+    context.registerManager(&configManager);
+    context.registerManager(&systemManager);
+    context.registerManager(&serialCommandManager);
+    context.registerManager(&commandManager);
+    context.registerManager(&wiFiManager);
+    context.registerManager(&mqttManager);
+    context.registerManager(&timeManager);
+    context.registerManager(&deviceManager);
+    context.registerManager(&deviceProgramManager);
 #ifndef DISABLE_DISPLAY
-    context.registerService(&displayManager);
+    context.registerManager(&displayManager);
 #endif
 #ifndef DISABLE_ESPUI
-    context.registerService(&espUIManager);
+    context.registerManager(&espUIManager);
 #endif
 
     eventManager.registerMainCallback(
@@ -43,21 +48,16 @@ MainController::MainController(Configuration& config)
 
 void MainController::init()
 {
-    pinMode(LED_BUILTIN, OUTPUT);
     delay(500);
-    config.init(eventManager);
 
-    serialCommandManager.init();
-#ifndef DISABLE_DISPLAY
-    displayManager.init();
-#endif
-    wiFiManager.init();
-    timeManager.init();
-    mqttManager.init();
-    mqttManager.addSubscription(config.getHostname() + "/cmd/#");
-    //mqttManager.addSubscription(config.getHostname() + "/#");
+    // Initialize all managers using clean Manager interface
+    for (auto* manager : context.getManagers()) {
+        manager->init();
+    }
+    
+    mqttManager.addSubscription(configManager.getHostname() + "/cmd/#");
+    //mqttManager.addSubscription(configManager.getHostname() + "/#");
 #ifndef DISABLE_ESPUI
-    espUIManager.init();
     wiFiManager.initEspUI();
     mqttManager.initEspUI();
 #endif
@@ -78,25 +78,23 @@ void MainController::init()
         eventManager.debug("Failed to load device programs", 0);
     }
 
+    // Generate automatic help commands now that all managers have registered their commands
+    auto* cmdMgr = static_cast<CommandManager*>(context.getManager("CommandManager"));
+    if (cmdMgr) {
+        cmdMgr->generateHelpCommands();
+    }
+    
     eventManager.debug("Init done!", 1);
-    eventManager.debug("Welcome on " + config.getHostname() + "!", 0);
-    setPowerSaving(config.getPreference("power_saving", 10));
-#ifdef ESP32
-    setCpuFrequencyMhz(80);
-#endif
+    eventManager.debug("Welcome on " + configManager.getHostname() + "!", 0);
 }
 
 void MainController::loop()
 {
-    serialCommandManager.loop();
-    timeManager.loop();
-    wiFiManager.loop();
-    if (wiFiManager.isConnected()) {
-        mqttManager.loop();
-        if (mqttManager.isConnected() && timeManager.isInitialized && powerSaving > 0) {
-            delay(powerSaving);
-        }
+    // Call loop on all managers using clean Manager interface
+    for (auto* manager : context.getManagers()) {
+        manager->loop();
     }
+    
     deviceManager.loopDevices();
 }
 
@@ -157,99 +155,38 @@ void MainController::processEvent(String type, String event, std::vector<String>
         eventManager.debug("Param: " + param, 3);
     }
 
-    wiFiManager.processEvent(type, event, params);
-    mqttManager.processEvent(type, event, params);
-#ifndef DISABLE_ESPUI
-    espUIManager.processEvent(type, event, params);
-#endif
-    // displayManager.processEvent(type, event, params);
-
-    deviceManager.processEventDevices(type, event, params);
-
-    if (type == "wifi") {
-        if (event == "connected" || event == "recovered") {
-            timeManager.update();
-            eventManager.debug("Connected to WiFi: " + params[0], 1);
-            eventManager.debug("IP address: " + params[1], 1);
-            mqttManager.setStatus(2);
-            // ESPUI.server->reset(); // Remove all handlers and writers // ESPUI.server->end();
-        }
-        if (event == "ap_started") {
-            // ESPUI.begin();
-        }
-        if (event == "disconnected" || event == "lost") {
-            mqttManager.setStatus(1);
-        }
-    } else if (type == "sys") {
-        if (event.startsWith("@")) {
-            processCommand(event.substring(1), params);
-        }
-        if (event == "power_saving_suspend") {
-            if (powerSavingRemumeTimer > 0) {
-                timeManager.clearTimeout(powerSavingRemumeTimer);
-            }
-            if (powerSaving > 0) {
-                setPowerSaving(0, false);
-                if (params.size() > 0) {
-                    eventManager.debug(params[0], 0);
-                }
-            }
-        }
-        if (event == "power_saving_resume") {
-            if (powerSavingRemumeTimer > 0) {
-                timeManager.clearTimeout(powerSavingRemumeTimer);
-            }
-            if (params.size() > 0) {
-
-                if (params.size() > 1 && isInteger(params[1])) {
-                    int duration = params[1].toInt() * 1000;
-                    powerSavingRemumeTimer = timeManager.setTimeout(
-                        [this, params] {
-                            if (params[0].length() > 0) {
-                                eventManager.debug(params[0], 0);
-                            }
-                            setPowerSaving(-1, false);
-                        },
-                        duration);
-                } else {
-                    if (params[0].length() > 0) {
-                        eventManager.debug(params[0], 0);
-                    }
-                    setPowerSaving(-1, false);
-                }
-            } else {
-                setPowerSaving(-1, false);
-            }
-        }
-    } else if (type == "mqtt") {
-        if (event == "connected") {
-            eventManager.debug("Connected to MQTT server: " + params[0], 1);
-        } else if (event == "message") {
-            processMQTT(params[0], params[1]);
-        }
-#ifndef DISABLE_ESPUI
-    } else if (type == "espui") {
-        if (event == "Command") {
-            serialCommandManager.processCommand(params[0]);
-        } else if (event == "Reboot") {
-            eventManager.debug("Restarting (event)...", 1);
-            ESP.restart();
-        } else {
-            processUI(event, params);
-        }
-#endif
-    } else if (type == "serial") {
-        if (event == "input") {
-            processInput(params[0]);
-        }
-        if (event == "command") {
-            eventManager.triggerEvent("espui", "SerialIn", params);
-        }
-    } else if (type == "telnet") {
-        if (event == "input") {
-            processInput(params[0]);
+    // Try specialized managers first using clean delegation
+    for (auto* manager : context.getManagers()) {
+        if (manager->onEvent(type, event, params)) {
+            // Event was handled by a manager
+            deviceManager.processEventDevices(type, event, params);
+            return;
         }
     }
+    
+    // Handle remaining events that need MainController-specific logic
+    if (type == "mqtt" && event == "message") {
+        // MQTT messages need special handling in MainController
+        processMQTT(params[0], params[1]);
+        return;
+    }
+    
+    if ((type == "serial" || type == "telnet") && event == "input") {
+        // Input processing needs MainController logic
+        processInput(params[0]);
+        return;
+    }
+    
+#ifndef DISABLE_ESPUI
+    if (type == "espui" && event != "Command" && event != "Reboot") {
+        // Custom UI events need MainController processUI
+        processUI(event, params);
+        return;
+    }
+#endif
+
+    // Send to device manager for device-specific events
+    deviceManager.processEventDevices(type, event, params);
 }
 
 bool MainController::processInput(const String input)
@@ -260,282 +197,127 @@ bool MainController::processInput(const String input)
         return false;
     }
 
-    int cmdIndex = input.indexOf(' ');
-    int topicIndex = input.indexOf('/');
-    if (topicIndex > -1) {
-        String topic = input.substring(0, cmdIndex);
-        eventManager.triggerEvent("mqtt", "publishAsap", {topic, input.substring(cmdIndex + 1)});
+    // Use CommandManager to execute commands
+    auto* cmdMgr = static_cast<CommandManager*>(context.getManager("CommandManager"));
+    if (cmdMgr) {
+        // Parse the input to extract command and parameters
+        std::vector<String> params;
+        String cmdInput = input;
+        cmdInput.trim();
+        
+        // Split by spaces to get command and parameters
+        int spaceIndex = cmdInput.indexOf(' ');
+        String command;
+        if (spaceIndex > 0) {
+            command = cmdInput.substring(0, spaceIndex);
+            String paramStr = cmdInput.substring(spaceIndex + 1);
+            paramStr.trim();
+            
+            // Split parameters by spaces
+            while (paramStr.length() > 0) {
+                int nextSpace = paramStr.indexOf(' ');
+                if (nextSpace > 0) {
+                    params.push_back(paramStr.substring(0, nextSpace));
+                    paramStr = paramStr.substring(nextSpace + 1);
+                    paramStr.trim();
+                } else {
+                    params.push_back(paramStr);
+                    break;
+                }
+            }
+        } else {
+            command = cmdInput;
+        }
+        
+        // Execute the command
+        String result = cmdMgr->executeCommand(command, params, CommandSource::Serial);
+        if (!result.isEmpty()) {
+            Serial.println(result);
+        }
         return true;
     }
 
-    int nsIndex = input.indexOf(':');
-
-    if (nsIndex == -1 || (cmdIndex != -1 && cmdIndex < nsIndex)) {
-        eventManager.debug("Erreur: Format de commande incorrect: " + input, 0);
-        return false;
+    // If CommandManager didn't handle it, try MQTT publish format
+    int topicIndex = input.indexOf('/');
+    if (topicIndex > -1) {
+        int spaceIndex = input.indexOf(' ');
+        if (spaceIndex > topicIndex) {
+            String topic = input.substring(0, spaceIndex);
+            eventManager.triggerEvent("mqtt", "publishAsap", {topic, input.substring(spaceIndex + 1)});
+            return true;
+        }
     }
 
-    // Extraction du namespace et de la commande
-    String ns = input.substring(0, nsIndex);
-    String command = cmdIndex == -1 ? input.substring(nsIndex + 1) : input.substring(nsIndex + 1, cmdIndex);
-    String paramStr = cmdIndex == -1 ? "" : input.substring(cmdIndex + 1);
-    // Extraction des paramètres
-    std::vector<String> params = paramStr.isEmpty() ? std::vector<String>() : splitParameters(paramStr);
-
-    eventManager.triggerEvent(ns, "@" + command, params);
-
-    return true;
+    eventManager.debug("Command not found: " + input, 0);
+    return false;
 }
 
 void MainController::processCommand(String command, std::vector<String> params)
 {
-    /*for (auto &device : devices)
-    {
-        device->processCommand(command, params);
-    }*/
-    // if command is a digit
+    // Special case: numeric command becomes debuglevel
     if (command.length() == 1 && isdigit(command[0])) {
         params.insert(params.begin(), String(command[0]));
         command = "debuglevel";
     }
-    if (command == "version") {
-        eventManager.debug("Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")", 0);
-    } else if (command == "uptime") {
-        eventManager.debug("Uptime: " + String(millis() / 1000) + " seconds", 0);
-    } else if (command == "temp") {
-#ifdef ESP32
-        eventManager.debug("Temperature: " + String(temperatureRead()) + "°C", 0);
-#else
-        eventManager.debug("Temperature not supported on this device", 0);
-#endif
-    } else if (command == "led") {
-        if (params.size() > 0) {
-            if (params[0] == "on") {
-                internalLed(true);
-                eventManager.debug("LED on", 1);
-            } else if (params[0] == "off") {
-                internalLed(false);
-                eventManager.debug("LED off", 1);
-            } else {
-                eventManager.debug("Invalid parameter: " + params[0], 0);
-            }
-        } else {
-            eventManager.debug("Missing parameter: on/off", 0);
+    
+    // Try all managers to handle the command using clean Manager interface
+    for (auto* manager : context.getManagers()) {
+        if (manager->onCommand(command, params)) {
+            return; // Command handled
         }
-    } else if (command == "freq") {
-#ifdef ESP32
-        if (params.size() > 0) {
-            if (params[0] == "80" || params[0] == "160" || params[0] == "240") {
-                if (params[0] == "240" && ESP.getChipModel() == "ESP32C3") {
-                    eventManager.debug("Frequency not supported on ESP32-C3", 0);
-                    return;
-                }
-                setCpuFrequencyMhz(params[0].toInt());
-                eventManager.debug("Frequency set to: " + params[0] + " MHz", 1);
-            } else {
-                eventManager.debug("Invalid frequency: " + params[0], 0);
-            }
-        } else {
-            eventManager.debug("CPU Frequency: " + String(getCpuFrequencyMhz()) + " MHz", 0);
-        }
-#else
-        eventManager.debug("Frequency command not supported on this device", 0);
-#endif
-    } else if (command == "info") {
-        eventManager.debug("ESP32 Mini Framework Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")", 0);
-        eventManager.debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
-#ifdef ESP32
-        eventManager.debug("Total Heap: " + String(ESP.getHeapSize() / 1024) + " KB", 0);
-#endif
-        eventManager.debug("Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB", 0);
-        eventManager.debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);
-        eventManager.debug("Sketch size: " + String(ESP.getSketchSize() / 1024) + " KB", 0);
-        eventManager.debug("Free sketch space: " + String(ESP.getFreeSketchSpace() / 1024) + " KB", 0);
-#ifdef ESP32
-        eventManager.debug("Chip ID: " + String(ESP.getEfuseMac()), 0);
-        eventManager.debug("Chip model: " + String(ESP.getChipModel()), 0);
-        eventManager.debug("Chip revision: " + String(ESP.getChipRevision()), 0);
-        eventManager.debug("Chip core: " + String(ESP.getChipCores()), 0);
-#endif
-#ifdef ESP8266
-        eventManager.debug("Reset reason: " + ESP.getResetReason(), 0);
-#endif
-#ifdef ESP32
-        eventManager.debug("Reset reason: " + esp_reset_reason(), 0);
-#endif
-        eventManager.debug("Hostname: " + config.getHostname(), 0);
-        eventManager.debug("Debug level: " + String(config.getPreference("debug_level", 0)), 0);
-#ifdef ESP8266
-        eventManager.debug("Power saving: " + String(wifi_get_sleep_type() == NONE_SLEEP_T ? "disabled" : "enabled"), 0);
-#endif
-        eventManager.debug("Power saving time: " + String(powerSaving), 0);
-        eventManager.debug("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
-        if (wiFiManager.isConnected()) {
-            eventManager.debug("Connected to WiFi: " + wiFiManager.retrieveSSID(), 0);
-            eventManager.debug("IP address: " + wiFiManager.retrieveIP(), 0);
-        } else {
-            eventManager.debug("Not connected to WiFi", 0);
-        }
-        if (mqttManager.isConnected()) {
-            eventManager.debug("Connected to MQTT server: " + mqttManager.retrieveServer(), 0);
-        } else {
-            eventManager.debug("Not connected to MQTT server", 0);
-        }
-    } else if (command == "fs") {
-        if (!LittleFS.begin()) {
-            eventManager.debug("Failed to initialize LittleFS", 0);
-            return;
-        }
-#ifdef ESP8266
-        FSInfo fs_info;
-        LittleFS.info(fs_info);
-        size_t totalBytes = fs_info.totalBytes;
-        size_t usedBytes = fs_info.usedBytes;
-#endif
-#ifdef ESP32
-        size_t totalBytes = LittleFS.totalBytes();
-        size_t usedBytes = LittleFS.usedBytes();
-#endif
-        eventManager.debug("Total bytes: " + String(totalBytes), 0);
-        eventManager.debug("Used bytes: " + String(usedBytes), 0);
-        eventManager.debug("Free bytes: " + String(totalBytes - usedBytes), 0);
-    } else if (command == "date") {
-        eventManager.debug(timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
-    } else if (command == "time") {
-        eventManager.debug(timeManager.getFormattedDateTime("%H:%M:%S"), 0);
-    } else if (command == "ota") {
-        // the firmware should not exceed 510KB
-        wiFiManager.otaUpdate();
-    } else if (command == "restart" || command == "reboot") {
-        eventManager.debug("Restarting (command)...", 1);
-        delay(500);
-        ESP.restart();
-    } else if (command == "debuglevel") {
-        if (params.size() > 0) {
-            config.setPreference("debug_level", params[0].toInt());
-            eventManager.debug("Debug level set to: " + params[0], 1);
-        } else {
-            int debugLevel = config.getPreference("debug_level", 0);
-            eventManager.debug("Debug level: " + String(debugLevel), 0);
-        }
-    } else if (command == "power_saving") {
-        if (params.size() > 0) {
-            if (!isInteger(params[0])) {
-                eventManager.debug("Invalid value: " + params[0], 0);
-                eventManager.debug("Usage: sys:power_saving <value>, the value should be a number >= 0 (ms) / 0 = disable", 0);
-                return;
-            }
-            setPowerSaving(params[0].toInt());
-        } else {
-            int powerSaving = config.getPreference("power_saving", 0);
-            eventManager.debug("Power saving: " + String(powerSaving), 0);
-        }
-    } else if (command == "hostname") {
-        if (params.size() > 0) {
-            config.setPreference("hostname", params[0]);
-            eventManager.debug("Hostname set to: " + params[0], 1);
-        } else {
-            eventManager.debug("Hostname: " + config.getHostname(), 0);
-        }
-    } else if (command == "config") {
-        if (params.size() > 0) {
-            config.setJsonConfig(params[0]);
-            eventManager.debug("Configuration updated", 1);
-        } else {
-            //eventManager.debug(config.getJsonConfig(), 0);
-            auto vars = config.getPreferences();
-            for (const auto& pair : vars) {
-                eventManager.debug(pair.first + " = " + pair.second, 0);
-            }
-        }
-    } else if (command == "ntp") {
-        if (timeManager.update(true)) {
-            eventManager.debug("Time updated", 0);
-            eventManager.debug("Time: " + timeManager.getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
-        } else {
-            eventManager.debug("Failed to update time", 0);
-        }
-    } else if (command == "device") {
-        if (params.size() == 0) {
-            eventManager.debug("List of devices:", 0);
-            for (const auto& device : deviceManager.getAllDevices()) {
-                eventManager.debug(" #" + device->id + " : " + device->name + " (" + device->topic + ")", 0);
-            }
-        } else {
-            auto device = deviceManager.getDeviceById(params[0]);
-            if (device != nullptr) {
-                eventManager.debug("ID: " + device->id, 0);
-                eventManager.debug("Type: " + device->type, 0);
-                eventManager.debug("Name: " + device->name, 0);
-                eventManager.debug("Topic: " + device->topic, 0);
-            } else {
-                eventManager.debug("Device not found: " + params[0], 0);
-            }
-        }
-    } else if (command == "import_program") {
-        // list all params
-        if (params.size() > 0) {
-            eventManager.debug("Importing program from JSON: " + params[0], 0);
-            String errorMsg;
-            if (!deviceProgramManager.importDeviceProgram(params[0], errorMsg)) {
-                eventManager.debug("Error importing program: " + errorMsg, 0);
-            } else {
-                eventManager.debug("Program imported successfully", 0);
-            }
-        }
-    } else if (command == "remove_program") {
-        if (params.size() > 0) {
-            eventManager.debug("Removing program with ID: " + params[0], 0);
-            if (deviceProgramManager.removeDeviceProgram(params[0])) {
-                eventManager.debug("Program removed successfully", 1);
-            } else {
-                eventManager.debug("Failed to remove program with ID: " + params[0], 0);
-            }
-        } else {
-            eventManager.debug("Usage: remove_program <program_id>", 0);
-        }
-    } else if (command == "display_program") {
-        auto programs = deviceProgramManager.getAllDevicePrograms();
-        if (programs.empty()) {
-            eventManager.debug("No programs found", 0);
-        } else {
-            eventManager.debug("List of programs:", 1);
-            for (const auto& program : programs) {
-                eventManager.debug(" #" + program->id + " : " + program->name, 0);
-            }
-        }
-    } else {
-        eventManager.debug("Unknown command: " + command, 0);
     }
+    
+    // Command not handled
+    eventManager.debug("Unknown command: " + command, 0);
 }
 
 void MainController::processMQTT(String topic, String value)
 {
     eventManager.debug("Received MQTT message: " + topic + " = " + value, 2);
 
-    String hostname = config.getHostname();
-    //    if (topic == hostname + "/cmd") {
-    //        processInput(value);
-    //    }
-    // if topic starts with hostname + "/cmd/"
+    String hostname = configManager.getHostname();
+    
+    // Check for command topic format: hostname/cmd/...
     if (topic.startsWith(hostname + "/cmd/")) {
-        String command = topic.substring(hostname.length() + 5);  // 5 = length of "/cmd/"
-        String ns = command.substring(0, command.indexOf('/'));
-        command = command.substring(command.indexOf('/') + 1);
-
-        eventManager.debug("Processing command: " + ns + ":" + command + " with value: " + value, 1);
-
-        // @todo manage json value
-        if (value.startsWith("{") && value.endsWith("}")) {
-            // Handle JSON value
-            eventManager.triggerEvent(ns, "@" + command, {value});
-        } else {
-            std::vector<String> params;
-            if (value.length() > 0) {
-                params.push_back(value);
+        String commandPart = topic.substring(hostname.length() + 5);  // 5 = length of "/cmd/"
+        
+        // Try CommandManager first
+        auto* cmdMgr = static_cast<CommandManager*>(context.getManager("CommandManager"));
+        if (cmdMgr) {
+            // Build command string from topic and value
+            String commandStr = commandPart;
+            commandStr.replace('/', ' ');  // Replace / with space for command parsing
+            if (!value.isEmpty()) {
+                commandStr += " " + value;
             }
-            //processInput(command + " " + value);
-            eventManager.triggerEvent(ns, "@" + command, params);
+            
+            String result = cmdMgr->executeCommandString(commandStr, CommandSource::MQTT);
+            if (!result.startsWith("Command not found")) {
+                // Publish result back via MQTT
+                eventManager.triggerEvent("mqtt", "publishAsap", 
+                    {hostname + "/status/" + commandPart, result});
+                return;
+            }
+        }
+        
+        // Fallback to old format for backward compatibility
+        int slashIndex = commandPart.indexOf('/');
+        if (slashIndex > 0) {
+            String ns = commandPart.substring(0, slashIndex);
+            String command = commandPart.substring(slashIndex + 1);
+            
+            eventManager.debug("Processing command: " + ns + ":" + command + " with value: " + value, 1);
+            
+            if (value.startsWith("{") && value.endsWith("}")) {
+                // Handle JSON value
+                eventManager.triggerEvent(ns, "@" + command, {value});
+            } else {
+                std::vector<String> params;
+                if (value.length() > 0) {
+                    params.push_back(value);
+                }
+                eventManager.triggerEvent(ns, "@" + command, params);
+            }
         }
     }
 }
@@ -547,7 +329,7 @@ EventManager* MainController::getEventManager()
 
 void MainController::processDebugMessage(String message, int level, bool displayTime)
 {
-    if (level <= config.getPreference("debug_level", 0)) {
+    if (level <= configManager.getPreference("debug_level", 0)) {
         String logJson;
         if (displayTime && level > 0) {
             String time = timeManager.getFormattedDateTime("%H:%M:%S");
@@ -562,43 +344,9 @@ void MainController::processDebugMessage(String message, int level, bool display
         espUIManager.addDebugMessage(message, level);
 #endif
         if (mqttManager.isConnected()) {
-            mqttManager.publish(config.getHostname() + "/log", logJson, false);
+            mqttManager.publish(configManager.getHostname() + "/log", logJson, false);
         }
     }
 }
 
-void MainController::setPowerSaving(int value, bool save)
-{
-    if (value < 0) {
-        value = config.getPreference("power_saving", 0);
-    }
-    if (value == 1) {
-        value = 100;  // default value
-    }
-    powerSaving = value;
-    if (powerSaving > 0) {
-        eventManager.debug("Power saving enabled: process every " + String(powerSaving) + "ms", 1);
-        wiFiManager.setPowerSave(true);
-    } else {
-        if (save) {
-            eventManager.debug("Power saving disabled", 1);
-        } else {
-            eventManager.debug("Power saving suspended", 3);
-        }
-        wiFiManager.setPowerSave(false);
-    }
-    if (save) {
-        config.setPreference("power_saving", powerSaving);
-    }
-}
 
-void MainController::internalLed(bool state)
-{
-    digitalWrite(LED_BUILTIN, state ? LOW : HIGH);
-    return;
-}
-
-bool MainController::internalLedState()
-{
-    return digitalRead(LED_BUILTIN) == LOW;
-}

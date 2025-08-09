@@ -10,6 +10,14 @@ using MainCallback = std::function<void(const String&, const String&, const std:
 using EventCallback = std::function<void(const String&, const std::vector<String>&)>;
 using DebugCallBack = std::function<void(const String&, int, bool)>;
 
+/**
+ * @brief Manages events and callbacks for the framework
+ * 
+ * Provides:
+ * - Event registration and triggering
+ * - Main event callback for framework-wide events
+ * - Debug logging with callback
+ */
 class EventManager {
 public:
 

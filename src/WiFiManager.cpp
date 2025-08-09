@@ -1,23 +1,35 @@
 #include <WiFiManager.h>
-#include <Configuration.h>
+#include <ConfigurationManager.h>
 #include <EventManager.h>
+#include <TimeManager.h>
+#include <MQTTManager.h>
+#include <CommandManager.h>
 
-EventManager* WiFiManager::eventManager = nullptr;
+
+void WiFiManager::init()
+{
+    init(true);
+}
 
 void WiFiManager::init(bool auto_connect)
 {
-    eventManager->debug("Init WiFiManager", 1);
+    logDebug("Init WiFiManager", 1);
     retrieveSSID();
     retrievePassword();
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    apMode = static_cast<wm_ap_mode>(config ? config->getPreference("ap_mode", 2) : 2);
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    apMode = static_cast<wm_ap_mode>(configMgr ? configMgr->getPreference("ap_mode", 2) : 2);
 
     if (!this->ssid.length() || this->ssid == "") {
-        eventManager->debug("No SSID, Start Access Point", 0);
+        logDebug("No SSID, Start Access Point", 0);
         startAccessPoint();
     } else if (auto_connect) {
         this->autoConnect();
     }
+    
+    // Register WiFi commands with CommandManager
+    registerCommands();
+    
+    setInitialized(true);
 }
 
 void WiFiManager::loop()
@@ -47,8 +59,8 @@ void WiFiManager::loop()
                 if (WiFi.status() == WL_WRONG_PASSWORD) {
                     if (connectionStatus != 6) {
                         connectionStatus = 6;
-                        eventManager->debug("WiFi: Wrong password", 0);
-                        eventManager->triggerEvent("wifi", "wrong_password", {});
+                        logDebug("WiFi: Wrong password", 0);
+                        context->getEventManager()->triggerEvent("wifi", "wrong_password", {});
                         this->startAccessPoint();
                     }
                 }
@@ -56,16 +68,16 @@ void WiFiManager::loop()
                 tryCount++;
                 std::vector<String> params;
                 params.push_back(String(tryCount));
-                eventManager->triggerEvent("wifi", "in_progress", params);
+                context->getEventManager()->triggerEvent("wifi", "in_progress", params);
                 if (tryCount >= 20) {
                     tryCount = 0;
                     if (keepConnected) {
-                        eventManager->debug("WiFi: Connection failed, retrying", 1);
+                        logDebug("WiFi: Connection failed, retrying", 1);
                     } else {
                         if (connectionStatus != 6) {
                             connectionStatus = 2;
-                            eventManager->debug("WiFi: Connection failed", 1);
-                            eventManager->triggerEvent("wifi", "failed", params);
+                            logDebug("WiFi: Connection failed", 1);
+                            context->getEventManager()->triggerEvent("wifi", "failed", params);
                             // if wifi mode is AP, restart AP
                             this->startAccessPoint();
                         }
@@ -73,7 +85,7 @@ void WiFiManager::loop()
                 } else {
                     //Serial.print("*");
                 }
-                eventManager->debug("WiFi: connection in progress #" + String(tryCount) + "...", 2);
+                logDebug("WiFi: connection in progress #" + String(tryCount) + "...", 2);
             } else {
                 setConnected();
             }
@@ -82,8 +94,8 @@ void WiFiManager::loop()
             if (WiFi.status() != WL_CONNECTED) {
                 connectionStatus = 3;
                 this->connected = false;
-                eventManager->debug("WiFi: Connection lost", 1);
-                eventManager->triggerEvent("wifi", "lost", {});
+                logDebug("WiFi: Connection lost", 1);
+                context->getEventManager()->triggerEvent("wifi", "lost", {});
             }
         } else if (connectionStatus == 3)  // Connection lost
         {
@@ -95,20 +107,55 @@ void WiFiManager::loop()
     }
 }
 
-void WiFiManager::processEvent(String type, String event, std::vector<String> params)
+bool WiFiManager::onEvent(const String& type, const String& event, const std::vector<String>& params)
 {
     if (type == "wifi") {
-        if (event.startsWith("@")) {
-            processCommand(event.substring(1), params);
-        } else {
-            processCommand(event, params);
+        if (event == "connected" || event == "recovered") {
+            // Update time when WiFi connects
+            auto* timeMgr = static_cast<TimeManager*>(context->getManager("TimeManager"));
+            if (timeMgr) {
+                timeMgr->update();
+            }
+            
+            // Update MQTT status
+            auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
+            if (mqttMgr) {
+                mqttMgr->setStatus(2);
+            }
+            
+            debug("Connected to WiFi: " + (params.size() > 0 ? params[0] : "unknown"), 1);
+            if (params.size() > 1) {
+                debug("IP address: " + params[1], 1);
+            }
+            return true;
+            
+        } else if (event == "ap_started") {
+            debug("WiFi Access Point started", 1);
+            // ESPUI.begin(); // Could be handled here if needed
+            return true;
+            
+        } else if (event == "disconnected" || event == "lost") {
+            // Update MQTT status when WiFi disconnects
+            auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
+            if (mqttMgr) {
+                mqttMgr->setStatus(1);
+            }
+            
+            debug("WiFi disconnected", 1);
+            return true;
+            
+        } else if (event.startsWith("@")) {
+            // Handle WiFi commands via events
+            return onCommand(event.substring(1), params);
         }
     }
+    
+    return false; // Event not handled
 }
 
-bool WiFiManager::processCommand(String command, std::vector<String> params)
+bool WiFiManager::onCommand(const String& command, const std::vector<String>& params)
 {
-    eventManager->debug("Processing WiFi command: " + command, 3);
+    logDebug("Processing WiFi command: " + command, 3);
     if (command == "connect") {
         this->connect();
     } else if (command == "disconnect") {
@@ -119,13 +166,13 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
         if (params.size() > 0) {
             this->saveSSID(params[0]);
         } else {
-            eventManager->debug("SSID: " + retrieveSSID(), 0);
+            logDebug("SSID: " + retrieveSSID(), 0);
         }
     } else if (command == "pass") {
         if (params.size() > 0) {
             this->savePassword(params[0]);
         } else {
-            eventManager->debug("Password: " + retrievePassword(), 0);
+            logDebug("Password: " + retrievePassword(), 0);
         }
     } else if (command == "reset") {
         this->saveSSID("");
@@ -133,42 +180,42 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
     } else if (command == "autoconnect") {
         this->autoConnect();
     } else if (command == "status" || command == "") {
-        eventManager->debug("Connected: " + String(isConnected()), 0);
-        eventManager->debug("Status: " + getStatus(), 0);
-        eventManager->debug("SSID: " + getInfo("ssid"), 0);
-        eventManager->debug("IP: " + getInfo("ip"), 0);
-        eventManager->debug("MAC: " + getInfo("mac"), 0);
-        eventManager->debug("RSSI: " + getInfo("rssi"), 0);
+        logDebug("Connected: " + String(isConnected()), 0);
+        logDebug("Status: " + getStatus(), 0);
+        logDebug("SSID: " + getInfo("ssid"), 0);
+        logDebug("IP: " + getInfo("ip"), 0);
+        logDebug("MAC: " + getInfo("mac"), 0);
+        logDebug("RSSI: " + getInfo("rssi"), 0);
     } else if (command == "debug") {
-        eventManager->debug("Debug infos:", 0);
+        logDebug("Debug infos:", 0);
     } else if (command == "keep") {
         if (keepConnection()) {
-            eventManager->debug("Keep connection: ON", 0);
+            logDebug("Keep connection: ON", 0);
         } else {
-            eventManager->debug("Keep connection: OFF", 0);
+            logDebug("Keep connection: OFF", 0);
         }
     } else if (command == "scan") {
         uint16_t count = getNetworkCount();
-        eventManager->debug("Networks found: " + String(count), 0);
+        logDebug("Networks found: " + String(count), 0);
         for (int i = 0; i < count; i++) {
-            eventManager->debug("#" + String(i) + " " + getNetworkInfo(i, "ssid") + " RSSI=" + getNetworkInfo(i, "rssi") + "db", 0);
+            logDebug("#" + String(i) + " " + getNetworkInfo(i, "ssid") + " RSSI=" + getNetworkInfo(i, "rssi") + "db", 0);
         }
-        eventManager->debug("wifi:network <n> to set network", 0);
+        logDebug("wifi:network <n> to set network", 0);
     } else if (command == "network") {
         if (params.size() > 0) {
             this->setNetwork(params[0].toInt(), true);
-            eventManager->debug("Network set to: " + getSSID(), 0);
+            logDebug("Network set to: " + getSSID(), 0);
         } else {
-            eventManager->debug("Current network: " + getSSID(), 0);
+            logDebug("Current network: " + getSSID(), 0);
         }
     } else if (command == "telnet") {
         setupTelnet();
 #ifdef ESP32
     } else if (command == "ping") {
         if (params.size() > 0) {
-            eventManager->debug("Ping: " + params[0], 0);
+            logDebug("Ping: " + params[0], 0);
             // NOTE: Ping functionality currently disabled due to library dependency
-            eventManager->debug("Ping functionality not available", 1);
+            logDebug("Ping functionality not available", 1);
             /*
             IPAddress ip;
             if (ip.fromString(params[0])) {
@@ -178,11 +225,11 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
                     eventManager->debug("Ping failed", 0);
                 }
             } else {
-                eventManager->debug("Invalid IP address", 1);
+                logDebug("Invalid IP address", 1);
             }
             */
         } else {
-            eventManager->debug("Missing IP address", 1);
+            logDebug("Missing IP address", 1);
         }
 #endif
     } else {
@@ -194,9 +241,9 @@ bool WiFiManager::processCommand(String command, std::vector<String> params)
 bool WiFiManager::autoConnect()
 {
     if (WiFi.status() != WL_CONNECTED) {
-        eventManager->debug("WiFi AutoConnect...", 0);
+        logDebug("WiFi AutoConnect...", 0);
         if (!this->ssid.length()) {
-            eventManager->debug("No SSID, starting access point", 0);
+            logDebug("No SSID, starting access point", 0);
             this->startAccessPoint();
             return false;
         } else {
@@ -213,10 +260,10 @@ bool WiFiManager::connect()
 {
     connectionStatus = 1;
     if (!this->ssid.length()) {
-        eventManager->debug("No SSID", 1);
+        logDebug("No SSID", 1);
         return false;
     }
-    eventManager->debug("Connecting to: " + this->ssid + "...", 0);
+    logDebug("Connecting to: " + this->ssid + "...", 0);
 
     WiFiMode_t mode = WIFI_STA;
     if (apMode == WM_AP_MODE_ALWAYS) {
@@ -248,7 +295,7 @@ void WiFiManager::setConnected(bool recovered)
     std::vector<String> params;
     params.push_back(WiFi.SSID());
     params.push_back(WiFi.localIP().toString());
-    eventManager->triggerEvent("wifi", recovered ? "recovered" : "connected", params);
+    context->getEventManager()->triggerEvent("wifi", recovered ? "recovered" : "connected", params);
 }
 
 void WiFiManager::disconnect()
@@ -256,25 +303,25 @@ void WiFiManager::disconnect()
     WiFi.disconnect();
     this->connected = false;
     connectionStatus = 4;
-    eventManager->triggerEvent("wifi", "disconnected", {});
+    context->getEventManager()->triggerEvent("wifi", "disconnected", {});
 }
 
 void WiFiManager::startAccessPoint(bool restart)
 {
     if (apMode == WM_AP_MODE_NEVER) {
-        eventManager->debug("Hotspot disabled", 1);
+        logDebug("Hotspot disabled", 1);
         return;
     }
     if (!restart && (WiFi.getMode() == WIFI_AP_STA || WiFi.getMode() == WIFI_AP)) {
-        eventManager->debug("Hotspot already started", 1);
+        logDebug("Hotspot already started", 1);
         return;
     }
 
     //disconnect();
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    String hostname = config ? config->getHostname() : "ESP32";
-    eventManager->debug("Creating Hotspot: " + hostname, 0);
-    eventManager->debug("IP Address: " + this->apIP.toString(), 0);
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    String hostname = configMgr ? configMgr->getHostname() : "ESP32";
+    logDebug("Creating Hotspot: " + hostname, 0);
+    logDebug("IP Address: " + this->apIP.toString(), 0);
     WiFi.mode(WIFI_AP_STA);
     delay(100);
     WiFi.softAPConfig(this->apIP, this->apIP, IPAddress(255, 255, 255, 0));
@@ -282,47 +329,47 @@ void WiFiManager::startAccessPoint(bool restart)
     setupTelnet();
     //connectionStatus = 5;
     //connected = false;
-    eventManager->triggerEvent("wifi", "ap_started", {});
+    context->getEventManager()->triggerEvent("wifi", "ap_started", {});
 }
 
 void WiFiManager::setupTelnet()
 {
     // passing on functions for various telnet events
     telnet.onConnect([this](const String& str) {
-        eventManager->debug("Telnet connected", 2);
-        eventManager->triggerEvent("telnet", "connected", {});
+        logDebug("Telnet connected", 2);
+        context->getEventManager()->triggerEvent("telnet", "connected", {});
     });
 
     telnet.onConnectionAttempt([this](const String& str) {
-        eventManager->debug("Telnet connection attempt", 2);
-        eventManager->triggerEvent("telnet", "connection_attempt", {str});
+        logDebug("Telnet connection attempt", 2);
+        context->getEventManager()->triggerEvent("telnet", "connection_attempt", {str});
     });
     telnet.onReconnect([this](const String& str) {
-        eventManager->debug("Telnet reconnected", 2);
-        eventManager->triggerEvent("telnet", "reconnected", {});
+        logDebug("Telnet reconnected", 2);
+        context->getEventManager()->triggerEvent("telnet", "reconnected", {});
     });
     telnet.onDisconnect([this](const String& str) {
-        eventManager->debug("Telnet disconnected", 2);
-        eventManager->triggerEvent("telnet", "disconnected", {});
+        logDebug("Telnet disconnected", 2);
+        context->getEventManager()->triggerEvent("telnet", "disconnected", {});
     });
     telnet.onInputReceived([this](const String& str) {
-        eventManager->debug("Telnet input received: " + str, 2);
-        eventManager->triggerEvent("telnet", "input", {str});
+        logDebug("Telnet input received: " + str, 2);
+        context->getEventManager()->triggerEvent("telnet", "input", {str});
     });
 
     if (telnet.begin(telnetPort)) {
-        eventManager->debug("Telnet server started on port " + String(telnetPort), 1);
-        eventManager->triggerEvent("telnet", "started", {String(telnetPort)});
+        logDebug("Telnet server started on port " + String(telnetPort), 1);
+        context->getEventManager()->triggerEvent("telnet", "started", {String(telnetPort)});
     } else {
-        eventManager->debug("Telnet server could not start", 1);
+        logDebug("Telnet server could not start", 1);
     }
 }
 
 void WiFiManager::stopTelnet()
 {
     telnet.stop();
-    eventManager->triggerEvent("telnet", "stopped", {});
-    eventManager->debug("Telnet stopped", 0);
+    context->getEventManager()->triggerEvent("telnet", "stopped", {});
+    logDebug("Telnet stopped", 0);
 }
 
 void WiFiManager::printTelnet(String message)
@@ -337,8 +384,8 @@ void WiFiManager::stopAccessPoint()
 {
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_STA);
-    eventManager->triggerEvent("wifi", "ap_stopped", {});
-    eventManager->debug("Hotspot stopped", 0);
+    context->getEventManager()->triggerEvent("wifi", "ap_stopped", {});
+    logDebug("Hotspot stopped", 0);
 }
 
 String WiFiManager::getSSID()
@@ -354,9 +401,17 @@ bool WiFiManager::isConnected()
 void WiFiManager::saveSSID(String ssid, bool reconnect)
 {
     this->ssid = ssid;
-    eventManager->debug("New WiFi SSID: " + this->ssid, 1);
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    if (config) config->setPreference("wf_ssid", ssid);
+    logDebug("New WiFi SSID: " + this->ssid, 1);
+    
+    // Use ConfigurationManager instead of old Configuration
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    if (configMgr) {
+        configMgr->setPreference("wf_ssid", ssid);
+        logDebug("SSID saved to preferences", 2);
+    } else {
+        logDebug("ConfigurationManager not available for saving SSID", 1);
+    }
+    
     if (reconnect) {
         disconnect();
         connect();
@@ -366,9 +421,17 @@ void WiFiManager::saveSSID(String ssid, bool reconnect)
 void WiFiManager::savePassword(String password, bool reconnect)
 {
     this->password = password;
-    eventManager->debug("New WiFi password: " + this->password, 1);
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    if (config) config->setPreference("wf_pass", password);
+    logDebug("New WiFi password: " + this->password, 1);
+    
+    // Use ConfigurationManager instead of old Configuration
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    if (configMgr) {
+        configMgr->setPreference("wf_pass", password);
+        logDebug("Password saved to preferences", 2);
+    } else {
+        logDebug("ConfigurationManager not available for saving password", 1);
+    }
+    
     if (reconnect) {
         disconnect();
         connect();
@@ -382,15 +445,27 @@ String WiFiManager::getDebugInfos()
 
 String WiFiManager::retrieveSSID()
 {
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    ssid = config ? config->getPreference("wf_ssid", ssid) : ssid;
+    // Use ConfigurationManager instead of old Configuration
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    if (configMgr) {
+        ssid = configMgr->getPreference("wf_ssid", ssid);
+        logDebug("SSID retrieved from preferences: " + ssid, 3);
+    } else {
+        logDebug("ConfigurationManager not available for retrieving SSID", 1);
+    }
     return ssid;
 }
 
 String WiFiManager::retrievePassword()
 {
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    password = config ? config->getPreference("wf_pass", password) : password;
+    // Use ConfigurationManager instead of old Configuration
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    if (configMgr) {
+        password = configMgr->getPreference("wf_pass", password);
+        logDebug("Password retrieved from preferences", 3);
+    } else {
+        logDebug("ConfigurationManager not available for retrieving password", 1);
+    }
     return password;
 }
 
@@ -522,7 +597,7 @@ void WiFiManager::setPowerSave(bool value)
 #ifndef DISABLE_ESPUI
 void WiFiManager::initEspUI()
 {
-    eventManager->debug("Init WiFi EspUI", 2);
+    logDebug("Init WiFi EspUI", 2);
 
     auto callback = std::bind(&WiFiManager::EspUiCallback, this, std::placeholders::_1, std::placeholders::_2);
 
@@ -544,7 +619,7 @@ void WiFiManager::initEspUI()
 
 void WiFiManager::EspUiCallback(Control* sender, int type)
 {
-    eventManager->debug(
+    logDebug(
         "WiFi ESPUI callback: sender.value = " + sender->value + " sender.id = " + sender->id + " sender.type = " + sender->type + "  / type = " + String(type),
         2);
     if (type == B_DOWN) {
@@ -552,17 +627,17 @@ void WiFiManager::EspUiCallback(Control* sender, int type)
     }
 
     if (sender->value == "WiFiConnect") {
-        eventManager->triggerEvent("ESPUI", "WiFiConnect", {});
+        context->getEventManager()->triggerEvent("ESPUI", "WiFiConnect", {});
     } else if (sender->value == "WiFiSave") {
         std::vector<String> params1;
         params1.push_back(ESPUI.getControl(ssidInput)->value);
-        eventManager->triggerEvent("ESPUI", "WiFiSaveSSID", params1);
+        context->getEventManager()->triggerEvent("ESPUI", "WiFiSaveSSID", params1);
 
         String password = ESPUI.getControl(passwordInput)->value;
         if (password.length() > 0) {
             std::vector<String> params2;
             params2.push_back(password);
-            eventManager->triggerEvent("ESPUI", "WiFiSavePassword", params2);
+            context->getEventManager()->triggerEvent("ESPUI", "WiFiSavePassword", params2);
         }
     }
 }
@@ -572,28 +647,28 @@ void WiFiManager::EspUiCallback(Control* sender, int type)
 bool WiFiManager::otaUpdate()
 {
     if (WiFi.status() != WL_CONNECTED) {
-        eventManager->debug("No WiFi connection", 1);
+        logDebug("No WiFi connection", 1);
         return false;
     }
 
     if (connectionStatus != 10) {
-        eventManager->debug("No WiFi connection STA", 1);
+        logDebug("No WiFi connection STA", 1);
         return false;
     }
 
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    String otaHost = config ? config->getPreference("ota_host", config->OTA_HOST) : "";
-    int otaPort = config ? config->getPreference("ota_port", config->OTA_PORT) : 443;
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    String otaHost = configMgr ? configMgr->getPreference("ota_host", configMgr->OTA_HOST) : "";
+    int otaPort = configMgr ? configMgr->getPreference("ota_port", configMgr->OTA_PORT) : 443;
     if (otaHost.length() == 0) {
-        eventManager->debug("No OTA Host", 1);
+        logDebug("No OTA Host", 1);
         return false;
     }
 
     String otaFingerprint = config ? config->OTA_FINGERPRINT : "";
 
-    String otaUrl = config ? config->getPreference("ota_url", config->OTA_URL) : "";
+    String otaUrl = configMgr ? configMgr->getPreference("ota_url", configMgr->OTA_URL) : "";
     if (otaUrl.length() == 0) {
-        eventManager->debug("No OTA URL", 1);
+        logDebug("No OTA URL", 1);
         return false;
     }
 
@@ -602,30 +677,30 @@ bool WiFiManager::otaUpdate()
     WiFiClientSecure client;
     bool mfln = client.probeMaxFragmentLength(otaHost, otaPort, 1024);
     if (mfln) {
-        eventManager->debug("Maximum fragment Length negotiation supported.", 2);
+        logDebug("Maximum fragment Length negotiation supported.", 2);
         client.setBufferSizes(1024, 1024);
     }
     client.setInsecure();
 
     if (!client.connect(otaHost, otaPort)) {
-        eventManager->debug("Connection to " + otaHost + ":" + String(otaPort) + " failed", 1);
+        logDebug("Connection to " + otaHost + ":" + String(otaPort) + " failed", 1);
         return false;
     } else {
-        eventManager->debug("Connected to " + otaHost + ":" + String(otaPort), 2);
+        logDebug("Connected to " + otaHost + ":" + String(otaPort), 2);
     }
 
-    eventManager->debug("Start OTA update from " + otaHost + ":" + String(otaPort) + otaUrl, 1);
+    logDebug("Start OTA update from " + otaHost + ":" + String(otaPort) + otaUrl, 1);
     auto ret = ESPhttpUpdate.update(client, otaHost, otaPort, otaUrl);
     // if successful, ESP will restart
     switch (ret) {
         case HTTP_UPDATE_FAILED:
-            eventManager->debug("OTA Update failed: " + ESPhttpUpdate.getLastErrorString(), 1);
+            logDebug("OTA Update failed: " + ESPhttpUpdate.getLastErrorString(), 1);
             return false;
         case HTTP_UPDATE_NO_UPDATES:
-            eventManager->debug("OTA No updates", 1);
+            logDebug("OTA No updates", 1);
             return false;
         case HTTP_UPDATE_OK:
-            eventManager->debug("OTA Update successful", 1);  // may not be called since we reboot the ESP
+            logDebug("OTA Update successful", 1);  // may not be called since we reboot the ESP
             return true;
     }
     return false;
@@ -637,22 +712,22 @@ bool WiFiManager::otaUpdate()
 bool WiFiManager::otaUpdate()
 {
     if (WiFi.status() != WL_CONNECTED) {
-        eventManager->debug("No WiFi connection", 1);
+        logDebug("No WiFi connection", 1);
         return false;
     }
 
-    Configuration* config = context ? context->getService<Configuration>() : nullptr;
-    String otaHost = config ? config->getPreference("ota_host", config->OTA_HOST) : "";
-    int otaPort = config ? config->getPreference("ota_port", config->OTA_PORT) : 443;
-    String otaUrl = config ? config->getPreference("ota_url", config->OTA_URL) : "";
+    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
+    String otaHost = configMgr ? configMgr->getPreference("ota_host", configMgr->OTA_HOST) : "";
+    int otaPort = configMgr ? configMgr->getPreference("ota_port", configMgr->OTA_PORT) : 443;
+    String otaUrl = configMgr ? configMgr->getPreference("ota_url", configMgr->OTA_URL) : "";
 
     if (otaHost.length() == 0) {
-        eventManager->debug("No OTA Host", 1);
+        logDebug("No OTA Host", 1);
         return false;
     }
 
     if (otaUrl.length() == 0) {
-        eventManager->debug("No OTA URL", 1);
+        logDebug("No OTA URL", 1);
         return false;
     }
 
@@ -662,21 +737,159 @@ bool WiFiManager::otaUpdate()
     // Configuration pour la mise à jour OTA
     esp_http_client_config_t ota_config = {
         .url = fullUrl.c_str(),
-        .cert_pem = config ? config->OTA_CERT_PEM : nullptr,  //NULL,  // Utilisez un certificat si nécessaire pour la sécurité
+        .cert_pem = configMgr ? configMgr->OTA_CERT_PEM : nullptr,  //NULL,  // Utilisez un certificat si nécessaire pour la sécurité
         //.skip_cert_common_name_check = true,
     };
 
-    eventManager->debug("Starting OTA update from " + fullUrl, 1);
+    logDebug("Starting OTA update from " + fullUrl, 1);
 
     // Démarrage de la mise à jour OTA
     esp_err_t ret = esp_https_ota(&ota_config);
     if (ret == ESP_OK) {
-        eventManager->debug("OTA Update successful", 1);
+        logDebug("OTA Update successful", 1);
         esp_restart();
         return true;
     } else {
-        eventManager->debug("OTA Update failed: " + String(esp_err_to_name(ret)), 1);
+        logDebug("OTA Update failed: " + String(esp_err_to_name(ret)), 1);
         return false;
     }
 }
 #endif
+
+void WiFiManager::registerCommands()
+{
+    auto* cmdMgr = static_cast<CommandManager*>(context ? context->getManager("CommandManager") : nullptr);
+    if (!cmdMgr) return;
+
+    // WiFi connection commands
+    cmdMgr->registerCommand(Command(
+        "wifi", "connect", "Connect to WiFi network",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            connect();
+            return "WiFi connection initiated";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "wifi", "disconnect", "Disconnect from WiFi",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            disconnect();
+            return "WiFi disconnected";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "wifi", "ap", "Start WiFi Access Point mode",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            startAccessPoint();
+            return "WiFi Access Point started";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "wifi", "ssid", "Get/Set WiFi SSID",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                saveSSID(args[0]);
+                return "SSID set to: " + args[0];
+            }
+            return "SSID: " + retrieveSSID();
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "wifi", "pass", "Get/Set WiFi password",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                savePassword(args[0]);
+                return "WiFi password updated";
+            }
+            return "Password: " + String(retrievePassword().isEmpty() ? "(none)" : "***");
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "wifi", "reset", "Reset WiFi credentials",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            saveSSID("");
+            savePassword("");
+            return "WiFi credentials cleared";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "wifi", "autoconnect", "Auto-connect to saved WiFi",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            return autoConnect() ? "WiFi auto-connect successful" : "WiFi auto-connect failed";
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "wifi", "status", "Show WiFi connection status",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            String result = "WiFi Status:\n";
+            result += "  Connected: " + String(isConnected() ? "Yes" : "No") + "\n";
+            result += "  Status: " + getStatus() + "\n";
+            result += "  SSID: " + retrieveSSID() + "\n";
+            if (isConnected()) {
+                result += "  IP: " + retrieveIP() + "\n";
+                result += "  Signal: " + String(WiFi.RSSI()) + " dBm";
+            }
+            return result;
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "wifi", "scan", "Scan for available WiFi networks",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            scanNetworks();
+            int count = getNetworkCount();
+            String result = "Found " + String(count) + " networks:\n";
+            for (int i = 0; i < count; i++) {
+                result += "  " + String(i) + ": " + getNetworkInfo(i, "ssid");
+                result += " (" + getNetworkInfo(i, "rssi") + " dBm)";
+                if (getNetworkInfo(i, "encryption") != "Open") {
+                    result += " [Protected]";
+                }
+                result += "\n";
+            }
+            return result;
+        }
+    ));
+
+    cmdMgr->registerCommand(Command(
+        "wifi", "info", "Show detailed WiFi information",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            String result = "WiFi Information:\n";
+            result += "  SSID: " + retrieveSSID() + "\n";
+            result += "  Connected: " + String(isConnected() ? "Yes" : "No") + "\n";
+            if (isConnected()) {
+                result += "  IP Address: " + retrieveIP() + "\n";
+                result += "  Signal Strength: " + String(WiFi.RSSI()) + " dBm\n";
+                result += "  MAC Address: " + WiFi.macAddress() + "\n";
+                result += "  Gateway: " + WiFi.gatewayIP().toString() + "\n";
+                result += "  DNS: " + WiFi.dnsIP().toString();
+            } else {
+                result += "  Status: " + getStatus();
+            }
+            return result;
+        }
+    ));
+
+
+    // Register useful aliases
+    cmdMgr->registerAlias("ws", "wifi:status");
+    cmdMgr->registerAlias("wi", "wifi:info");
+    cmdMgr->registerAlias("wc", "wifi:connect");
+    cmdMgr->registerAlias("wscan", "wifi:scan");
+}
