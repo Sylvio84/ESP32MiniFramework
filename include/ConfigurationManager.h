@@ -91,6 +91,7 @@ public:
 
     bool setPreference(const String key, int value);
     bool setPreference(const String key, String value);
+    bool removePreference(const String key);
 
     String getJsonConfig();
     bool setJsonConfig(const String json);

@@ -146,6 +146,21 @@ String ConfigurationManager::getPreference(const String key, const String &defau
 #endif
 }
 
+bool ConfigurationManager::removePreference(const String key)
+{
+#ifdef ESP32
+    return prefs.remove(key.c_str());
+#else
+    // For ESP8266, remove from JSON preferences and save
+    if (json_preferences.containsKey(key)) {
+        json_preferences.remove(key);
+        writeJsonPreferences();
+        return true;
+    }
+    return false;
+#endif
+}
+
 String ConfigurationManager::getJsonConfig()
 {
     JsonDocument doc;
@@ -371,6 +386,99 @@ void ConfigurationManager::registerCommands()
             }
             int powerSaving = getPreference("power_saving", 0);
             return "Power saving: " + String(powerSaving) + "ms";
+        }
+    ));
+
+    // Generic config get command
+    cmdMgr->registerCommand(Command(
+        "config", "get", "Get a configuration value by key",
+        CommandSource::Any, true,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() < 1) {
+                return "Usage: config:get <key>";
+            }
+            String key = args[0];
+            
+            // Try to get as string first
+            String value = getPreference(key, "");
+            if (value != "") {
+                return key + " = " + value;
+            }
+            
+            // Try as integer
+            int intValue = getPreference(key, -999999);
+            if (intValue != -999999) {
+                return key + " = " + String(intValue);
+            }
+            
+            return "Key not found: " + key;
+        }
+    ));
+
+    // Generic config set command
+    cmdMgr->registerCommand(Command(
+        "config", "set", "Set a configuration value",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() < 2) {
+                return "Usage: config:set <key> <value>";
+            }
+            String key = args[0];
+            String value = args[1];
+            
+            // Join all args after key if value contains spaces
+            if (args.size() > 2) {
+                for (size_t i = 2; i < args.size(); i++) {
+                    value += " " + args[i];
+                }
+            }
+            
+            // Try to detect if it's a number
+            bool isNumber = true;
+            for (char c : value) {
+                if (!isdigit(c) && c != '-' && c != '.') {
+                    isNumber = false;
+                    break;
+                }
+            }
+            
+            if (isNumber && value.indexOf('.') == -1) {
+                // Integer value
+                setPreference(key, value.toInt());
+            } else {
+                // String value
+                setPreference(key, value);
+            }
+            
+            return "OK: " + key + " = " + value;
+        }
+    ));
+
+    // Generic config clear/remove command
+    cmdMgr->registerCommand(Command(
+        "config", "clear", "Remove a configuration value",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() < 1) {
+                return "Usage: config:clear <key>";
+            }
+            String key = args[0];
+            
+            // Check if key exists before removing
+            String currentValue = getPreference(key, "");
+            if (currentValue == "") {
+                // Try as integer
+                int intValue = getPreference(key, -999999);
+                if (intValue == -999999) {
+                    return "Key not found: " + key;
+                }
+            }
+            
+            if (removePreference(key)) {
+                return "Cleared: " + key;
+            } else {
+                return "Failed to clear: " + key;
+            }
         }
     ));
 
