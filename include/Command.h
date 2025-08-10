@@ -36,7 +36,7 @@ struct Command {
     /**
      * @brief Whether to keep history of executions for this command
      */
-    bool historyEnabled = false;
+    bool historyEnabled = true;
     
     /**
      * @brief Execution callback
@@ -78,16 +78,6 @@ struct Command {
             std::function<String(const std::vector<String>&)> exec)
         : namespaceName(ns), name(n), description(desc), 
           source(src), historyEnabled(history), execute(exec) {}
-};
-
-/**
- * @brief Command execution history entry
- */
-struct CommandHistoryEntry {
-    unsigned long timestamp;        // millis() when executed
-    std::vector<String> arguments;  // Arguments used
-    String result;                   // Execution result
-    CommandSource source;            // Source of execution
 };
 
 #endif // COMMAND_H

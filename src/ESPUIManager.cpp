@@ -115,7 +115,7 @@ void ESPUIManager::registerCommands()
     // ESPUI status command
     cmdMgr->registerCommand(Command(
         "espui", "status", "Show ESPUI web interface status",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             return String("ESPUI web interface is ") + (isInitialized() ? "running" : "not running");
         }
@@ -124,7 +124,7 @@ void ESPUIManager::registerCommands()
     // ESPUI debug command (add debug message to web interface)
     cmdMgr->registerCommand(Command(
         "espui", "debug", "Add debug message to web interface",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() == 0) {
                 return "Usage: espui:debug <message>";
@@ -144,7 +144,7 @@ void ESPUIManager::registerCommands()
     // ESPUI restart command 
     cmdMgr->registerCommand(Command(
         "espui", "restart", "Restart ESPUI web interface",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             // Restart ESPUI by triggering reboot event
             context->getEventManager()->triggerEvent("espui", "Reboot", {});

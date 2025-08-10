@@ -329,6 +329,7 @@ void WiFiManager::setConnected(bool recovered)
     params.push_back(WiFi.SSID());
     params.push_back(WiFi.localIP().toString());
     context->getEventManager()->triggerEvent("wifi", recovered ? "recovered" : "connected", params);
+    logDebug("Connected to WiFi: " + WiFi.SSID() + " (" + WiFi.localIP().toString() + ")", 0);
 }
 
 void WiFiManager::disconnect()
@@ -1091,7 +1092,7 @@ void WiFiManager::registerCommands()
     // WiFi connection commands
     cmdMgr->registerCommand(Command(
         "wifi", "connect", "Connect to WiFi network",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             connect();
             return "WiFi connection initiated";
@@ -1100,7 +1101,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "disconnect", "Disconnect from WiFi",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             disconnect();
             return "WiFi disconnected";
@@ -1109,7 +1110,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "ap", "Start WiFi Access Point mode",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             startAccessPoint();
             return "WiFi Access Point started";
@@ -1118,7 +1119,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "ssid", "Get/Set primary WiFi SSID",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 String newSSID = args[0];
@@ -1157,7 +1158,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "pass", "Set WiFi password for primary SSID",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 if (ssid.isEmpty()) {
@@ -1177,7 +1178,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "reset", "Reset WiFi credentials",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             clearSavedNetworks();
             saveSSID("");
@@ -1188,7 +1189,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "autoconnect", "Auto-connect to saved WiFi",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             return autoConnect() ? "WiFi auto-connect successful" : "WiFi auto-connect failed";
         }
@@ -1196,7 +1197,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "status", "Show WiFi connection status",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             String result = "WiFi Status:\n";
             result += "  Connected: " + String(isConnected() ? "Yes" : "No") + "\n";
@@ -1212,7 +1213,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "scan", "Scan for available WiFi networks",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             // Start scan
             WiFi.scanDelete(); // Clear previous results
@@ -1251,7 +1252,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "network", "Select network from scan by number",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 int networkIndex = args[0].toInt();
@@ -1305,7 +1306,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "info", "Show detailed WiFi information",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             String result = "WiFi Information:\n";
             result += "  SSID: " + retrieveSSID() + "\n";
@@ -1327,7 +1328,7 @@ void WiFiManager::registerCommands()
     // Saved networks management commands
     cmdMgr->registerCommand(Command(
         "wifi", "save", "Save WiFi network credentials",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() >= 2) {
                 int priority = args.size() > 2 ? args[2].toInt() : 0;
@@ -1343,7 +1344,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "remove", "Remove saved WiFi network",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 if (removeNetwork(args[0])) {
@@ -1358,7 +1359,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "list", "List saved WiFi networks",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (savedNetworks.empty()) {
                 return "No saved networks";
@@ -1378,7 +1379,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "clear", "Clear all saved networks",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             clearSavedNetworks();
             return "All saved networks cleared";
@@ -1387,7 +1388,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "tryall", "Try to connect to saved networks",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (connectToSavedNetwork()) {
                 return "Connected to saved network: " + ssid;
@@ -1400,7 +1401,7 @@ void WiFiManager::registerCommands()
     // Legacy commands not migrated yet
     cmdMgr->registerCommand(Command(
         "wifi", "debug", "Show WiFi debug information",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             return "SSID: " + retrieveSSID() + "\nPassword: " + (retrievePassword().isEmpty() ? "(none)" : "***");
         }
@@ -1408,7 +1409,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "keep", "Toggle keep connection mode",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             bool isKeepOn = keepConnection();
             return "Keep connection: " + String(isKeepOn ? "ON" : "OFF");
@@ -1417,7 +1418,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "telnet", "Setup Telnet server",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             setupTelnet();
             return "Telnet server started";
@@ -1426,7 +1427,7 @@ void WiFiManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "wifi", "cancel", "Cancel password prompt",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (waitingForPassword) {
                 cancelPasswordPrompt();
@@ -1439,7 +1440,7 @@ void WiFiManager::registerCommands()
     
     cmdMgr->registerCommand(Command(
         "wifi", "priority", "Set priority for a saved network",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() < 2) {
                 return "Usage: wifi:priority <ssid> <priority>\nHigher priority = preferred network";

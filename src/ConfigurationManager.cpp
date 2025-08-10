@@ -189,6 +189,11 @@ std::map<String, String> ConfigurationManager::getPreferences()
 #ifdef ESP32
     auto keys = getPreferenceKeys();
     for (const auto& key : keys) {
+        // Skip keys that haven't been initialized yet
+        if (!prefs.isKey(key.c_str())) {
+            continue;
+        }
+        
         // Try to get as string first, then as int if that fails
         String value = prefs.getString(key.c_str(), "");
         if (value.isEmpty()) {
@@ -222,7 +227,12 @@ bool ConfigurationManager::saveProgramsJson(const String& json)
 bool ConfigurationManager::loadProgramsJson(String& outJson)
 {
 #ifdef ESP32
-    outJson = prefs.getString("programs", "[]");
+    // Check if the key exists before trying to read it to avoid NVS error
+    if (prefs.isKey("programs")) {
+        outJson = prefs.getString("programs", "[]");
+    } else {
+        outJson = "[]";
+    }
     return !outJson.isEmpty();
 #else
     outJson = readVariableString("programs", "[]");
@@ -322,7 +332,7 @@ void ConfigurationManager::registerCommands()
     // Debug level command
     cmdMgr->registerCommand(Command(
         "config", "debuglevel", "Get/Set debug verbosity level (0-3)",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 setPreference("debug_level", args[0].toInt());
@@ -336,7 +346,7 @@ void ConfigurationManager::registerCommands()
     // Hostname command
     cmdMgr->registerCommand(Command(
         "config", "hostname", "Get/Set device hostname",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 setPreference("hostname", args[0]);
@@ -349,7 +359,7 @@ void ConfigurationManager::registerCommands()
     // Power saving command
     cmdMgr->registerCommand(Command(
         "config", "power_saving", "Get/Set power saving mode (ms, 0=disabled)",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 int value = args[0].toInt();
@@ -367,7 +377,7 @@ void ConfigurationManager::registerCommands()
     // Configuration dump command
     cmdMgr->registerCommand(Command(
         "config", "list", "List all configuration settings",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             String result = "Configuration settings:\n";
             auto vars = getPreferences();
@@ -402,7 +412,7 @@ void ConfigurationManager::registerCommands()
     // Debug level shortcuts as direct commands
     cmdMgr->registerCommand(Command(
         "", "0", "Set debug level to 0 (silent)",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             setPreference("debug_level", 0);
             return "Debug level set to 0";
@@ -411,7 +421,7 @@ void ConfigurationManager::registerCommands()
     
     cmdMgr->registerCommand(Command(
         "", "1", "Set debug level to 1 (basic)",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             setPreference("debug_level", 1);
             return "Debug level set to 1";
@@ -420,7 +430,7 @@ void ConfigurationManager::registerCommands()
     
     cmdMgr->registerCommand(Command(
         "", "2", "Set debug level to 2 (detailed)",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             setPreference("debug_level", 2);
             return "Debug level set to 2";
@@ -429,7 +439,7 @@ void ConfigurationManager::registerCommands()
     
     cmdMgr->registerCommand(Command(
         "", "3", "Set debug level to 3 (verbose)",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             setPreference("debug_level", 3);
             return "Debug level set to 3";

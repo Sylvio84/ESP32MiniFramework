@@ -70,23 +70,31 @@
  */
 class CommandManager : public Manager {
 private:
+    // Simple history entry with ID and command
+    struct HistoryEntry {
+        unsigned int id;
+        String command;
+    };
+    
     // Command registry: full_name -> command
     std::map<String, Command> commands;
     
     // Alias registry: alias -> full_name
     std::map<String, String> aliases;
     
-    // Command history: full_name -> history entries
-    std::map<String, std::vector<CommandHistoryEntry>> history;
+    // Command history with unique IDs
+    std::vector<HistoryEntry> history;
     
-    // Maximum history entries per command
-    static const size_t MAX_HISTORY_ENTRIES = 10;
+    // Next history ID (incremental)
+    unsigned int nextHistoryId = 1;
+    
+    // Maximum history entries
+    static const size_t MAX_HISTORY_ENTRIES = 100;
     
     /**
-     * @brief Add entry to command history if enabled
+     * @brief Add command to history
      */
-    void addToHistory(const String& fullName, const std::vector<String>& args,
-                     const String& result, CommandSource source);
+    void addToHistory(const String& commandLine);
     
     /**
      * @brief Parse command input to extract name and arguments
@@ -103,6 +111,13 @@ private:
      * @return Full command name
      */
     String resolveCommandName(const String& nameOrAlias);
+    
+    /**
+     * @brief Process history recall commands (!n, !!)
+     * @param input The input string starting with !
+     * @return The recalled command or empty string if not found
+     */
+    String processHistoryRecall(const String& input) const;
 
 public:
     /**
@@ -167,16 +182,21 @@ public:
     
     /**
      * @brief Get command history
-     * @param commandName Full command name
-     * @return History entries (empty if history not enabled)
+     * @return History entries
      */
-    std::vector<CommandHistoryEntry> getHistory(const String& commandName);
+    std::vector<HistoryEntry> getHistory() const;
     
     /**
-     * @brief Clear history for a command
-     * @param commandName Full command name or "*" for all
+     * @brief Get command from history by ID
+     * @param id History ID
+     * @return Command string or empty if not found
      */
-    void clearHistory(const String& commandName = "*");
+    String getHistoryCommand(unsigned int id) const;
+    
+    /**
+     * @brief Clear command history
+     */
+    void clearHistory();
     
     /**
      * @brief Get help text for all or specific commands

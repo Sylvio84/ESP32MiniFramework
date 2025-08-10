@@ -9,6 +9,9 @@
 #include <esp_chip_info.h>
 #endif
 
+// Forward declaration
+class InternalLedDevice;
+
 /**
  * @brief SystemManager - System operations, power management, and control
  * 
@@ -75,12 +78,13 @@ private:
     // === Command Registration ===
     void registerCommands();
     // === Internal LED Control ===
-    void internalLed(bool state);
-    bool internalLedState();
+    InternalLedDevice* getLedDevice();
     
     // === System Information ===
     void showSystemInfo();
+    String getSystemInfo();
     void showFilesystemInfo();
+    String getFilesystemInfo();
     
     // === CPU Frequency Control ===
     void setCpuFrequency(int frequency);
@@ -110,6 +114,9 @@ private:
     // === Power Management State ===
     int powerSaving = 0; // 0 = disabled, else = idle time in ms
     uint powerSavingResumeTimer = 0;
+    
+    // === LED Device ===
+    InternalLedDevice* ledDevice = nullptr;
 };
 
 #endif // SYSTEMMANAGER_H

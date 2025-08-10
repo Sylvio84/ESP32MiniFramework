@@ -421,7 +421,7 @@ void TimeManager::registerCommands()
     // Date command
     cmdMgr->registerCommand(Command(
         "time", "date", "Show current date",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             return getFormattedDateTime("%d/%m/%Y");
         }
@@ -430,7 +430,7 @@ void TimeManager::registerCommands()
     // Time command
     cmdMgr->registerCommand(Command(
         "time", "time", "Show current time",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             return getFormattedDateTime("%H:%M:%S");
         }
@@ -439,7 +439,7 @@ void TimeManager::registerCommands()
     // DateTime command
     cmdMgr->registerCommand(Command(
         "time", "datetime", "Show current date and time",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             return getFormattedDateTime("%d/%m/%Y %H:%M:%S");
         }
@@ -448,7 +448,7 @@ void TimeManager::registerCommands()
     // NTP update command
     cmdMgr->registerCommand(Command(
         "time", "ntp", "Update time from NTP server",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (update(true)) {
                 return "Time updated from NTP: " + getFormattedDateTime("%d/%m/%Y %H:%M:%S");
@@ -461,7 +461,7 @@ void TimeManager::registerCommands()
     // Night status command
     cmdMgr->registerCommand(Command(
         "time", "night", "Check if it's night time",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             return String("Night time: ") + (isNight() ? "Yes" : "No");
         }

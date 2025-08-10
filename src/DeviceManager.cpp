@@ -143,9 +143,9 @@ void DeviceManager::registerCommands()
     // Device list command
     cmdMgr->registerCommand(Command(
         "device", "list", "List all registered devices",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
-            String result = "Registered devices:\\n";
+            String result = "Registered devices:\n";
             auto devices = getAllDevices();
             if (devices.empty()) {
                 result += "  (no devices)";
@@ -156,7 +156,7 @@ void DeviceManager::registerCommands()
                     if (!device->topic.isEmpty()) {
                         result += " [topic: " + device->topic + "]";
                     }
-                    result += "\\n";
+                    result += "\n";
                 }
             }
             return result;
@@ -166,7 +166,7 @@ void DeviceManager::registerCommands()
     // Device info command
     cmdMgr->registerCommand(Command(
         "device", "info", "Show detailed device information",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() == 0) {
                 return "Usage: device:info <device_id>";
@@ -177,11 +177,11 @@ void DeviceManager::registerCommands()
                 return "Device not found: " + args[0];
             }
             
-            String result = "Device Information:\\n";
-            result += "  ID: " + device->id + "\\n";
-            result += "  Name: " + device->name + "\\n";
-            result += "  Type: " + device->type + "\\n";
-            result += "  Topic: " + device->topic + "\\n";
+            String result = "Device Information:\n";
+            result += "  ID: " + device->id + "\n";
+            result += "  Name: " + device->name + "\n";
+            result += "  Type: " + device->type + "\n";
+            result += "  Topic: " + device->topic + "\n";
             result += "  State: " + String(device->state ? "ON" : "OFF");
             
             return result;
@@ -191,7 +191,7 @@ void DeviceManager::registerCommands()
     // Device command execution
     cmdMgr->registerCommand(Command(
         "device", "cmd", "Send command to device",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() < 2) {
                 return "Usage: device:cmd <device_id> <command>";

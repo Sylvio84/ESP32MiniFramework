@@ -1,11 +1,13 @@
-#include <SystemManager.h>
-#include <WiFiManager.h>
-#include <MQTTManager.h>
-#include <TimeManager.h>
-#include <ConfigurationManager.h>
-#include <EventManager.h>
-#include <CommandManager.h>
 #include <Command.h>
+#include <CommandManager.h>
+#include <ConfigurationManager.h>
+#include <DeviceManager.h>
+#include <Devices/InternalLedDevice.h>
+#include <EventManager.h>
+#include <MQTTManager.h>
+#include <SystemManager.h>
+#include <TimeManager.h>
+#include <WiFiManager.h>
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
@@ -15,46 +17,49 @@
 const char* SystemManager::RELEASE_VERSION = "1.1.0";
 const char* SystemManager::RELEASE_DATE = "2025-08-06";
 
-SystemManager::SystemManager(FrameworkContext& context) : Manager(context)
-{
-}
+SystemManager::SystemManager(FrameworkContext& context) : Manager(context) {}
 
 void SystemManager::init()
 {
     debug("SystemManager init...", 1);
-    
-    // Initialize internal LED
-    pinMode(LED_BUILTIN, OUTPUT);
-    internalLed(false); // Start with LED off
-    
+
+    // Get LED device from DeviceManager
+    auto* ledDev = getLedDevice();
+    if (ledDev) {
+        // Initialize internal LED
+        ledDev->setState(false);  // Start with LED off
+    }
+
     // Initialize power saving from configuration
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
     if (configMgr) {
         setPowerSaving(configMgr->getPreference("power_saving", 10));
     }
-    
+
     // Set initial CPU frequency for power efficiency
 #ifdef ESP32
     setCpuFrequencyMhz(80);
 #endif
-    
+
     // Register commands with CommandManager
     registerCommands();
-    
+
     setInitialized(true);
+    if (ledDev) {
+        ledDev->startBlinkPattern(50, 500);
+    }
 }
 
 void SystemManager::loop()
 {
+    // LED blink pattern is now handled by InternalLedDevice's loop()
+
     // Handle power saving delay when conditions are met
     auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
     auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
     auto* timeMgr = static_cast<TimeManager*>(context->getManager("TimeManager"));
-    
-    if (wifiMgr && wifiMgr->isConnected() && 
-        mqttMgr && mqttMgr->isConnected() && 
-        timeMgr && timeMgr->isInitialized && 
-        powerSaving > 0) {
+
+    if (wifiMgr && wifiMgr->isConnected() && mqttMgr && mqttMgr->isConnected() && timeMgr && timeMgr->isInitialized && powerSaving > 0) {
         delay(powerSaving);
     }
 }
@@ -69,7 +74,25 @@ bool SystemManager::onCommand(const String& command, const std::vector<String>& 
 
 bool SystemManager::onEvent(const String& type, const String& event, const std::vector<String>& params)
 {
-    if (type == "sys") {
+    if (type == "wifi") {
+        if (event == "connected" || event == "recovered") {
+            // WiFi connected: slow blink (1s interval) for 3s max
+            auto* ledDev = getLedDevice();
+            if (ledDev) {
+                ledDev->startBlinkPattern(500, 3000);
+            }
+            return false;  // Let other managers also handle this event
+        }
+    } else if (type == "mqtt") {
+        if (event == "Connected") {
+            // MQTT connected: fast blink (250ms interval) for 5s max
+            auto* ledDev = getLedDevice();
+            if (ledDev) {
+                ledDev->startBlinkPattern(100, 5000);
+            }
+            return false;  // Let other managers also handle this event
+        }
+    } else if (type == "sys") {
         if (event.startsWith("@")) {
             // Handle system commands via events using CommandManager
             String command = event.substring(1);
@@ -91,13 +114,13 @@ bool SystemManager::onEvent(const String& type, const String& event, const std::
                 }
             }
             return true;
-            
+
         } else if (event == "power_saving_resume") {
             clearPowerSavingResumeTimer();
-            
+
             if (params.size() > 0) {
                 auto* timeMgr = static_cast<TimeManager*>(context->getManager("TimeManager"));
-                
+
                 if (params.size() > 1 && isInteger(params[1]) && timeMgr) {
                     int duration = params[1].toInt() * 1000;
                     powerSavingResumeTimer = timeMgr->setTimeout(
@@ -119,7 +142,7 @@ bool SystemManager::onEvent(const String& type, const String& event, const std::
             }
             return true;
         }
-        
+
     } else if (type == "espui") {
         if (event == "Command") {
             // Handle ESPUI commands via command system
@@ -132,37 +155,41 @@ bool SystemManager::onEvent(const String& type, const String& event, const std::
             restartSystem();
             return true;
         }
-        
+
     } else if (type == "serial") {
         if (event == "input") {
             // Forward to input processing - this needs to be handled by MainController
-            return false; // Let MainController handle this
+            return false;  // Let MainController handle this
         } else if (event == "command") {
             // Forward serial commands to ESPUI
             context->getEventManager()->triggerEvent("espui", "SerialIn", params);
             return true;
         }
-        
+
     } else if (type == "telnet") {
         if (event == "input") {
-            // Forward to input processing - this needs to be handled by MainController  
-            return false; // Let MainController handle this
+            // Forward to input processing - this needs to be handled by MainController
+            return false;  // Let MainController handle this
         }
     }
-    
-    return false; // Event not handled
+
+    return false;  // Event not handled
 }
 
 // === Internal LED Control ===
 
-void SystemManager::internalLed(bool state)
+InternalLedDevice* SystemManager::getLedDevice()
 {
-    digitalWrite(LED_BUILTIN, state ? LOW : HIGH); // LED is typically active low
-}
-
-bool SystemManager::internalLedState()
-{
-    return digitalRead(LED_BUILTIN) == LOW;
+    if (!ledDevice) {
+        auto* devMgr = static_cast<DeviceManager*>(context->getManager("DeviceManager"));
+        if (devMgr) {
+            Device* dev = devMgr->getDeviceById("led");
+            if (dev) {
+                ledDevice = static_cast<InternalLedDevice*>(dev);
+            }
+        }
+    }
+    return ledDevice;
 }
 
 // === System Information ===
@@ -171,7 +198,7 @@ void SystemManager::showSystemInfo()
 {
     debug("ESP32 Mini Framework Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")", 0);
     debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
-    
+
 #ifdef ESP32
     debug("Total Heap: " + String(ESP.getHeapSize() / 1024) + " KB", 0);
 #endif
@@ -179,7 +206,7 @@ void SystemManager::showSystemInfo()
     debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);
     debug("Sketch size: " + String(ESP.getSketchSize() / 1024) + " KB", 0);
     debug("Free sketch space: " + String(ESP.getFreeSketchSpace() / 1024) + " KB", 0);
-    
+
 #ifdef ESP32
     debug("Chip ID: " + String(ESP.getEfuseMac()), 0);
     debug("Chip model: " + String(ESP.getChipModel()), 0);
@@ -198,12 +225,12 @@ void SystemManager::showSystemInfo()
         debug("Debug level: " + String(configMgr->getPreference("debug_level", 0)), 0);
         debug("Power saving time: " + String(configMgr->getPreference("power_saving", 0)), 0);
     }
-    
+
     auto* timeMgr = static_cast<TimeManager*>(context->getManager("TimeManager"));
     if (timeMgr) {
         debug("Time: " + timeMgr->getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
     }
-    
+
     auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
     if (wifiMgr) {
         if (wifiMgr->isConnected()) {
@@ -213,7 +240,7 @@ void SystemManager::showSystemInfo()
             debug("Not connected to WiFi", 0);
         }
     }
-    
+
     auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
     if (mqttMgr) {
         if (mqttMgr->isConnected()) {
@@ -228,13 +255,82 @@ void SystemManager::showSystemInfo()
 #endif
 }
 
+String SystemManager::getSystemInfo()
+{
+    String info = "";
+    info += "ESP32 Mini Framework Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")\n";
+    info += "Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz\n";
+
+#ifdef ESP32
+    info += "Total Heap: " + String(ESP.getHeapSize() / 1024) + " KB\n";
+#endif
+    info += "Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB\n";
+    info += "Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB\n";
+    info += "Sketch size: " + String(ESP.getSketchSize() / 1024) + " KB\n";
+    info += "Free sketch space: " + String(ESP.getFreeSketchSpace() / 1024) + " KB\n";
+
+#ifdef ESP32
+    info += "Chip ID: " + String(ESP.getEfuseMac()) + "\n";
+    info += "Chip model: " + String(ESP.getChipModel()) + "\n";
+    info += "Chip revision: " + String(ESP.getChipRevision()) + "\n";
+    info += "Chip cores: " + String(ESP.getChipCores()) + "\n";
+#endif
+
+#ifdef ESP8266
+    info += "Reset reason: " + ESP.getResetReason() + "\n";
+#endif
+
+    // Get information from other managers
+    auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
+    if (configMgr) {
+        info += "Hostname: " + configMgr->getHostname() + "\n";
+        info += "Debug level: " + String(configMgr->getPreference("debug_level", 0)) + "\n";
+        info += "Power saving time: " + String(configMgr->getPreference("power_saving", 0)) + "\n";
+    }
+
+    auto* timeMgr = static_cast<TimeManager*>(context->getManager("TimeManager"));
+    if (timeMgr) {
+        info += "Time: " + timeMgr->getFormattedDateTime("%d/%m/%Y %H:%M:%S") + "\n";
+    }
+
+    auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
+    if (wifiMgr) {
+        if (wifiMgr->isConnected()) {
+            info += "Connected to WiFi: " + wifiMgr->retrieveSSID() + "\n";
+            info += "IP address: " + wifiMgr->retrieveIP() + "\n";
+        } else {
+            info += "Not connected to WiFi\n";
+        }
+    }
+
+    auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
+    if (mqttMgr) {
+        if (mqttMgr->isConnected()) {
+            info += "Connected to MQTT server: " + mqttMgr->retrieveServer() + "\n";
+        } else {
+            info += "Not connected to MQTT server\n";
+        }
+    }
+
+#ifdef ESP8266
+    info += "Power saving: " + String(wifi_get_sleep_type() == NONE_SLEEP_T ? "disabled" : "enabled") + "\n";
+#endif
+
+    // Remove trailing newline
+    if (info.endsWith("\n")) {
+        info.remove(info.length() - 1);
+    }
+
+    return info;
+}
+
 void SystemManager::showFilesystemInfo()
 {
     if (!LittleFS.begin()) {
         debug("Failed to initialize LittleFS", 0);
         return;
     }
-    
+
 #ifdef ESP8266
     FSInfo fs_info;
     LittleFS.info(fs_info);
@@ -250,6 +346,32 @@ void SystemManager::showFilesystemInfo()
     debug("Total bytes: " + String(totalBytes), 0);
     debug("Used bytes: " + String(usedBytes), 0);
     debug("Free bytes: " + String(totalBytes - usedBytes), 0);
+}
+
+String SystemManager::getFilesystemInfo()
+{
+    if (!LittleFS.begin()) {
+        return "Failed to initialize LittleFS";
+    }
+
+#ifdef ESP8266
+    FSInfo fs_info;
+    LittleFS.info(fs_info);
+    size_t totalBytes = fs_info.totalBytes;
+    size_t usedBytes = fs_info.usedBytes;
+#endif
+
+#ifdef ESP32
+    size_t totalBytes = LittleFS.totalBytes();
+    size_t usedBytes = LittleFS.usedBytes();
+#endif
+
+    String info = "";
+    info += "Total bytes: " + String(totalBytes) + "\n";
+    info += "Used bytes: " + String(usedBytes) + "\n";
+    info += "Free bytes: " + String(totalBytes - usedBytes);
+
+    return info;
 }
 
 // === CPU Control ===
@@ -298,16 +420,16 @@ void SystemManager::setPowerSaving(int value, bool save)
 {
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
     auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
-    
+
     if (value < 0) {
         value = configMgr ? configMgr->getPreference("power_saving", 0) : 0;
     }
     if (value == 1) {
         value = 100;  // default value
     }
-    
+
     powerSaving = value;
-    
+
     if (powerSaving > 0) {
         debug("Power saving enabled: process every " + String(powerSaving) + "ms", 1);
         if (wifiMgr) {
@@ -323,7 +445,7 @@ void SystemManager::setPowerSaving(int value, bool save)
             wifiMgr->setPowerSave(false);
         }
     }
-    
+
     if (save && configMgr) {
         configMgr->setPreference("power_saving", powerSaving);
     }
@@ -347,65 +469,65 @@ void SystemManager::registerCommands()
         debug("CommandManager not available for command registration", 1);
         return;
     }
-    
+
     // Version command
-    cmdMgr->registerCommand(Command(
-        "sys", "version", "Show framework version",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) {
-            return "Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")";
-        }
-    ));
-    
+    cmdMgr->registerCommand(Command("sys", "version", "Show framework version", CommandSource::Any, true, [this](const std::vector<String>& args) {
+        return "Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")";
+    }));
+
     // Uptime command
-    cmdMgr->registerCommand(Command(
-        "sys", "uptime", "Show system uptime",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) {
-            return "Uptime: " + String(millis() / 1000) + " seconds";
+    cmdMgr->registerCommand(Command("sys", "uptime", "Show system uptime", CommandSource::Any, true,
+                                    [this](const std::vector<String>& args) { return "Uptime: " + String(millis() / 1000) + " seconds"; }));
+
+    // Echo command
+    cmdMgr->registerCommand(Command("sys", "echo", "Echo back the provided text", CommandSource::Any, true, [this](const std::vector<String>& args) {
+        if (args.size() == 0) {
+            return String("");
         }
-    ));
-    
+        String result = "";
+        for (size_t i = 0; i < args.size(); i++) {
+            if (i > 0)
+                result += " ";
+            result += args[i];
+        }
+        return result;
+    }));
+
     // Temperature command
-    cmdMgr->registerCommand(Command(
-        "sys", "temp", "Show CPU temperature",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) {
+    cmdMgr->registerCommand(Command("sys", "temp", "Show CPU temperature", CommandSource::Any, true, [this](const std::vector<String>& args) {
 #ifdef ESP32
-            float temp = getCpuTemperature();
-            return "Temperature: " + String(temp) + "°C";
+        float temp = getCpuTemperature();
+        return "Temperature: " + String(temp) + "°C";
 #else
             return "Temperature not supported on this device";
 #endif
+    }));
+
+    // LED command - now delegates to InternalLedDevice
+    cmdMgr->registerCommand(Command("sys", "led", "Control internal LED (on/off)", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        auto* ledDev = getLedDevice();
+        if (!ledDev) {
+            return String("LED device not available");
         }
-    ));
-    
-    // LED command
-    cmdMgr->registerCommand(Command(
-        "sys", "led", "Control internal LED (on/off)",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            if (args.size() > 0) {
-                if (args[0] == "on") {
-                    internalLed(true);
-                    return String("LED on");
-                } else if (args[0] == "off") {
-                    internalLed(false);
-                    return String("LED off");
-                } else {
-                    return String("Invalid parameter. Usage: led on|off");
-                }
+
+        if (args.size() > 0) {
+            if (args[0] == "on") {
+                ledDev->setState(true);
+                return String("LED on");
+            } else if (args[0] == "off") {
+                ledDev->setState(false);
+                return String("LED off");
             } else {
-                return String("LED state: " + String(internalLedState() ? "on" : "off"));
+                return String("Invalid parameter. Usage: led on|off");
             }
+        } else {
+            return String("LED state: " + String(ledDev->isOn() ? "on" : "off"));
         }
-    ));
-    
+    }));
+
     // CPU Frequency command
-    cmdMgr->registerCommand(Command(
-        "sys", "freq", "Get/Set CPU frequency (80/160/240 MHz)",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("sys", "freq", "Get/Set CPU frequency (80/160/240 MHz)", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
 #ifdef ESP32
             if (args.size() > 0) {
                 int freq = args[0].toInt();
@@ -425,131 +547,99 @@ void SystemManager::registerCommands()
 #else
             return String("Frequency command not supported on this device");
 #endif
-        }
-    ));
-    
+        }));
+
     // System info command
-    cmdMgr->registerCommand(Command(
-        "sys", "info", "Show comprehensive system information",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            showSystemInfo();
-            return String("System info displayed");
-        }
-    ));
-    
+    cmdMgr->registerCommand(Command("sys", "info", "Show comprehensive system information", CommandSource::Any, true,
+                                    [this](const std::vector<String>& args) -> String { return getSystemInfo(); }));
+
     // Filesystem info command
-    cmdMgr->registerCommand(Command(
-        "sys", "fs", "Show filesystem information",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            showFilesystemInfo();
-            return String("Filesystem info displayed");
-        }
-    ));
-    
+    cmdMgr->registerCommand(Command("sys", "fs", "Show filesystem information", CommandSource::Any, true,
+                                    [this](const std::vector<String>& args) -> String { return getFilesystemInfo(); }));
+
     // Restart command
-    cmdMgr->registerCommand(Command(
-        "sys", "restart", "Restart the system",
-        CommandSource::Any, true,  // Enable history for restart
-        [this](const std::vector<String>& args) -> String {
-            debug("Restarting system...", 1);
-            delay(500);
-            restartSystem();
-            return String("Restarting...");
-        }
-    ));
-    
+    cmdMgr->registerCommand(Command("sys", "restart", "Restart the system", CommandSource::Any, true,  // Enable history for restart
+                                    [this](const std::vector<String>& args) -> String {
+                                        debug("Restarting system...", 1);
+                                        delay(500);
+                                        restartSystem();
+                                        return String("Restarting...");
+                                    }));
+
     // Reboot alias
     cmdMgr->registerAlias("reboot", "sys:restart");
-    
+
     // OTA Update command
-    cmdMgr->registerCommand(Command(
-        "sys", "ota", "Start OTA firmware update",
-        CommandSource::Serial,  // Only from Serial for security
-        true,  // Enable history
-        [this](const std::vector<String>& args) -> String {
-            debug("Starting OTA update...", 1);
-            performOtaUpdate();
-            return String("OTA update started");
-        }
-    ));
-    
-    
+    cmdMgr->registerCommand(Command("sys", "ota", "Start OTA firmware update",
+                                    CommandSource::Serial,  // Only from Serial for security
+                                    true,                   // Enable history
+                                    [this](const std::vector<String>& args) -> String {
+                                        debug("Starting OTA update...", 1);
+                                        performOtaUpdate();
+                                        return String("OTA update started");
+                                    }));
+
     // WiFi configuration commands
-    cmdMgr->registerCommand(Command(
-        "wifi", "ssid", "Get/Set WiFi SSID",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
-            if (!wifiMgr) {
-                return String("WiFiManager not available");
-            }
-            
-            if (args.size() > 0) {
-                // Set SSID
-                wifiMgr->saveSSID(args[0], false);
-                return String("WiFi SSID saved: " + args[0]);
+    cmdMgr->registerCommand(Command("wifi", "ssid", "Get/Set WiFi SSID", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
+        if (!wifiMgr) {
+            return String("WiFiManager not available");
+        }
+
+        if (args.size() > 0) {
+            // Set SSID
+            wifiMgr->saveSSID(args[0], false);
+            return String("WiFi SSID saved: " + args[0]);
+        } else {
+            // Get SSID
+            String ssid = wifiMgr->retrieveSSID();
+            if (ssid.isEmpty()) {
+                return String("WiFi SSID: (not set)");
             } else {
-                // Get SSID
-                String ssid = wifiMgr->retrieveSSID();
-                if (ssid.isEmpty()) {
-                    return String("WiFi SSID: (not set)");
-                } else {
-                    return String("WiFi SSID: " + ssid);
-                }
+                return String("WiFi SSID: " + ssid);
             }
         }
-    ));
-    
-    cmdMgr->registerCommand(Command(
-        "wifi", "pass", "Get/Set WiFi password",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
-            if (!wifiMgr) {
-                return String("WiFiManager not available");
-            }
-            
-            if (args.size() > 0) {
-                // Set password
-                wifiMgr->savePassword(args[0], false);
-                return String("WiFi password saved");
+    }));
+
+    cmdMgr->registerCommand(Command("wifi", "pass", "Get/Set WiFi password", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
+        if (!wifiMgr) {
+            return String("WiFiManager not available");
+        }
+
+        if (args.size() > 0) {
+            // Set password
+            wifiMgr->savePassword(args[0], false);
+            return String("WiFi password saved");
+        } else {
+            // Get password (masked for security)
+            String pass = wifiMgr->retrievePassword();
+            if (pass.isEmpty()) {
+                return String("WiFi password: (not set)");
             } else {
-                // Get password (masked for security)
-                String pass = wifiMgr->retrievePassword();
-                if (pass.isEmpty()) {
-                    return String("WiFi password: (not set)");
-                } else {
-                    return String("WiFi password: ****");
-                }
+                return String("WiFi password: ****");
             }
         }
-    ));
-    
-    cmdMgr->registerCommand(Command(
-        "wifi", "connect", "Connect to WiFi with saved credentials",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
+    }));
+
+    cmdMgr->registerCommand(
+        Command("wifi", "connect", "Connect to WiFi with saved credentials", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
             if (!wifiMgr) {
                 return String("WiFiManager not available");
             }
-            
+
             wifiMgr->autoConnect();
             return String("WiFi connection initiated");
-        }
-    ));
-    
-    cmdMgr->registerCommand(Command(
-        "wifi", "status", "Show WiFi connection status",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
+        }));
+
+    cmdMgr->registerCommand(
+        Command("wifi", "status", "Show WiFi connection status", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
             if (!wifiMgr) {
                 return String("WiFiManager not available");
             }
-            
+
             String result = "WiFi Status:\n";
             result += "  Connected: " + String(wifiMgr->isConnected() ? "Yes" : "No") + "\n";
             result += "  SSID: " + wifiMgr->retrieveSSID() + "\n";
@@ -558,88 +648,7 @@ void SystemManager::registerCommands()
                 result += "  IP: " + wifiMgr->retrieveIP();
             }
             return result;
-        }
-    ));
-    
-    // LED Control Commands (for internal LED)
-    cmdMgr->registerCommand(Command(
-        "sys", "led", "Control internal LED (on/off/toggle/status)",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            if (args.empty()) {
-                return String("Usage: sys:led <on|off|toggle|status>");
-            }
-            
-            String action = args[0];
-            action.toLowerCase();
-            
-            if (action == "on") {
-                #ifdef ESP32
-                    #ifdef CHIP_ESP32C3
-                        pinMode(8, OUTPUT);
-                        digitalWrite(8, LOW);  // LED on (inverted logic)
-                    #else
-                        pinMode(2, OUTPUT);
-                        digitalWrite(2, LOW);  // LED on (inverted logic)
-                    #endif
-                #else
-                    pinMode(LED_BUILTIN, OUTPUT);
-                    digitalWrite(LED_BUILTIN, HIGH);
-                #endif
-                return String("Internal LED turned ON");
-                
-            } else if (action == "off") {
-                #ifdef ESP32
-                    #ifdef CHIP_ESP32C3
-                        pinMode(8, OUTPUT);
-                        digitalWrite(8, HIGH);  // LED off (inverted logic)
-                    #else
-                        pinMode(2, OUTPUT);
-                        digitalWrite(2, HIGH);  // LED off (inverted logic)
-                    #endif
-                #else
-                    pinMode(LED_BUILTIN, OUTPUT);
-                    digitalWrite(LED_BUILTIN, LOW);
-                #endif
-                return String("Internal LED turned OFF");
-                
-            } else if (action == "toggle") {
-                #ifdef ESP32
-                    #ifdef CHIP_ESP32C3
-                        pinMode(8, OUTPUT);
-                        int currentState = digitalRead(8);
-                        digitalWrite(8, !currentState);
-                    #else
-                        pinMode(2, OUTPUT);
-                        int currentState = digitalRead(2);
-                        digitalWrite(2, !currentState);
-                    #endif
-                #else
-                    pinMode(LED_BUILTIN, OUTPUT);
-                    int currentState = digitalRead(LED_BUILTIN);
-                    digitalWrite(LED_BUILTIN, !currentState);
-                #endif
-                return String("Internal LED toggled");
-                
-            } else if (action == "status") {
-                #ifdef ESP32
-                    #ifdef CHIP_ESP32C3
-                        int state = digitalRead(8);
-                        return String("Internal LED (pin 8): ") + (state == LOW ? "ON" : "OFF");
-                    #else
-                        int state = digitalRead(2);
-                        return String("Internal LED (pin 2): ") + (state == LOW ? "ON" : "OFF");
-                    #endif
-                #else
-                    int state = digitalRead(LED_BUILTIN);
-                    return String("Internal LED: ") + (state == HIGH ? "ON" : "OFF");
-                #endif
-                
-            } else {
-                return String("Invalid LED action. Use: on, off, toggle, or status");
-            }
-        }
-    ));
-    
+        }));
+
     debug("System, WiFi and LED commands registered", 2);
 }

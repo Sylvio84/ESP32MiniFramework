@@ -110,48 +110,22 @@ void CommandManager::registerBuiltInCommands() {
     historyCmd.source = CommandSource::Any;
     historyCmd.historyEnabled = false;
     historyCmd.execute = [this](const std::vector<String>& args) {
-        String cmdName = "";
-        if (args.size() > 0) {
-            cmdName = resolveCommandName(args[0]);
+        auto hist = getHistory();
+        if (hist.empty()) {
+            return String("No command history");
         }
         
-        if (cmdName.isEmpty()) {
-            // Show all commands with history
-            String result = "Command history:\n";
-            for (const auto& pair : history) {
-                if (!pair.second.empty()) {
-                    result += "\n" + pair.first + ":\n";
-                    for (const auto& entry : pair.second) {
-                        result += "  [" + String(entry.timestamp) + "] ";
-                        result += "from " + commandSourceToString(entry.source) + ": ";
-                        for (const auto& arg : entry.arguments) {
-                            result += arg + " ";
-                        }
-                        result += "-> " + entry.result + "\n";
-                    }
-                }
-            }
-            return result.isEmpty() ? "No command history" : result;
-        } else {
-            // Show history for specific command
-            auto entries = getHistory(cmdName);
-            if (entries.empty()) {
-                return String("No history for command: " + cmdName);
-            }
-            
-            String result = "History for " + cmdName + ":\n";
-            for (const auto& entry : entries) {
-                result += "  [" + String(entry.timestamp) + "] ";
-                result += "from " + commandSourceToString(entry.source) + ": ";
-                for (const auto& arg : entry.arguments) {
-                    result += arg + " ";
-                }
-                result += "-> " + entry.result + "\n";
-            }
-            return result;
+        String result = "";
+        
+        // Show numbered list like bash history with actual IDs
+        for (const auto& entry : hist) {
+            result += String(entry.id) + "  " + entry.command + "\n";
         }
+        
+        return result;
     };
     registerCommand(historyCmd);
+    registerAlias("hist", "command:history");
 }
 
 bool CommandManager::registerCommand(const Command& command) {
@@ -289,41 +263,56 @@ String CommandManager::executeCommand(const String& nameOrAlias,
         result = "Command has no execution handler: " + fullName;
     }
     
-    // Add to history if enabled
-    if (cmd.historyEnabled) {
-        addToHistory(fullName, args, result, source);
-    }
+    // Note: History should be added by the caller if needed, not here
     
     return result;
 }
 
 String CommandManager::executeCommandString(const String& input, CommandSource source) {
+    String actualInput = input;
+    
+    // Check for history recall (!!, !n)
+    if (input.startsWith("!")) {
+        String recalledCommand = processHistoryRecall(input);
+        if (recalledCommand.isEmpty()) {
+            return "!" + input.substring(1) + ": event not found";
+        }
+        // Show what command is being executed
+        Serial.println(recalledCommand);
+        actualInput = recalledCommand;
+    }
+    
     String commandName;
     std::vector<String> args;
     
-    parseCommandInput(input, commandName, args);
+    parseCommandInput(actualInput, commandName, args);
     
     if (commandName.isEmpty()) {
         return "Empty command";
     }
     
+    // Add the actual command to history (not the ! command)
+    addToHistory(actualInput);
+    
     return executeCommand(commandName, args, source);
 }
 
-void CommandManager::addToHistory(const String& fullName, const std::vector<String>& args,
-                                 const String& result, CommandSource source) {
-    CommandHistoryEntry entry;
-    entry.timestamp = millis();
-    entry.arguments = args;
-    entry.result = result;
-    entry.source = source;
+void CommandManager::addToHistory(const String& commandLine) {
+    // Don't add empty commands or duplicates of the last command
+    if (commandLine.isEmpty()) return;
+    if (!history.empty() && history.back().command == commandLine) return;
     
-    auto& entries = history[fullName];
-    entries.push_back(entry);
+    // Don't add history recall commands themselves
+    if (commandLine.startsWith("!")) return;
+    
+    HistoryEntry entry;
+    entry.id = nextHistoryId++;
+    entry.command = commandLine;
+    history.push_back(entry);
     
     // Limit history size
-    while (entries.size() > MAX_HISTORY_ENTRIES) {
-        entries.erase(entries.begin());
+    while (history.size() > MAX_HISTORY_ENTRIES) {
+        history.erase(history.begin());
     }
 }
 
@@ -350,20 +339,56 @@ std::vector<Command> CommandManager::listAvailable(CommandSource source,
     return result;
 }
 
-std::vector<CommandHistoryEntry> CommandManager::getHistory(const String& commandName) {
-    auto it = history.find(commandName);
-    if (it != history.end()) {
-        return it->second;
-    }
-    return std::vector<CommandHistoryEntry>();
+std::vector<CommandManager::HistoryEntry> CommandManager::getHistory() const {
+    return history;
 }
 
-void CommandManager::clearHistory(const String& commandName) {
-    if (commandName == "*") {
-        history.clear();
-    } else {
-        history.erase(commandName);
+void CommandManager::clearHistory() {
+    history.clear();
+    // Don't reset nextHistoryId to preserve unique IDs
+}
+
+String CommandManager::getHistoryCommand(unsigned int id) const {
+    for (const auto& entry : history) {
+        if (entry.id == id) {
+            return entry.command;
+        }
     }
+    return "";
+}
+
+String CommandManager::processHistoryRecall(const String& input) const {
+    if (!input.startsWith("!")) {
+        return "";
+    }
+    
+    // Handle !! for last command
+    if (input == "!!") {
+        if (!history.empty()) {
+            return history.back().command;
+        }
+        return "";
+    }
+    
+    // Handle !n for specific history ID
+    if (input.length() > 1) {
+        String idStr = input.substring(1);
+        // Check if it's a number
+        bool isNumber = true;
+        for (size_t i = 0; i < idStr.length(); i++) {
+            if (!isdigit(idStr[i])) {
+                isNumber = false;
+                break;
+            }
+        }
+        
+        if (isNumber) {
+            unsigned int id = idStr.toInt();
+            return getHistoryCommand(id);
+        }
+    }
+    
+    return "";
 }
 
 String CommandManager::getHelp(CommandSource source, const String& filter) {
@@ -446,8 +471,8 @@ bool CommandManager::removeCommand(const String& fullName) {
             aliases.erase(alias);
         }
         
-        // Clear history
-        history.erase(fullName);
+        // History is now a simple list of commands, not per-command
+        // No need to clear specific command history
         
         return true;
     }

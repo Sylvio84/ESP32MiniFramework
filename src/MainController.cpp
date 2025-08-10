@@ -200,37 +200,8 @@ bool MainController::processInput(const String input)
     // Use CommandManager to execute commands
     auto* cmdMgr = static_cast<CommandManager*>(context.getManager("CommandManager"));
     if (cmdMgr) {
-        // Parse the input to extract command and parameters
-        std::vector<String> params;
-        String cmdInput = input;
-        cmdInput.trim();
-        
-        // Split by spaces to get command and parameters
-        int spaceIndex = cmdInput.indexOf(' ');
-        String command;
-        if (spaceIndex > 0) {
-            command = cmdInput.substring(0, spaceIndex);
-            String paramStr = cmdInput.substring(spaceIndex + 1);
-            paramStr.trim();
-            
-            // Split parameters by spaces
-            while (paramStr.length() > 0) {
-                int nextSpace = paramStr.indexOf(' ');
-                if (nextSpace > 0) {
-                    params.push_back(paramStr.substring(0, nextSpace));
-                    paramStr = paramStr.substring(nextSpace + 1);
-                    paramStr.trim();
-                } else {
-                    params.push_back(paramStr);
-                    break;
-                }
-            }
-        } else {
-            command = cmdInput;
-        }
-        
-        // Execute the command
-        String result = cmdMgr->executeCommand(command, params, CommandSource::Serial);
+        // Execute the command string directly (this also adds to history)
+        String result = cmdMgr->executeCommandString(input, CommandSource::Serial);
         if (!result.isEmpty()) {
             Serial.println(result);
         }
@@ -285,17 +256,26 @@ void MainController::processMQTT(String topic, String value)
         auto* cmdMgr = static_cast<CommandManager*>(context.getManager("CommandManager"));
         if (cmdMgr) {
             // Build command string from topic and value
+            // Convert first / to : for namespace:command format, rest to spaces
             String commandStr = commandPart;
-            commandStr.replace('/', ' ');  // Replace / with space for command parsing
+            int firstSlash = commandStr.indexOf('/');
+            if (firstSlash > 0) {
+                // Replace first / with : to get namespace:command format
+                commandStr = commandStr.substring(0, firstSlash) + ":" + commandStr.substring(firstSlash + 1);
+            }
+            // Replace any remaining / with space for additional arguments
+            commandStr.replace('/', ' ');
+            
             if (!value.isEmpty()) {
                 commandStr += " " + value;
             }
             
             String result = cmdMgr->executeCommandString(commandStr, CommandSource::MQTT);
             if (!result.startsWith("Command not found")) {
-                // Publish result back via MQTT
+                // Publish result back via MQTT on /log topic
+                // (device commands handle their own response topics)
                 eventManager.triggerEvent("mqtt", "publishAsap", 
-                    {hostname + "/status/" + commandPart, result});
+                    {hostname + "/log", result});
                 return;
             }
         }
@@ -343,9 +323,11 @@ void MainController::processDebugMessage(String message, int level, bool display
 #ifndef DISABLE_ESPUI
         espUIManager.addDebugMessage(message, level);
 #endif
-        if (mqttManager.isConnected()) {
+        // Debug messages are not sent via MQTT anymore
+        // Only command responses are sent to MQTT
+        /*if (mqttManager.isConnected()) {
             mqttManager.publish(configManager.getHostname() + "/log", logJson, false);
-        }
+        }*/
     }
 }
 

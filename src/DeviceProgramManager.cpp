@@ -229,15 +229,15 @@ void DeviceProgramManager::registerCommands()
     // Program list command
     cmdMgr->registerCommand(Command(
         "program", "list", "List all device programs",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
-            String result = "Device Programs:\\n";
+            String result = "Device Programs:\n";
             auto programs = getAllDevicePrograms();
             if (programs.empty()) {
                 result += "  (no programs)";
             } else {
                 for (const auto& program : programs) {
-                    result += "  " + program->id + ": " + program->name + "\\n";
+                    result += "  " + program->id + ": " + program->name + "\n";
                 }
             }
             return result;
@@ -247,7 +247,7 @@ void DeviceProgramManager::registerCommands()
     // Program info command
     cmdMgr->registerCommand(Command(
         "program", "info", "Show detailed program information",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() == 0) {
                 return "Usage: program:info <program_id>";
@@ -258,9 +258,9 @@ void DeviceProgramManager::registerCommands()
                 return "Program not found: " + args[0];
             }
             
-            String result = "Program Information:\\n";
-            result += "  ID: " + program->id + "\\n";
-            result += "  Name: " + program->name + "\\n";
+            String result = "Program Information:\n";
+            result += "  ID: " + program->id + "\n";
+            result += "  Name: " + program->name + "\n";
             result += "  Enabled: " + String(program->enabled ? "Yes" : "No");
             
             return result;
@@ -288,7 +288,7 @@ void DeviceProgramManager::registerCommands()
     // Program remove command
     cmdMgr->registerCommand(Command(
         "program", "remove", "Remove a device program",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() == 0) {
                 return "Usage: program:remove <program_id>";
@@ -323,7 +323,7 @@ void DeviceProgramManager::registerCommands()
     // Program load command
     cmdMgr->registerCommand(Command(
         "program", "load", "Load programs from storage",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             bool clearExisting = (args.size() > 0 && args[0] == "clear");
             if (loadDevicePrograms(clearExisting)) {
@@ -338,7 +338,7 @@ void DeviceProgramManager::registerCommands()
     // Program save command
     cmdMgr->registerCommand(Command(
         "program", "save", "Save programs to storage",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (saveDevicePrograms()) {
                 return "Programs saved successfully";

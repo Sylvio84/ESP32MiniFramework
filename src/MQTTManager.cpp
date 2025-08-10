@@ -92,7 +92,7 @@ void MQTTManager::loop()
                 // Successful connection, reset retry count and delay
                 retry = 0;
                 reconnectDelay = 1;
-                logDebug("MQTT connected successfully", 1);
+                logDebug("MQTT connected successfully to " + server, 0);
             }
         }
         lastMQTTReconnect = currentMillis;
@@ -395,7 +395,7 @@ void MQTTManager::registerCommands()
     // MQTT connection commands
     cmdMgr->registerCommand(Command(
         "mqtt", "server", "Get/Set MQTT server hostname",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 saveServer(args[0]);
@@ -407,7 +407,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "port", "Get/Set MQTT server port",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 savePort(args[0].toInt());
@@ -419,7 +419,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "user", "Get/Set MQTT username",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 saveUsername(args[0]);
@@ -431,7 +431,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "pass", "Get/Set MQTT password",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 savePassword(args[0]);
@@ -443,7 +443,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "status", "Show MQTT connection status",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             return isConnected() ? "MQTT: Connected to " + server + ":" + String(port) 
                                 : "MQTT: Not connected";
@@ -452,7 +452,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "connect", "Connect to MQTT server",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             return reconnect() ? "MQTT: Connection successful" : "MQTT: Connection failed";
         }
@@ -460,7 +460,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "subscribe", "Subscribe to MQTT topic",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 addSubscription(args[0]);
@@ -473,7 +473,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "unsubscribe", "Unsubscribe from MQTT topic",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 removeSubscription(args[0]);
@@ -486,7 +486,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "publish", "Publish to MQTT topic",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             if (args.size() > 1) {
                 publish(args[0], args[1]);
@@ -498,7 +498,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "subscriptions", "List active MQTT subscriptions",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             String result = "MQTT subscriptions:\n";
             auto subs = getSubscriptions();
@@ -515,7 +515,7 @@ void MQTTManager::registerCommands()
 
     cmdMgr->registerCommand(Command(
         "mqtt", "info", "Show detailed MQTT information",
-        CommandSource::Any, false,
+        CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             String result = "MQTT Configuration:\n";
             result += "  Server: " + retrieveServer() + "\n";
