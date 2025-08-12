@@ -1,7 +1,7 @@
 #ifndef SYSTEMMANAGER_H
 #define SYSTEMMANAGER_H
 
-#include <Manager.h>
+#include "Manager.h"
 #include <Arduino.h>
 #include <LittleFS.h>
 
@@ -99,6 +99,10 @@ public:
     int getPowerSaving() const { return powerSaving; }
     uint getPowerSavingResumeTimer() const { return powerSavingResumeTimer; }
     void clearPowerSavingResumeTimer();
+    
+    // === Debug Level Management ===
+    int getDebugLevel() const { return debugLevel; }
+    void setDebugLevel(int level, bool save = true);
 
 private:
     
@@ -114,6 +118,9 @@ private:
     // === Power Management State ===
     int powerSaving = 0; // 0 = disabled, else = idle time in ms
     uint powerSavingResumeTimer = 0;
+    
+    // === Debug Level ===
+    int debugLevel = 0; // 0 = normal, 1 = verbose, 2 = detailed, 3+ = very detailed
     
     // === LED Device ===
     InternalLedDevice* ledDevice = nullptr;

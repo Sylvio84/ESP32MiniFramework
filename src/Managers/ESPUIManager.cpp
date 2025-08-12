@@ -1,8 +1,8 @@
 #ifndef DISABLE_ESPUI
-#include <ESPUIManager.h>
-#include <ConfigurationManager.h>
-#include <EventManager.h>
-#include <CommandManager.h>
+#include "Managers/ESPUIManager.h"
+#include "Managers/ConfigurationManager.h"
+#include "Managers/EventManager.h"
+#include "Managers/CommandManager.h"
 
 
 void ESPUIManager::init()

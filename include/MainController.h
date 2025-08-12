@@ -7,25 +7,25 @@
 #endif
 
 #include <FrameworkContext.h>
-#include <ConfigurationManager.h>
-#include <SystemManager.h>
-#include <SerialCommandManager.h>
-#include <CommandManager.h>
+#include <Managers/ConfigurationManager.h>
+#include <Managers/SystemManager.h>
+#include <Managers/SerialManager.h>
+#include <Managers/CommandManager.h>
 #ifndef DISABLE_DISPLAY
-#include <DisplayManager.h>
+#include <Managers/DisplayManager.h>
 #endif
-#include <WiFiManager.h>
-#include <MQTTManager.h>
+#include <Managers/WiFiManager.h>
+#include <Managers/MQTTManager.h>
 #ifndef DISABLE_ESPUI
-#include <ESPUIManager.h>
+#include <Managers/ESPUIManager.h>
 #endif
-#include <EventManager.h>
-#include <TimeManager.h>
+#include <Managers/EventManager.h>
+#include <Managers/TimeManager.h>
 #include <DeviceProgram.h>
 #include <Tools.h>
 #include <LittleFS.h>
-#include <DeviceManager.h>
-#include <DeviceProgramManager.h>
+#include <Managers/DeviceManager.h>
+#include <Managers/DeviceProgramManager.h>
 
 #define DEBUG_LOG() debugLog(__FILE__, __LINE__)
 
@@ -58,7 +58,7 @@ inline void debugLog( const char* file, int line)
  * - **Device Events**: Forwards events to device manager
  * 
  * ### Command Execution
- * - **Serial Input**: Processes commands from SerialCommandManager
+ * - **Serial Input**: Processes commands from SerialManager
  * - **Command Parsing**: Splits input into command and parameters
  * - **CommandManager**: Delegates execution to CommandManager
  * - **Result Display**: Prints command results to Serial
@@ -89,7 +89,7 @@ inline void debugLog( const char* file, int line)
  * 4. Special cases handled directly (MQTT, serial)
  * 
  * ### Command Flow
- * 1. SerialCommandManager triggers "serial/input" event
+ * 1. SerialManager triggers "serial/input" event
  * 2. MainController::processInput() parses command
  * 3. CommandManager::executeCommand() runs it
  * 4. Result printed to Serial
@@ -127,7 +127,7 @@ protected:
     EventManager eventManager;
     ConfigurationManager configManager;
     SystemManager systemManager;
-    SerialCommandManager serialCommandManager;
+    SerialManager serialManager;
     CommandManager commandManager;
     #ifndef DISABLE_DISPLAY
     DisplayManager displayManager;

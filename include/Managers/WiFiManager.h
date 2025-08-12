@@ -2,7 +2,7 @@
 #define WIFIMANAGER_H
 
 #include <Arduino.h>
-#include <Manager.h>
+#include "Manager.h"
 #include <FrameworkContext.h>
 #include <ESPTelnet.h>
 #ifndef DISABLE_ESPUI
@@ -46,7 +46,15 @@ typedef enum {
 class WiFiManager : public Manager
 {
   private:
-    static const uint CONNECTION_TIMEOUT = 10000;
+    // Constants for better maintainability
+    static constexpr uint32_t CONNECTION_TIMEOUT_MS = 10000;
+    static constexpr uint32_t MAX_RETRY_COUNT = 20;
+    static constexpr uint32_t NETWORK_RETRY_DELAY_MS = 1000;
+    static constexpr uint32_t CHECK_DELAY_MS = 100;
+    static constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 5000;
+    
+    // Legacy constant for backward compatibility (deprecated)
+    static const uint CONNECTION_TIMEOUT = CONNECTION_TIMEOUT_MS;
 
     ESPTelnet telnet;
     uint16_t telnetPort = 23;
@@ -73,11 +81,6 @@ class WiFiManager : public Manager
     };
     
     std::vector<SavedNetwork> savedNetworks;
-    
-    // Interactive password prompt system (private state)
-    bool waitingForPassword = false;
-    String pendingSSID = "";
-    bool pendingAutoConnect = true;
 
     void setConnected(bool recovered = false);
 
@@ -95,7 +98,7 @@ class WiFiManager : public Manager
     }
 
     void init() override;
-    void init(bool auto_connect);
+    void initConnection(bool auto_connect);
     void loop() override;
 
     bool onEvent(const String& type, const String& event, const std::vector<String>& params) override;
@@ -111,7 +114,6 @@ class WiFiManager : public Manager
     String getCurrentSSID() const { return ssid; }
     String getCurrentPassword() const { return password; } // Note: consider removing for security
     size_t getSavedNetworkCount() const { return savedNetworks.size(); }
-    bool isWaitingForPassword() const { return waitingForPassword; }
     
     bool autoConnect();
     bool connect();
@@ -147,11 +149,6 @@ class WiFiManager : public Manager
     void loadSavedNetworks();
     void saveSavedNetworksToPrefs();
     bool connectToSavedNetwork();
-    
-    // Interactive prompt methods
-    void promptForPassword(const String& ssid, bool autoConnect = true);
-    bool handlePasswordInput(const String& input);
-    void cancelPasswordPrompt();
 
     //void WiFiEvent(WiFiEvent_t event);
 

@@ -1,7 +1,7 @@
-#include <TimeManager.h>
-#include <ConfigurationManager.h>
-#include <EventManager.h>
-#include <CommandManager.h>
+#include "Managers/TimeManager.h"
+#include "Managers/ConfigurationManager.h"
+#include "Managers/EventManager.h"
+#include "Managers/CommandManager.h"
 #include <algorithm>
 
 
@@ -11,8 +11,8 @@
 void TimeManager::init() {
     logDebug("Initializing TimeManager", 1);
     
-    // Register time commands with CommandManager
-    registerCommands();
+    // Don't register commands here - will be done after all managers are initialized
+    // registerCommands();
     
     setInitialized(true);
     logDebug("TimeManager initialized successfully", 1);
@@ -416,7 +416,12 @@ String TimeManager::exportProgramToJson(const Program& program)
 void TimeManager::registerCommands()
 {
     auto* cmdMgr = static_cast<CommandManager*>(context ? context->getManager("CommandManager") : nullptr);
-    if (!cmdMgr) return;
+    if (!cmdMgr) {
+        debug("CommandManager not available for registering time commands", 0);
+        return;
+    }
+    
+    debug("Registering time commands...", 1);
 
     // Date command
     cmdMgr->registerCommand(Command(
@@ -471,4 +476,6 @@ void TimeManager::registerCommands()
     // Register useful aliases
     cmdMgr->registerAlias("dt", "time:datetime");
     cmdMgr->registerAlias("now", "time:datetime");
+    
+    debug("Time commands registered successfully", 1);
 }

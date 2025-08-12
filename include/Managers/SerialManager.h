@@ -2,14 +2,14 @@
 #define SERIAL_COMMAND_MANAGER_H
 
 #include <Arduino.h>
-#include <Manager.h>
 #include <FrameworkContext.h>
 #include <functional>
 #include <map>
 #include <vector>
+#include "Manager.h"
 
 /**
- * @brief SerialCommandManager - Serial input handling and command triggering
+ * @brief SerialManager - Serial input handling and command triggering
  * 
  * Manages serial communication and converts user input into command execution
  * through the event system.
@@ -28,7 +28,7 @@
  * - **Empty Input**: Sends power saving events on empty lines
  * 
  * ### Integration Flow
- * 1. SerialCommandManager reads serial input in `loop()`
+ * 1. SerialManager reads serial input in `loop()`
  * 2. Complete command triggers "serial/input" event
  * 3. MainController receives event and calls `processInput()`
  * 4. `processInput()` uses CommandManager to execute command
@@ -51,21 +51,24 @@
  * - `sys:power_saving_resume [timeout]` - Resume power saving after timeout
  * 
  * ## Usage Notes:
- * - Must be registered with FrameworkContext as "SerialCommandManager"
+ * - Must be registered with FrameworkContext as "SerialManager"
  * - Requires Serial.begin() called during init()
  * - loop() must be called periodically to process input
  * - Works with USB serial, Bluetooth serial, etc.
  */
-class SerialCommandManager : public Manager
+class SerialManager : public Manager
 {
   public:
     // Constructor with dependency injection
-    SerialCommandManager(FrameworkContext& ctx);
-    
+    SerialManager(FrameworkContext& ctx);
+
     // Implement Manager interface
     void init() override;
     void loop() override;
-    String getName() const override { return "SerialCommandManager"; }
+    String getName() const override { return "SerialManager"; }
+
+    void addToInputBuffer(const String input, bool resetBuffer = false);
+    void output(const String& output);
 
   private:
     int baudRate = 115200;
@@ -73,8 +76,7 @@ class SerialCommandManager : public Manager
 
     String inputBuffer;
 
-    void handleSerialInput();
-
+    void handleInput();
 };
 
 #endif  // SERIAL_COMMAND_MANAGER_H

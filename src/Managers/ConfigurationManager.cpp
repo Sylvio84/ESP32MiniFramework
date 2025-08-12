@@ -1,6 +1,6 @@
-#include <ConfigurationManager.h>
+#include "Managers/ConfigurationManager.h"
 #include <Tools.h>
-#include <CommandManager.h>
+#include "Managers/CommandManager.h"
 #include <FrameworkContext.h>
 
 #ifdef ESP32
@@ -34,6 +34,16 @@ void ConfigurationManager::init()
     
 #ifdef ESP32
     prefs.begin("config", false);
+    
+    // Initialize default NTP and timezone settings if not present
+    if (!prefs.isKey("ntp_server")) {
+        prefs.putString("ntp_server", "pool.ntp.org");
+        debug("Initialized default NTP server: pool.ntp.org", 2);
+    }
+    if (!prefs.isKey("timezone")) {
+        prefs.putString("timezone", "CET-1CEST,M3.5.0,M10.5.0/3");
+        debug("Initialized default timezone: CET-1CEST", 2);
+    }
 #else
     readJsonPreferences();
     debugJsonPreferences();

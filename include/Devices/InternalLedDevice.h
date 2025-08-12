@@ -2,12 +2,10 @@
 #define INTERNALLEDDEVICE_H
 
 #include <Arduino.h>
-#include <Devices/Device.h>
+#include <Devices/OnOffDevice.h>
 #include <esp_chip_info.h>
-#include <CommandManager.h>
-#include <Command.h>
 
-class InternalLedDevice : public Device
+class InternalLedDevice : public OnOffDevice
 {
 public:
     InternalLedDevice(String id, FrameworkContext& ctx);
@@ -15,42 +13,27 @@ public:
     void init() override;
     void loop() override;
     
-    // LED control methods
-    void activate();
-    void deactivate();
-    bool getState();
-    void toggle();
-    void ledOn();
-    void ledOff();
-    void setState(bool state);
-    bool isOn();
+    // Override activate/deactivate to manage 'active' property
+    void activate(int timeout = 0) override;
+    void deactivate() override;
     
-    // Blink pattern methods
+    // LED-specific methods
+    void detectLedPin();
+    bool getActive();
     void startBlinkPattern(int intervalMs, int durationMs);
     void processBlinkPattern();
+
+protected:
+    // Register LED-specific commands (blink)
+    void registerSpecificCommands() override;
     
-    // Configuration methods
-    void setPin(int ledPin);
-    void detectLedPin();
-    void updateTopicFromConfiguration();
-    
-    // Command processing
-    bool processCommand(String command, std::vector<String> params) override;
-    bool processMQTT(String topic, String value) override;
-    
-    // Event handlers
-    void onProgramStart() override;
-    void onProgramEnd() override;
-    
-private:
-    void registerCommands();
-    
+    // MQTT processing for LED-specific commands
+    bool processMQTTDevice(String topic, String value) override;
+
 public:
-    // LED properties
-    int pin = -1;
-    bool active = false;
-    bool ledState = false;
-    int blinkInterval = 100;  // Blink interval in milliseconds
+    // LED-specific properties
+    bool active = false;          // Blink mode active
+    int blinkInterval = 0;         // Blink interval in milliseconds (0 = no blinking)
     
 private:
     // Blink pattern state

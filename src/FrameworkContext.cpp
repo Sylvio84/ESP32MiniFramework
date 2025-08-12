@@ -1,6 +1,6 @@
 #include <FrameworkContext.h>
-#include <Manager.h>
-#include <ConfigurationManager.h>
+#include <Managers/Manager.h>
+#include <Managers/ConfigurationManager.h>
 
 void FrameworkContext::registerManager(Manager* manager) {
     if (manager) {

@@ -1,12 +1,13 @@
 #include <MainController.h>
-#include <CommandManager.h>
+#include <Managers/CommandManager.h>
+#include <Managers/TimeManager.h>
 
 MainController::MainController()
     : context(),
       eventManager(),
       configManager(context),
       systemManager(context),
-      serialCommandManager(context),
+      serialManager(context),
       commandManager(context),
 #ifndef DISABLE_DISPLAY
       displayManager(context),
@@ -26,7 +27,7 @@ MainController::MainController()
     // Register all managers (including ConfigurationManager which is now a Manager)
     context.registerManager(&configManager);
     context.registerManager(&systemManager);
-    context.registerManager(&serialCommandManager);
+    context.registerManager(&serialManager);
     context.registerManager(&commandManager);
     context.registerManager(&wiFiManager);
     context.registerManager(&mqttManager);
@@ -76,6 +77,12 @@ void MainController::init()
         eventManager.debug("Device programs loaded successfully", 1);
     } else {
         eventManager.debug("Failed to load device programs", 0);
+    }
+
+    // Register TimeManager commands after all managers are initialized
+    auto* timeMgr = static_cast<TimeManager*>(context.getManager("TimeManager"));
+    if (timeMgr) {
+        timeMgr->registerCommands();
     }
 
     // Generate automatic help commands now that all managers have registered their commands
@@ -203,7 +210,7 @@ bool MainController::processInput(const String input)
         // Execute the command string directly (this also adds to history)
         String result = cmdMgr->executeCommandString(input, CommandSource::Serial);
         if (!result.isEmpty()) {
-            Serial.println(result);
+            serialManager.output(result);
         }
         return true;
     }
@@ -245,6 +252,10 @@ void MainController::processCommand(String command, std::vector<String> params)
 void MainController::processMQTT(String topic, String value)
 {
     eventManager.debug("Received MQTT message: " + topic + " = " + value, 2);
+
+    // IMPORTANT: Always forward MQTT messages to devices first
+    // This allows devices to handle their own topics (e.g., esp32test/led)
+    deviceManager.processEventDevices("mqtt", "message", {topic, value});
 
     String hostname = configManager.getHostname();
     
@@ -309,7 +320,7 @@ EventManager* MainController::getEventManager()
 
 void MainController::processDebugMessage(String message, int level, bool displayTime)
 {
-    if (level <= configManager.getPreference("debug_level", 0)) {
+    if (level <= systemManager.getDebugLevel()) {
         String logJson;
         if (displayTime && level > 0) {
             String time = timeManager.getFormattedDateTime("%H:%M:%S");

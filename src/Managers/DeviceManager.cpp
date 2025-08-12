@@ -1,7 +1,7 @@
-#include <DeviceManager.h>
-#include <ConfigurationManager.h>
-#include <EventManager.h>
-#include <CommandManager.h>
+#include "Managers/DeviceManager.h"
+#include "Managers/ConfigurationManager.h"
+#include "Managers/EventManager.h"
+#include "Managers/CommandManager.h"
 
 
 void DeviceManager::init()

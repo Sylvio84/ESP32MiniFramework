@@ -1,7 +1,7 @@
-#include <MQTTManager.h>
-#include <ConfigurationManager.h>
-#include <EventManager.h>
-#include <CommandManager.h>
+#include "Managers/MQTTManager.h"
+#include "Managers/ConfigurationManager.h"
+#include "Managers/EventManager.h"
+#include "Managers/CommandManager.h"
 
 
 void MQTTManager::init()
@@ -75,7 +75,7 @@ void MQTTManager::loop()
         lastPing = currentMillis;
     }
 
-    if (currentMillis - lastMQTTReconnect >= (reconnectDelay * 1000)) {
+    if (currentMillis - lastMQTTReconnect >= (reconnectDelay * MS_PER_SECOND)) {
         if ((status >= 2) && server != "" && !mqttClient.connected()) {
             logDebug("MQTT: Try to connect....", 1);
             if (!reconnect()) {
@@ -98,7 +98,7 @@ void MQTTManager::loop()
         lastMQTTReconnect = currentMillis;
     }
 
-    if ((lastMQTTLoop == 0) || (currentMillis - lastMQTTLoop >= 25)) {
+    if ((lastMQTTLoop == 0) || (currentMillis - lastMQTTLoop >= MQTT_LOOP_INTERVAL_MS)) {
         if (mqttClient.loop()) {
             // Si la connexion est maintenue et qu'on avait des échecs précédents
             if (retry > 0) {

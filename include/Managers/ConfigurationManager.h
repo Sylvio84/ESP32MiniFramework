@@ -1,7 +1,7 @@
 #ifndef CONFIGURATIONMANAGER_H
 #define CONFIGURATIONMANAGER_H
 
-#include <Manager.h>
+#include "Manager.h"
 #include <Arduino.h>
 #include <map>
 

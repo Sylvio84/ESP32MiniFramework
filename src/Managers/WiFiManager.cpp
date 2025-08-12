@@ -1,41 +1,42 @@
-#include <WiFiManager.h>
-#include <ConfigurationManager.h>
-#include <EventManager.h>
-#include <TimeManager.h>
-#include <MQTTManager.h>
-#include <CommandManager.h>
 #include <ArduinoJson.h>
+#include "Managers/CommandManager.h"
+#include "Managers/ConfigurationManager.h"
+#include "Managers/EventManager.h"
+#include "Managers/MQTTManager.h"
+#include "Managers/TimeManager.h"
+#include "Managers/WiFiManager.h"
 #include <algorithm>
-
 
 void WiFiManager::init()
 {
-    init(true);
-}
 
-void WiFiManager::init(bool auto_connect)
-{
     logDebug("Init WiFiManager", 1);
-    
-    // Initialize password prompt state
-    waitingForPassword = false;
-    pendingSSID = "";
-    pendingAutoConnect = true;
-    
+
     // Load saved networks first
     loadSavedNetworks();
-    
+
     // Get legacy SSID/password for backward compatibility
     retrieveSSID();
     retrievePassword();
-    
+
+    initConnection(true);
+
+    // Register WiFi commands with CommandManager
+    registerCommands();
+
+    setInitialized(true);
+}
+
+void WiFiManager::initConnection(bool auto_connect = true)
+{
+
     auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
     apMode = static_cast<wm_ap_mode>(configMgr ? configMgr->getPreference("ap_mode", 2) : 2);
 
     // Connection logic - unified system
     if (auto_connect) {
         bool connected = false;
-        
+
         // First try saved networks (new system)
         if (!savedNetworks.empty()) {
             connected = connectToSavedNetwork();
@@ -43,7 +44,7 @@ void WiFiManager::init(bool auto_connect)
                 logDebug("Connected using saved networks", 1);
             }
         }
-        
+
         // If no saved networks or connection failed, try legacy SSID (backward compatibility)
         // But only if it's not already in saved networks
         if (!connected && this->ssid.length() > 0) {
@@ -54,7 +55,7 @@ void WiFiManager::init(bool auto_connect)
                     break;
                 }
             }
-            
+
             if (!legacyAlreadyTried) {
                 logDebug("Trying legacy SSID: " + this->ssid, 1);
                 connected = this->connect();
@@ -62,7 +63,7 @@ void WiFiManager::init(bool auto_connect)
                 logDebug("Legacy SSID already tried in saved networks: " + this->ssid, 2);
             }
         }
-        
+
         // If nothing worked, start Access Point
         if (!connected) {
             logDebug("No connection possible, starting Access Point", 0);
@@ -75,11 +76,6 @@ void WiFiManager::init(bool auto_connect)
             startAccessPoint();
         }
     }
-    
-    // Register WiFi commands with CommandManager
-    registerCommands();
-    
-    setInitialized(true);
 }
 
 void WiFiManager::loop()
@@ -102,7 +98,6 @@ void WiFiManager::loop()
 
     if (currentMillis - lastMillis >= wait) {
         if (connectionStatus < 10) {
-            //Serial.println(WiFi.status());
             if (WiFi.status() != WL_CONNECTED) {
                 this->connected = false;
 #ifdef ESP8266
@@ -119,7 +114,7 @@ void WiFiManager::loop()
                 std::vector<String> params;
                 params.push_back(String(tryCount));
                 context->getEventManager()->triggerEvent("wifi", "in_progress", params);
-                if (tryCount >= 20) {
+                if (tryCount >= MAX_RETRY_COUNT) {
                     tryCount = 0;
                     if (keepConnected) {
                         // Try all saved networks in priority order
@@ -133,7 +128,7 @@ void WiFiManager::loop()
                             connectionStatus = 2;
                             logDebug("WiFi: Connection failed", 1);
                             context->getEventManager()->triggerEvent("wifi", "failed", params);
-                            
+
                             // Try all saved networks before starting AP
                             if (connectToSavedNetwork()) {
                                 logDebug("WiFi: Connected to saved network", 1);
@@ -143,8 +138,6 @@ void WiFiManager::loop()
                             }
                         }
                     }
-                } else {
-                    //Serial.print("*");
                 }
                 logDebug("WiFi: connection in progress #" + String(tryCount) + "...", 2);
             } else {
@@ -170,20 +163,6 @@ void WiFiManager::loop()
 
 bool WiFiManager::onEvent(const String& type, const String& event, const std::vector<String>& params)
 {
-    // Debug log to see what's happening
-    if (type == "serial" && event == "input") {
-        logDebug("WiFiManager onEvent - serial input received. waitingForPassword=" + String(waitingForPassword ? "true" : "false"), 1);
-    }
-    
-    // Intercept serial input when waiting for password
-    if (waitingForPassword && type == "serial" && event == "input") {
-        if (params.size() > 0) {
-            logDebug("WiFiManager intercepting input for password prompt", 2);
-            return handlePasswordInput(params[0]);
-        }
-        return true; // Consume the event even if no params
-    }
-    
     if (type == "wifi") {
         if (event == "connected" || event == "recovered") {
             // Update time when WiFi connects
@@ -191,50 +170,50 @@ bool WiFiManager::onEvent(const String& type, const String& event, const std::ve
             if (timeMgr) {
                 timeMgr->update();
             }
-            
+
             // Update MQTT status
             auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
             if (mqttMgr) {
                 mqttMgr->setStatus(2);
             }
-            
+
             debug("Connected to WiFi: " + (params.size() > 0 ? params[0] : "unknown"), 1);
             if (params.size() > 1) {
                 debug("IP address: " + params[1], 1);
             }
-            return false; // Don't block other managers from handling this event
-            
+            return false;  // Don't block other managers from handling this event
+
         } else if (event == "ap_started") {
             debug("WiFi Access Point started", 1);
             // ESPUI.begin(); // Could be handled here if needed
-            return false; // Don't block other managers from handling this event
-            
+            return false;  // Don't block other managers from handling this event
+
         } else if (event == "disconnected" || event == "lost") {
             // Update MQTT status when WiFi disconnects
             auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
             if (mqttMgr) {
                 mqttMgr->setStatus(1);
             }
-            
+
             debug("WiFi disconnected", 1);
-            return false; // Don't block other managers from handling this event
-            
+            return false;  // Don't block other managers from handling this event
+
         } else if (event.startsWith("@")) {
             // Handle WiFi commands via events
             return onCommand(event.substring(1), params);
         }
     }
-    
-    return false; // Event not handled
+
+    return false;  // Event not handled
 }
 
 bool WiFiManager::onCommand(const String& command, const std::vector<String>& params)
 {
     // Legacy command system - most commands migrated to registerCommands()
     // Keep only non-duplicated commands here
-    
+
     logDebug("Processing legacy WiFi command: " + command, 3);
-    
+
     if (command == "debug") {
         logDebug("Debug infos:", 0);
         logDebug("SSID: " + retrieveSSID() + "\nPassword: " + retrievePassword(), 0);
@@ -257,7 +236,7 @@ bool WiFiManager::onCommand(const String& command, const std::vector<String>& pa
         }
 #endif
     } else {
-        return false; // Command not handled by legacy system
+        return false;  // Command not handled by legacy system
     }
     return true;
 }
@@ -300,7 +279,7 @@ bool WiFiManager::connect()
     //WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8));
 
     WiFi.begin(this->ssid.c_str(), this->password.c_str());
-    
+
     // Wait for connection with timeout (10 seconds)
     unsigned long startTime = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - startTime < CONNECTION_TIMEOUT) {
@@ -447,21 +426,21 @@ void WiFiManager::saveSSID(String ssid, bool reconnect)
 {
     this->ssid = ssid;
     logDebug("New WiFi SSID: " + this->ssid, 1);
-    
+
     // Save to legacy preferences for backward compatibility
     auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
     if (configMgr) {
         configMgr->setPreference("wf_ssid", ssid);
         logDebug("SSID saved to legacy preferences", 2);
     }
-    
+
     // If we have both SSID and password, save to unified system with highest priority
     if (!this->ssid.isEmpty() && !this->password.isEmpty()) {
         if (saveNetwork(this->ssid, this->password, 1000)) {
             logDebug("Network saved to unified system with priority 1000", 2);
         }
     }
-    
+
     if (reconnect) {
         disconnect();
         connect();
@@ -472,21 +451,21 @@ void WiFiManager::savePassword(String password, bool reconnect)
 {
     this->password = password;
     logDebug("New WiFi password: " + this->password, 1);
-    
+
     // Save to legacy preferences for backward compatibility
     auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
     if (configMgr) {
         configMgr->setPreference("wf_pass", password);
         logDebug("Password saved to legacy preferences", 2);
     }
-    
+
     // If we have both SSID and password, save to unified system with highest priority
     if (!this->ssid.isEmpty() && !this->password.isEmpty()) {
         if (saveNetwork(this->ssid, this->password, 1000)) {
             logDebug("Network saved to unified system with priority 1000", 2);
         }
     }
-    
+
     if (reconnect) {
         disconnect();
         connect();
@@ -498,6 +477,10 @@ String WiFiManager::getDebugInfos()
     return "SSID: " + retrieveSSID() + "\nPassword: " + retrievePassword();
 }
 
+
+/**
+ * @deprecated
+ */
 String WiFiManager::retrieveSSID()
 {
     // Use ConfigurationManager instead of old Configuration
@@ -511,6 +494,9 @@ String WiFiManager::retrieveSSID()
     return ssid;
 }
 
+/**
+ * @deprecated
+ */
 String WiFiManager::retrievePassword()
 {
     // Use ConfigurationManager instead of old Configuration
@@ -814,8 +800,9 @@ bool WiFiManager::otaUpdate()
 // Saved Networks Management Implementation
 bool WiFiManager::saveNetwork(const String& ssid, const String& password, int priority)
 {
-    if (ssid.isEmpty()) return false;
-    
+    if (ssid.isEmpty())
+        return false;
+
     // If priority is 0 (default), assign highest priority automatically
     if (priority == 0) {
         int maxPriority = 0;
@@ -824,10 +811,10 @@ bool WiFiManager::saveNetwork(const String& ssid, const String& password, int pr
                 maxPriority = network.priority;
             }
         }
-        priority = maxPriority + 10; // Give new network highest priority
+        priority = maxPriority + 10;  // Give new network highest priority
         logDebug("Auto-assigned priority " + String(priority) + " to new network: " + ssid, 2);
     }
-    
+
     // Check if network already exists and update it
     for (auto& network : savedNetworks) {
         if (network.ssid == ssid) {
@@ -844,13 +831,13 @@ bool WiFiManager::saveNetwork(const String& ssid, const String& password, int pr
             return true;
         }
     }
-    
+
     // Add new network
     SavedNetwork newNetwork;
     newNetwork.ssid = ssid;
     newNetwork.password = password;
     newNetwork.priority = priority;
-    
+
     savedNetworks.push_back(newNetwork);
     saveSavedNetworksToPrefs();
     logDebug("Added new saved network: " + ssid + " with priority " + String(priority), 2);
@@ -876,7 +863,7 @@ void WiFiManager::listSavedNetworks()
         logDebug("No saved networks", 0);
         return;
     }
-    
+
     logDebug("Saved networks:", 0);
     for (size_t i = 0; i < savedNetworks.size(); i++) {
         String info = String(i) + ": " + savedNetworks[i].ssid;
@@ -890,27 +877,28 @@ void WiFiManager::listSavedNetworks()
 void WiFiManager::clearSavedNetworks()
 {
     savedNetworks.clear();
-    
+
     auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
     if (configMgr) {
         configMgr->setPreference("saved_networks", "");
     }
-    
+
     logDebug("Cleared all saved networks", 2);
 }
 
 void WiFiManager::loadSavedNetworks()
 {
     auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
-    if (!configMgr) return;
-    
+    if (!configMgr)
+        return;
+
     String networksJson = configMgr->getPreference("saved_networks", "[]");
-    
+
     // If no saved networks, try to migrate from legacy system
     if (networksJson == "[]") {
         String legacySSID = configMgr->getPreference("wf_ssid", "");
         String legacyPass = configMgr->getPreference("wf_pass", "");
-        
+
         if (!legacySSID.isEmpty() && !legacyPass.isEmpty()) {
             logDebug("Migrating legacy network to unified system: " + legacySSID, 1);
             // Create the legacy network with priority 1000 (highest)
@@ -918,58 +906,59 @@ void WiFiManager::loadSavedNetworks()
                 logDebug("Legacy network migrated successfully", 1);
                 // Don't delete legacy preferences yet - keep for compatibility
             }
-            return; // We've migrated, savedNetworks is now populated
+            return;  // We've migrated, savedNetworks is now populated
         } else {
             logDebug("No saved networks or legacy networks found", 2);
             return;
         }
     }
-    
+
     // Parse JSON and load networks
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, networksJson);
-    
+
     if (error) {
         logDebug("Failed to parse saved networks JSON: " + String(error.c_str()), 1);
         return;
     }
-    
+
     savedNetworks.clear();
     JsonArray networks = doc.as<JsonArray>();
-    
+
     for (JsonObject network : networks) {
         SavedNetwork saved;
         saved.ssid = network["ssid"].as<String>();
         saved.password = network["password"].as<String>();
         saved.priority = network["priority"].as<int>();
-        
+
         if (!saved.ssid.isEmpty()) {
             savedNetworks.push_back(saved);
         }
     }
-    
+
     logDebug("Loaded " + String(savedNetworks.size()) + " saved networks", 2);
 }
 
 void WiFiManager::saveSavedNetworksToPrefs()
 {
     auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
-    if (!configMgr) return;
-    
+    if (!configMgr)
+        return;
+
     JsonDocument doc;
     JsonArray networks = doc.to<JsonArray>();
-    
+
     for (const auto& network : savedNetworks) {
         JsonObject netObj = networks.add<JsonObject>();
         netObj["ssid"] = network.ssid;
         netObj["password"] = network.password;
         netObj["priority"] = network.priority;
     }
-    
+
     String json;
     serializeJson(doc, json);
     configMgr->setPreference("saved_networks", json);
-    
+
     logDebug("Saved networks to preferences", 3);
 }
 
@@ -979,226 +968,132 @@ bool WiFiManager::connectToSavedNetwork()
         logDebug("No saved networks available", 2);
         return false;
     }
-    
+
     // Sort networks by priority (highest first)
-    std::sort(savedNetworks.begin(), savedNetworks.end(), 
-              [](const SavedNetwork& a, const SavedNetwork& b) {
-                  return a.priority > b.priority;
-              });
-    
+    std::sort(savedNetworks.begin(), savedNetworks.end(), [](const SavedNetwork& a, const SavedNetwork& b) { return a.priority > b.priority; });
+
     // Try each network in priority order
     for (const auto& network : savedNetworks) {
         logDebug("Trying saved network: " + network.ssid, 1);
         this->ssid = network.ssid;
         this->password = network.password;
-        
+
         if (connect()) {
             logDebug("Connected to saved network: " + network.ssid, 1);
             return true;
         }
-        
+
         // Wait a bit before trying next network
-        delay(1000);
+        delay(NETWORK_RETRY_DELAY_MS);
     }
-    
+
     logDebug("Failed to connect to any saved network", 1);
     return false;
 }
 
 // Interactive Password Prompt Implementation
-void WiFiManager::promptForPassword(const String& ssid, bool autoConnect)
-{
-    waitingForPassword = true;
-    pendingSSID = ssid;
-    pendingAutoConnect = autoConnect;
-    
-    Serial.println();
-    Serial.println("Enter password for network: " + ssid);
-    Serial.print("Password> ");
-    
-    logDebug("Started password prompt for: " + ssid, 2);
-}
-
-bool WiFiManager::handlePasswordInput(const String& input)
-{
-    if (!waitingForPassword) {
-        return false; // Not waiting for password
-    }
-    
-    String trimmedInput = input;
-    trimmedInput.trim();
-    
-    // Handle special commands
-    if (trimmedInput == "cancel" || trimmedInput == "abort") {
-        cancelPasswordPrompt();
-        Serial.println("Password prompt cancelled.");
-        return true;
-    }
-    
-    if (trimmedInput == "") {
-        Serial.println("Password cannot be empty. Type 'cancel' to abort.");
-        Serial.print("Password> ");
-        return true;
-    }
-    
-    // Process the password
-    String ssid = pendingSSID;
-    String password = trimmedInput;
-    bool autoConnect = pendingAutoConnect;
-    
-    // Reset prompt state
-    waitingForPassword = false;
-    pendingSSID = "";
-    pendingAutoConnect = true;
-    
-    Serial.println();
-    Serial.println("Saving network: " + ssid);
-    
-    // Save network with auto-priority (will be highest + 10)
-    if (saveNetwork(ssid, password, 0)) {
-        this->ssid = ssid;     // Update legacy vars
-        this->password = password;
-        
-        if (autoConnect) {
-            Serial.println("Connecting to " + ssid + "...");
-            if (connect()) {
-                Serial.println("Connected successfully!");
-            } else {
-                Serial.println("Connection failed. Network saved for later retry.");
-            }
-        } else {
-            Serial.println("Network saved. Use wifi:connect to connect.");
-        }
-    } else {
-        Serial.println("Failed to save network.");
-    }
-    
-    return true; // Event handled
-}
-
-void WiFiManager::cancelPasswordPrompt()
-{
-    waitingForPassword = false;
-    pendingSSID = "";
-    pendingAutoConnect = true;
-    logDebug("Password prompt cancelled", 2);
-}
-
 void WiFiManager::registerCommands()
 {
     auto* cmdMgr = static_cast<CommandManager*>(context ? context->getManager("CommandManager") : nullptr);
-    if (!cmdMgr) return;
+    if (!cmdMgr)
+        return;
 
     // WiFi connection commands
-    cmdMgr->registerCommand(Command(
-        "wifi", "connect", "Connect to WiFi network",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            connect();
-            return "WiFi connection initiated";
-        }
-    ));
+    cmdMgr->registerCommand(Command("wifi", "connect", "Connect to WiFi network", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        connect();
+        return "WiFi connection initiated";
+    }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "disconnect", "Disconnect from WiFi",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            disconnect();
-            return "WiFi disconnected";
-        }
-    ));
+    cmdMgr->registerCommand(Command("wifi", "disconnect", "Disconnect from WiFi", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        disconnect();
+        return "WiFi disconnected";
+    }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "ap", "Start WiFi Access Point mode",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            startAccessPoint();
-            return "WiFi Access Point started";
-        }
-    ));
+    cmdMgr->registerCommand(Command("wifi", "ap", "Start WiFi Access Point mode", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        startAccessPoint();
+        return "WiFi Access Point started";
+    }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "ssid", "Get/Set primary WiFi SSID",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            if (args.size() > 0) {
-                String newSSID = args[0];
-                
-                // Check if network already exists in saved networks
-                for (const auto& network : savedNetworks) {
-                    if (network.ssid == newSSID) {
-                        // Network already saved - just update current and connect
-                        this->ssid = newSSID;
-                        this->password = network.password;
-                        return "Using saved network: " + newSSID + "\nConnecting...";
-                    }
+    cmdMgr->registerCommand(Command("wifi", "ssid", "Get/Set primary WiFi SSID", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        if (args.size() > 0) {
+            String newSSID = args[0];
+
+            // Check if network already exists in saved networks
+            for (const auto& network : savedNetworks) {
+                if (network.ssid == newSSID) {
+                    // Network already saved - just update current and connect
+                    this->ssid = newSSID;
+                    this->password = network.password;
+                    return "Using saved network: " + newSSID + "\nConnecting...";
                 }
-                
-                // New network - prompt for password
-                this->ssid = newSSID; // Update current SSID for legacy compatibility
-                promptForPassword(newSSID, true);
-                return ""; // promptForPassword already displays the message
             }
-            
-            // Show current SSID (connected or configured)
-            if (WiFi.status() == WL_CONNECTED) {
-                return "Connected SSID: " + WiFi.SSID();
-            } else if (!savedNetworks.empty()) {
-                // Find highest priority network
-                auto maxNetwork = std::max_element(savedNetworks.begin(), savedNetworks.end(),
-                    [](const SavedNetwork& a, const SavedNetwork& b) {
-                        return a.priority < b.priority;
-                    });
-                return "Primary SSID: " + maxNetwork->ssid;
-            } else {
-                return "SSID: " + (ssid.isEmpty() ? "(none)" : ssid);
-            }
-        }
-    ));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "pass", "Set WiFi password for primary SSID",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+            // New network - prompt for password
+            auto* cmdMgr = static_cast<CommandManager*>(context->getManager("CommandManager"));
+            if (cmdMgr) {
+                String prompt = "Enter password for network: " + newSSID + ":";
+                cmdMgr->requestInput(prompt, [this, newSSID](const String& password) {
+                    if (password.isEmpty()) {
+                        // Cancelled
+                        debug("Password input cancelled", 1);
+                        return;
+                    }
+                    
+                    // Save and connect
+                    if (saveNetwork(newSSID, password, 0)) {
+                        this->ssid = newSSID;
+                        this->password = password;
+                        connect();
+                    }
+                });
+                return "";  // Return empty, prompt handles the message
+            }
+            return "CommandManager not available";
+        }
+
+        // Show current SSID (connected or configured)
+        if (WiFi.status() == WL_CONNECTED) {
+            return "Connected SSID: " + WiFi.SSID();
+        } else if (!savedNetworks.empty()) {
+            // Find highest priority network
+            auto maxNetwork = std::max_element(savedNetworks.begin(), savedNetworks.end(),
+                                               [](const SavedNetwork& a, const SavedNetwork& b) { return a.priority < b.priority; });
+            return "Primary SSID: " + maxNetwork->ssid;
+        } else {
+            return "SSID: " + (ssid.isEmpty() ? "(none)" : ssid);
+        }
+    }));
+
+    cmdMgr->registerCommand(
+        Command("wifi", "pass", "Set WiFi password for primary SSID", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 if (ssid.isEmpty()) {
                     return "No SSID set. Use wifi:ssid <ssid> first";
                 }
                 // Save the network with highest priority (1000) to make it primary
                 if (saveNetwork(ssid, args[0], 1000)) {
-                    this->password = args[0]; // Update legacy password
+                    this->password = args[0];  // Update legacy password
                     return "Password saved for primary network: " + ssid;
                 } else {
                     return "Failed to save network";
                 }
             }
             return "Use: wifi:pass <password> to set password for SSID: " + (ssid.isEmpty() ? "(none)" : ssid);
-        }
-    ));
+        }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "reset", "Reset WiFi credentials",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            clearSavedNetworks();
-            saveSSID("");
-            savePassword("");
-            return "All WiFi credentials cleared";
-        }
-    ));
+    cmdMgr->registerCommand(Command("wifi", "reset", "Reset WiFi credentials", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        clearSavedNetworks();
+        saveSSID("");
+        savePassword("");
+        return "All WiFi credentials cleared";
+    }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "autoconnect", "Auto-connect to saved WiFi",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            return autoConnect() ? "WiFi auto-connect successful" : "WiFi auto-connect failed";
-        }
-    ));
+    cmdMgr->registerCommand(
+        Command("wifi", "autoconnect", "Auto-connect to saved WiFi", CommandSource::Any, true,
+                [this](const std::vector<String>& args) -> String { return autoConnect() ? "WiFi auto-connect successful" : "WiFi auto-connect failed"; }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "status", "Show WiFi connection status",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("wifi", "status", "Show WiFi connection status", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             String result = "WiFi Status:\n";
             result += "  Connected: " + String(isConnected() ? "Yes" : "No") + "\n";
             result += "  Status: " + getStatus() + "\n";
@@ -1208,34 +1103,32 @@ void WiFiManager::registerCommands()
                 result += "  Signal: " + String(WiFi.RSSI()) + " dBm";
             }
             return result;
-        }
-    ));
+        }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "scan", "Scan for available WiFi networks",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("wifi", "scan", "Scan for available WiFi networks", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             // Start scan
-            WiFi.scanDelete(); // Clear previous results
-            WiFi.scanNetworks(true); // Start async scan
-            
+            WiFi.scanDelete();        // Clear previous results
+            WiFi.scanNetworks(true);  // Start async scan
+
             // Wait for scan to complete (with timeout)
-            int timeout = 10000; // 10 seconds
+            int timeout = CONNECTION_TIMEOUT_MS;  // 10 seconds
             int startTime = millis();
             int count = -1;
-            
+
             while (millis() - startTime < timeout) {
                 count = WiFi.scanComplete();
-                if (count >= 0) break; // Scan complete
+                if (count >= 0)
+                    break;  // Scan complete
                 delay(100);
             }
-            
+
             if (count == -1) {
                 return "WiFi scan timeout. Try again.";
             } else if (count == 0) {
                 return "No networks found.";
             }
-            
+
             String result = "Found " + String(count) + " networks:\n";
             for (int i = 0; i < count; i++) {
                 result += "  " + String(i) + ": " + getNetworkInfo(i, "ssid");
@@ -1247,28 +1140,25 @@ void WiFiManager::registerCommands()
             }
             result += "\nUse wifi:network <n> to select a network";
             return result;
-        }
-    ));
+        }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "network", "Select network from scan by number",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("wifi", "network", "Select network from scan by number", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             if (args.size() > 0) {
                 int networkIndex = args[0].toInt();
                 int count = WiFi.scanComplete();
-                
+
                 if (count == -1) {
                     return "No scan results available. Run wifi:scan first";
                 }
-                
+
                 if (networkIndex < 0 || networkIndex >= count) {
-                    return "Invalid network number. Use 0-" + String(count-1);
+                    return "Invalid network number. Use 0-" + String(count - 1);
                 }
-                
+
                 String selectedSSID = getNetworkInfo(networkIndex, "ssid");
-                this->ssid = selectedSSID; // Set for legacy compatibility
-                
+                this->ssid = selectedSSID;  // Set for legacy compatibility
+
                 // Check if network already exists in saved networks
                 for (const auto& network : savedNetworks) {
                     if (network.ssid == selectedSSID) {
@@ -1277,14 +1167,14 @@ void WiFiManager::registerCommands()
                         return "Using saved network: " + selectedSSID + "\nUse wifi:connect to connect";
                     }
                 }
-                
+
                 // Check if network is open (no password needed)
                 String encryption = getNetworkInfo(networkIndex, "encryption");
                 if (encryption == "Open" || encryption == "0") {
                     // Open network - save without password
                     if (saveNetwork(selectedSSID, "", 1000)) {
                         this->password = "";
-                        Serial.println("Connecting to open network: " + selectedSSID);
+                        debug("Connecting to open network: " + selectedSSID, 1);
                         if (connect()) {
                             return "Connected to open network: " + selectedSSID;
                         } else {
@@ -1294,20 +1184,35 @@ void WiFiManager::registerCommands()
                         return "Failed to save network: " + selectedSSID;
                     }
                 }
-                
+
                 // Protected network - prompt for password
-                promptForPassword(selectedSSID, true);
-                return ""; // promptForPassword already displays the message
+                auto* cmdMgr = static_cast<CommandManager*>(context->getManager("CommandManager"));
+                if (cmdMgr) {
+                    String prompt = "Enter password for network: " + selectedSSID + ":";
+                    cmdMgr->requestInput(prompt, [this, selectedSSID](const String& password) {
+                        if (password.isEmpty()) {
+                            // Cancelled
+                            debug("Password input cancelled", 1);
+                            return;
+                        }
+                        
+                        // Save and connect
+                        if (saveNetwork(selectedSSID, password, 0)) {
+                            this->ssid = selectedSSID;
+                            this->password = password;
+                            connect();
+                        }
+                    });
+                    return "";  // Return empty, prompt handles the message
+                }
+                return "CommandManager not available";
             } else {
                 return "Current network: " + (ssid.isEmpty() ? "(none)" : ssid) + "\nUsage: wifi:network <number>";
             }
-        }
-    ));
+        }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "info", "Show detailed WiFi information",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("wifi", "info", "Show detailed WiFi information", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             String result = "WiFi Information:\n";
             result += "  SSID: " + retrieveSSID() + "\n";
             result += "  Connected: " + String(isConnected() ? "Yes" : "No") + "\n";
@@ -1321,15 +1226,11 @@ void WiFiManager::registerCommands()
                 result += "  Status: " + getStatus();
             }
             return result;
-        }
-    ));
-
+        }));
 
     // Saved networks management commands
-    cmdMgr->registerCommand(Command(
-        "wifi", "save", "Save WiFi network credentials",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("wifi", "save", "Save WiFi network credentials", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             if (args.size() >= 2) {
                 int priority = args.size() > 2 ? args[2].toInt() : 0;
                 if (saveNetwork(args[0], args[1], priority)) {
@@ -1339,116 +1240,83 @@ void WiFiManager::registerCommands()
                 }
             }
             return "Usage: wifi:save <ssid> <password> [priority]";
-        }
-    ));
+        }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "remove", "Remove saved WiFi network",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            if (args.size() > 0) {
-                if (removeNetwork(args[0])) {
-                    return "Network removed: " + args[0];
-                } else {
-                    return "Network not found: " + args[0];
-                }
+    cmdMgr->registerCommand(Command("wifi", "remove", "Remove saved WiFi network", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        if (args.size() > 0) {
+            if (removeNetwork(args[0])) {
+                return "Network removed: " + args[0];
+            } else {
+                return "Network not found: " + args[0];
             }
-            return "Usage: wifi:remove <ssid>";
         }
-    ));
+        return "Usage: wifi:remove <ssid>";
+    }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "list", "List saved WiFi networks",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            if (savedNetworks.empty()) {
-                return "No saved networks";
+    cmdMgr->registerCommand(Command("wifi", "list", "List saved WiFi networks", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        if (savedNetworks.empty()) {
+            return "No saved networks";
+        }
+
+        String result = "Saved networks:\n";
+        for (size_t i = 0; i < savedNetworks.size(); i++) {
+            result += "  " + String(i) + ": " + savedNetworks[i].ssid;
+            if (savedNetworks[i].priority > 0) {
+                result += " (priority: " + String(savedNetworks[i].priority) + ")";
             }
-            
-            String result = "Saved networks:\n";
-            for (size_t i = 0; i < savedNetworks.size(); i++) {
-                result += "  " + String(i) + ": " + savedNetworks[i].ssid;
-                if (savedNetworks[i].priority > 0) {
-                    result += " (priority: " + String(savedNetworks[i].priority) + ")";
-                }
-                result += "\n";
-            }
-            return result;
+            result += "\n";
         }
-    ));
+        return result;
+    }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "clear", "Clear all saved networks",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            clearSavedNetworks();
-            return "All saved networks cleared";
-        }
-    ));
+    cmdMgr->registerCommand(Command("wifi", "clear", "Clear all saved networks", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        clearSavedNetworks();
+        return "All saved networks cleared";
+    }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "tryall", "Try to connect to saved networks",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("wifi", "tryall", "Try to connect to saved networks", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             if (connectToSavedNetwork()) {
                 return "Connected to saved network: " + ssid;
             } else {
                 return "Failed to connect to any saved network";
             }
-        }
-    ));
+        }));
 
     // Legacy commands not migrated yet
-    cmdMgr->registerCommand(Command(
-        "wifi", "debug", "Show WiFi debug information",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("wifi", "debug", "Show WiFi debug information", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             return "SSID: " + retrieveSSID() + "\nPassword: " + (retrievePassword().isEmpty() ? "(none)" : "***");
-        }
-    ));
+        }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "keep", "Toggle keep connection mode",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            bool isKeepOn = keepConnection();
-            return "Keep connection: " + String(isKeepOn ? "ON" : "OFF");
-        }
-    ));
+    cmdMgr->registerCommand(Command("wifi", "keep", "Toggle keep connection mode", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        bool isKeepOn = keepConnection();
+        return "Keep connection: " + String(isKeepOn ? "ON" : "OFF");
+    }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "telnet", "Setup Telnet server",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            setupTelnet();
-            return "Telnet server started";
-        }
-    ));
+    cmdMgr->registerCommand(Command("wifi", "telnet", "Setup Telnet server", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        setupTelnet();
+        return "Telnet server started";
+    }));
 
-    cmdMgr->registerCommand(Command(
-        "wifi", "cancel", "Cancel password prompt",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            if (waitingForPassword) {
-                cancelPasswordPrompt();
-                return "Password prompt cancelled";
-            } else {
-                return "No active password prompt to cancel";
-            }
+    cmdMgr->registerCommand(Command("wifi", "cancel", "Cancel password prompt", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        auto* cmdMgr = static_cast<CommandManager*>(context->getManager("CommandManager"));
+        if (cmdMgr && cmdMgr->isWaitingForInput()) {
+            cmdMgr->cancelInput();
+            return "Input cancelled";
         }
-    ));
-    
-    cmdMgr->registerCommand(Command(
-        "wifi", "priority", "Set priority for a saved network",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+        return "No active input request";
+    }));
+
+    cmdMgr->registerCommand(
+        Command("wifi", "priority", "Set priority for a saved network", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             if (args.size() < 2) {
                 return "Usage: wifi:priority <ssid> <priority>\nHigher priority = preferred network";
             }
-            
+
             String targetSSID = args[0];
             int newPriority = args[1].toInt();
-            
+
             for (auto& network : savedNetworks) {
                 if (network.ssid == targetSSID) {
                     network.priority = newPriority;
@@ -1456,10 +1324,9 @@ void WiFiManager::registerCommands()
                     return "Updated priority for " + targetSSID + " to " + String(newPriority);
                 }
             }
-            
+
             return "Network not found: " + targetSSID;
-        }
-    ));
+        }));
 
     // Register useful aliases
     cmdMgr->registerAlias("ws", "wifi:status");

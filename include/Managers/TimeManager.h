@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 #include <FrameworkContext.h>
-#include <Manager.h>
+#include "Manager.h"
 #include <ctime>
 #include <functional>
 #include <map>
@@ -88,15 +88,15 @@ class TimeManager : public Manager
     String getName() const override { return "TimeManager"; }
     bool onCommand(const String& command, const std::vector<String>& params) override;
     
+  public:
     void registerCommands();
-
     bool update(bool force = false);
-
     String getFormattedDateTime(const char* format);
-
     uint setTimeout(std::function<void()> callback, unsigned long delay);
     uint setTimeoutObj(void* obj, std::function<void(void*)> callback, unsigned long delay);
     void clearTimeout(uint id);
+    
+  private:
 
     uint setInterval(std::function<void()> callback, unsigned long intervalTime);
     uint setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime);
@@ -110,13 +110,13 @@ class TimeManager : public Manager
     void clearScheduler(uint id);
 
     void initProgram(Program& program);
+  public:
     TimeManager::Program* addProgram(const String& json, std::function<void()> onStart, std::function<void()> onStop);
     static String exportProgramToJson(const Program& program);
+    
+  private:
 
     bool isNight();
-
-  protected:
-    FrameworkContext* context;
 
     struct Timeout
     {

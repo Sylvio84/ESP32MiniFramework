@@ -1,17 +1,12 @@
+#include <Managers/ConfigurationManager.h>
 #include <Devices/InternalLedDevice.h>
-#include <ConfigurationManager.h>
-#include <EventManager.h>
+#include <Managers/EventManager.h>
 
-InternalLedDevice::InternalLedDevice(String id, FrameworkContext& ctx) : Device(id, ctx)
+InternalLedDevice::InternalLedDevice(String id, FrameworkContext& ctx) : OnOffDevice(id, ctx)
 {
     name = "Internal Led";
-    
-    // DELAY hostname setup until init() - Configuration may not be ready yet
-    topic = "ESP32/" + id;  // Temporary topic
-    debug("constructed - will setup topic in init()", 1);
-    addCommand("1", std::bind(&InternalLedDevice::activate, this));
-    addCommand("0", std::bind(&InternalLedDevice::deactivate, this));
-    addCommand("?", std::bind(&InternalLedDevice::getState, this));
+    invertedLogic = true;  // LED interne utilise logique inversée
+    debug("InternalLedDevice constructed", 1);
 }
 
 void InternalLedDevice::detectLedPin()
@@ -37,143 +32,50 @@ void InternalLedDevice::detectLedPin()
             pin = 2;
             break;
         default:
-            pin = LED_BUILTIN;  // Fallback to default LED pin
+            pin = LED_BUILTIN;
             break;
     }
-
 #elif defined(ESP8266)
-    pin = 2;  // NodeMCU, Wemos D1 Mini, etc.
+    pin = 2;
 #else
-    pin = 2;  // Unknown platform fallback
+    pin = 2;
 #endif
-
-    return;
-}
-
-void InternalLedDevice::setPin(int ledPin)
-{
-    pin = ledPin;
-    debug("LED pin set to: " + String(pin), 1);
 }
 
 void InternalLedDevice::init()
 {
-    // SKIP Device::init() to avoid Configuration access
-    // Device::init(); // COMMENTED OUT to prevent Configuration access
-    
-    // Use simple static topic to avoid Configuration dependency
-    topic = "ESP32/" + id;
-    debug("LED device initialized with static topic: " + topic, 1);
-    
+    // First detect the LED pin
     detectLedPin();
-    if (pin < 0) {
-        debug("LED pin not set or detected", 1);
-        return;
-    }
-    debug("initialized on pin " + String(pin), 3);
-    pinMode(pin, OUTPUT);
-    ledOff();
+    debug("LED pin detected: " + String(pin), 1);
     
-    // Register LED commands
-    registerCommands();
+    // Then call parent init
+    OnOffDevice::init();
 }
 
-void InternalLedDevice::registerCommands()
+void InternalLedDevice::registerSpecificCommands()
 {
+    // Register LED-specific commands
+    registerDeviceCommand("blink", "Start blink pattern (interval_ms duration_ms)", 
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() < 2) {
+                return String("ERROR: Usage: led:blink <interval_ms> <duration_ms>");
+            }
+            int interval = args[0].toInt();
+            int duration = args[1].toInt();
+            if (interval <= 0 || duration <= 0) {
+                return String("ERROR: Interval and duration must be positive");
+            }
+            startBlinkPattern(interval, duration);
+            return String("Blink pattern started: " + String(interval) + "ms interval for " + String(duration) + "ms");
+        });
+    
+    // Additional aliases for LED
     auto* cmdMgr = static_cast<CommandManager*>(context->getManager("CommandManager"));
-    if (!cmdMgr) {
-        debug("CommandManager not available for LED commands", 1);
-        return;
-    }
-    
-    // LED device commands in 'led' namespace
-    cmdMgr->registerCommand(Command(
-        "led", "on", "Turn LED on",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            try {
-                activate();
-                return String("LED turned ON");
-            } catch (...) {
-                return String("ERROR: LED control failed");
-            }
-        }
-    ));
-    
-    cmdMgr->registerCommand(Command(
-        "led", "off", "Turn LED off",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            try {
-                deactivate();
-                return String("LED turned OFF");
-            } catch (...) {
-                return String("ERROR: LED control failed");
-            }
-        }
-    ));
-    
-    cmdMgr->registerCommand(Command(
-        "led", "toggle", "Toggle LED state",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            try {
-                toggle();
-                return String("LED toggled");
-            } catch (...) {
-                return String("ERROR: LED control failed");
-            }
-        }
-    ));
-    
-    cmdMgr->registerCommand(Command(
-        "led", "status", "Show LED status",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            try {
-                bool currentState = getState();
-                String result = "LED Status:\n";
-                result += "  Pin: " + String(pin) + "\n";
-                result += "  State: " + String(currentState ? "ON" : "OFF") + "\n";
-                result += "  Active (blinking): " + String(active ? "Yes" : "No") + "\n";
-                result += "  Blink interval: " + String(blinkInterval) + "ms";
-                return result;
-            } catch (...) {
-                return String("ERROR: Could not read LED status");
-            }
-        }
-    ));
-    
-    // Register global aliases for convenience
-    cmdMgr->registerAlias("led_on", "led:on");
-    cmdMgr->registerAlias("led_off", "led:off");
-    cmdMgr->registerAlias("led_toggle", "led:toggle");
-    cmdMgr->registerAlias("led_status", "led:status");
-    
-    debug("LED commands registered in 'led' namespace", 1);
-}
-
-void InternalLedDevice::updateTopicFromConfiguration() 
-{
-    // Call this later to update topic with real hostname
-    try {
-        auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
-        if (configMgr) {
-            String configHostname = configMgr->getHostname();
-            if (!configHostname.isEmpty()) {
-                topic = configHostname + "/" + id;
-                debug("topic updated to: " + topic, 1);
-                
-                // Subscribe to MQTT topic for LED control
-                if (subscribeMQTT(topic)) {
-                    debug("subscribed to MQTT topic: " + topic, 1);
-                } else {
-                    debug("failed to subscribe to MQTT topic: " + topic, 1);
-                }
-            }
-        }
-    } catch (...) {
-        debug("Could not update topic from configuration - keeping static", 1);
+    if (cmdMgr) {
+        cmdMgr->registerAlias("led_on", "led:on");
+        cmdMgr->registerAlias("led_off", "led:off");
+        cmdMgr->registerAlias("led_toggle", "led:toggle");
+        cmdMgr->registerAlias("led_status", "led:state");
     }
 }
 
@@ -183,84 +85,36 @@ void InternalLedDevice::loop()
     processBlinkPattern();
     
     if (active && blinkInterval > 0 && !patternActive) {
-        // If the LED is active, blink it every second
+        // If the LED is active, blink it
         static unsigned long lastBlink = 0;
+        static bool blinkState = false;
         unsigned long currentMillis = millis();
-        //context->getService<EventManager>()->debug("ESP32C3SuperMiniLedDevice loop running: " + String(currentMillis), 3);
         if (currentMillis - lastBlink >= blinkInterval) {
             lastBlink = currentMillis;
-            toggle();  // Toggle the LED state
+            blinkState = !blinkState;
+            writePin(blinkState);
         }
     }
 }
 
-void InternalLedDevice::activate()
+void InternalLedDevice::activate(int timeout)
 {
     active = true;
-    ledOn();
-    debug("LED ON", 2);
+    OnOffDevice::activate(timeout);  // Call parent implementation
 }
 
 void InternalLedDevice::deactivate()
 {
     active = false;
-    ledOff();
-    debug("LED OFF", 2);
+    blinkInterval = 0;  // Reset blink interval when deactivating
+    OnOffDevice::deactivate();  // Call parent implementation
 }
 
-bool InternalLedDevice::getState()
+bool InternalLedDevice::getActive()
 {
-    int currentState = digitalRead(pin);
-    debug("LED state: " + String(currentState), 1);
-    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/status", ledState ? "1" : "0"});
-    return currentState == HIGH;
-}
-
-void InternalLedDevice::toggle()
-{
-    if (ledState) {
-        ledOff();
-        debug("LED toggled OFF", 3);
-    } else {
-        ledOn();
-    }
-}
-
-void InternalLedDevice::ledOff()
-{
-    if (pin < 0) {
-        debug("LED pin not set or detected", 1);
-        return;
-    }
-    digitalWrite(pin, HIGH);  // Note: Most ESP32 boards have inverted LED logic
-    ledState = false;
-    debug("LED turned OFF", 2);
-}
-
-void InternalLedDevice::ledOn()
-{
-    if (pin < 0) {
-        debug("LED pin not set or detected", 1);
-        return;
-    }
-    digitalWrite(pin, LOW);  // Note: Most ESP32 boards have inverted LED logic
-    ledState = true;
-    debug("LED turned ON", 2);
-}
-
-void InternalLedDevice::setState(bool state)
-{
-    if (state) {
-        ledOn();
-    } else {
-        ledOff();
-    }
-}
-
-bool InternalLedDevice::isOn()
-{
-    // Note: Inverted logic (LOW = ON, HIGH = OFF)
-    return digitalRead(pin) == LOW;
+    debug("LED active state: " + String(active), 1);
+    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/active", active ? "1" : "0"});
+    return active;
 }
 
 void InternalLedDevice::startBlinkPattern(int intervalMs, int durationMs)
@@ -271,7 +125,7 @@ void InternalLedDevice::startBlinkPattern(int intervalMs, int durationMs)
     patternInterval = intervalMs;
     patternDuration = durationMs;
     patternLedState = false;
-    setState(patternLedState);
+    writePin(patternLedState);
 }
 
 void InternalLedDevice::processBlinkPattern()
@@ -279,79 +133,48 @@ void InternalLedDevice::processBlinkPattern()
     if (!patternActive) {
         return;
     }
-    
+
     unsigned long currentTime = millis();
-    
+
     // Check if blink duration has expired
     if (currentTime - patternStartTime >= patternDuration) {
         patternActive = false;
-        setState(false); // Ensure LED is off at the end
+        writePin(false);  // Ensure LED is off at the end
         return;
     }
-    
+
     // Check if it's time to toggle the LED
     if (currentTime - patternLastToggle >= patternInterval) {
         patternLedState = !patternLedState;
-        setState(patternLedState);
+        writePin(patternLedState);
         patternLastToggle = currentTime;
     }
 }
 
-bool InternalLedDevice::processCommand(String command, std::vector<String> params)
+bool InternalLedDevice::processMQTTDevice(String topic, String value)
 {
-    debug("Processing led command: " + command, 3);
-    Device::processCommand(command, params);
-    if (command == "activate") {
-        activate();
-        return true;
-    } else if (command == "deactivate") {
-        deactivate();
-        return true;
-    } else if (command == "toggle") {
-        toggle();
-        return true;
-    } else if (command == "state") {
-        getState();
-        debug("State: " + String(state), 0);
+    // First check parent class processing
+    if (OnOffDevice::processMQTTDevice(topic, value)) {
         return true;
     }
-    return false;
-}
-
-bool InternalLedDevice::processMQTT(String topic, String value)
-{
-    Device::processMQTT(topic, value);
-    debug("MQTT message: " + topic + " = " + value, 2);
     
-    // Handle LED-specific MQTT messages
-    if (topic.endsWith("/" + id)) {  // e.g., hostname/led
-        if (value == "1" || value == "on" || value == "ON") {
-            activate();
-            debug("LED activated via MQTT", 1);
-            return true;
-        } else if (value == "0" || value == "off" || value == "OFF") {
-            deactivate();
-            debug("LED deactivated via MQTT", 1);
-            return true;
-        } else if (value == "?" || value == "status") {
-            getState();  // This publishes current state
-            return true;
-        } else if (value == "toggle") {
-            toggle();
-            debug("LED toggled via MQTT", 1);
-            return true;
+    // Then check LED-specific commands
+    if (topic == this->topic || topic.endsWith("/" + id)) {
+        if (value.startsWith("blink ")) {
+            // Parse "blink interval duration"
+            String params = value.substring(6);
+            int spaceIndex = params.indexOf(' ');
+            if (spaceIndex > 0) {
+                int interval = params.substring(0, spaceIndex).toInt();
+                int duration = params.substring(spaceIndex + 1).toInt();
+                if (interval > 0 && duration > 0) {
+                    startBlinkPattern(interval, duration);
+                    debug("LED blink pattern started via MQTT: " + String(interval) + "ms for " + String(duration) + "ms", 1);
+                    return true;
+                }
+            }
         }
     }
     
-    return false;  // Message not handled
-}
-
-void InternalLedDevice::onProgramStart()
-{
-    activate();
-}
-
-void InternalLedDevice::onProgramEnd()
-{
-    deactivate();
+    return false;
 }

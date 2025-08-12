@@ -1,6 +1,6 @@
-#include <Manager.h>
+#include "Managers/Manager.h"
 #include <FrameworkContext.h>
-#include <EventManager.h>
+#include "Managers/EventManager.h"
 
 // Helper method to publish events (decoupled communication)
 void Manager::publishEvent(const String& type, const String& event, 

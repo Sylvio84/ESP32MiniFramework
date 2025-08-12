@@ -6,6 +6,7 @@
 #include <vector>
 #include <memory>
 #include "Manager.h"
+#include <Managers/SerialManager.h>
 #include "Command.h"
 
 /**
@@ -90,6 +91,11 @@ private:
     
     // Maximum history entries
     static const size_t MAX_HISTORY_ENTRIES = 100;
+    
+    // Input request management (simple)
+    String activeInputPrompt;
+    std::function<void(const String&)> activeInputCallback;
+    bool waitingForInput = false;
     
     /**
      * @brief Add command to history
@@ -235,6 +241,26 @@ public:
     bool removeAlias(const String& alias);
     
     /**
+     * @brief Request user input with a callback
+     * @param prompt Message to display to the user  
+     * @param callback Function to call with the user's input (empty string = cancelled)
+     * @return true if request started, false if another request is active
+     */
+    bool requestInput(const String& prompt, 
+                     std::function<void(const String&)> callback);
+    
+    /**
+     * @brief Cancel the active input request
+     */
+    void cancelInput();
+    
+    /**
+     * @brief Check if waiting for input
+     * @return true if an input request is active
+     */
+    bool isWaitingForInput() const { return waitingForInput; }
+    
+    /**
      * @brief Handle framework commands (help, list, etc.)
      * @param command Command name
      * @param params Command parameters
@@ -242,6 +268,12 @@ public:
      */
     bool onCommand(const String& command, 
                   const std::vector<String>& params) override;
+    
+    /**
+     * @brief Handle events from EventManager
+     */
+    bool onEvent(const String& type, const String& event, 
+                const std::vector<String>& params) override;
     
     /**
      * @brief Generate automatic help commands for all namespaces

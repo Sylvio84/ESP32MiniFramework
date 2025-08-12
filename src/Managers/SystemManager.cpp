@@ -1,13 +1,13 @@
 #include <Command.h>
-#include <CommandManager.h>
-#include <ConfigurationManager.h>
-#include <DeviceManager.h>
+#include "Managers/CommandManager.h"
+#include "Managers/ConfigurationManager.h"
+#include "Managers/DeviceManager.h"
 #include <Devices/InternalLedDevice.h>
-#include <EventManager.h>
-#include <MQTTManager.h>
-#include <SystemManager.h>
-#include <TimeManager.h>
-#include <WiFiManager.h>
+#include "Managers/EventManager.h"
+#include "Managers/MQTTManager.h"
+#include "Managers/SystemManager.h"
+#include "Managers/TimeManager.h"
+#include "Managers/WiFiManager.h"
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
@@ -30,10 +30,11 @@ void SystemManager::init()
         ledDev->setState(false);  // Start with LED off
     }
 
-    // Initialize power saving from configuration
+    // Initialize power saving and debug level from configuration
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
     if (configMgr) {
         setPowerSaving(configMgr->getPreference("power_saving", 10));
+        debugLevel = configMgr->getPreference("debug_level", 0);
     }
 
     // Set initial CPU frequency for power efficiency
@@ -222,9 +223,9 @@ void SystemManager::showSystemInfo()
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
     if (configMgr) {
         debug("Hostname: " + configMgr->getHostname(), 0);
-        debug("Debug level: " + String(configMgr->getPreference("debug_level", 0)), 0);
-        debug("Power saving time: " + String(configMgr->getPreference("power_saving", 0)), 0);
     }
+    debug("Debug level: " + String(debugLevel), 0);
+    debug("Power saving time: " + String(powerSaving), 0);
 
     auto* timeMgr = static_cast<TimeManager*>(context->getManager("TimeManager"));
     if (timeMgr) {
@@ -284,9 +285,9 @@ String SystemManager::getSystemInfo()
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
     if (configMgr) {
         info += "Hostname: " + configMgr->getHostname() + "\n";
-        info += "Debug level: " + String(configMgr->getPreference("debug_level", 0)) + "\n";
-        info += "Power saving time: " + String(configMgr->getPreference("power_saving", 0)) + "\n";
     }
+    info += "Debug level: " + String(debugLevel) + "\n";
+    info += "Power saving time: " + String(powerSaving) + "\n";
 
     auto* timeMgr = static_cast<TimeManager*>(context->getManager("TimeManager"));
     if (timeMgr) {
@@ -457,6 +458,21 @@ void SystemManager::clearPowerSavingResumeTimer()
     if (timeMgr && powerSavingResumeTimer > 0) {
         timeMgr->clearTimeout(powerSavingResumeTimer);
         powerSavingResumeTimer = 0;
+    }
+}
+
+// === Debug Level Management ===
+
+void SystemManager::setDebugLevel(int level, bool save)
+{
+    debugLevel = level;
+    debug("Debug level set to: " + String(debugLevel), 1);
+    
+    if (save) {
+        auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
+        if (configMgr) {
+            configMgr->setPreference("debug_level", debugLevel);
+        }
     }
 }
 
@@ -650,5 +666,37 @@ void SystemManager::registerCommands()
             return result;
         }));
 
-    debug("System, WiFi and LED commands registered", 2);
+    // Debug level command
+    cmdMgr->registerCommand(Command("sys", "debug", "Get/Set debug level (0-3)", CommandSource::Any, true, 
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                int level = args[0].toInt();
+                if (level >= 0 && level <= 9) {
+                    setDebugLevel(level);
+                    return String("Debug level set to: " + String(level));
+                } else {
+                    return String("Invalid debug level. Valid range: 0-9");
+                }
+            } else {
+                return String("Debug level: " + String(debugLevel));
+            }
+        }));
+    
+    // Alias for backward compatibility (single digit command)
+    cmdMgr->registerCommand(Command("", "debuglevel", "Set debug level (0-9)", CommandSource::Any, true,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() > 0) {
+                int level = args[0].toInt();
+                if (level >= 0 && level <= 9) {
+                    setDebugLevel(level);
+                    return String("Debug level set to: " + String(level));
+                } else {
+                    return String("Invalid debug level. Valid range: 0-9");
+                }
+            } else {
+                return String("Debug level: " + String(debugLevel));
+            }
+        }));
+
+    debug("System, WiFi, LED and Debug commands registered", 2);
 }

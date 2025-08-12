@@ -1,9 +1,9 @@
-#include "DeviceProgramManager.h"
-#include <ConfigurationManager.h>
-#include <EventManager.h>
-#include <DeviceManager.h>
-#include <TimeManager.h>
-#include <CommandManager.h>
+#include "Managers/DeviceProgramManager.h"
+#include "Managers/ConfigurationManager.h"
+#include "Managers/EventManager.h"
+#include "Managers/DeviceManager.h"
+#include "Managers/TimeManager.h"
+#include "Managers/CommandManager.h"
 
 
 void DeviceProgramManager::init()

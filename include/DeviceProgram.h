@@ -3,10 +3,10 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <DeviceManager.h>
+#include <Managers/DeviceManager.h>
 #include <Devices/Device.h>
-#include <TimeManager.h>
-#include <EventManager.h>
+#include <Managers/TimeManager.h>
+#include <Managers/EventManager.h>
 #include <functional>
 #include <vector>
 

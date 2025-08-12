@@ -1,35 +1,35 @@
-#include "SerialCommandManager.h"
-#include <ConfigurationManager.h>
-#include <EventManager.h>
+#include "Managers/SerialManager.h"
+#include "Managers/ConfigurationManager.h"
+#include "Managers/EventManager.h"
 
 
 // Constructor with clean dependency injection
-SerialCommandManager::SerialCommandManager(FrameworkContext& ctx) : Manager(ctx), context(&ctx)
+SerialManager::SerialManager(FrameworkContext& ctx) : Manager(ctx), context(&ctx)
 {
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
     baudRate = configMgr ? configMgr->getPreference("serial_speed", baudRate) : baudRate;
 }
 
 
-void SerialCommandManager::init()
+void SerialManager::init()
 {
-    logDebug("Initializing SerialCommandManager with baud rate: " + String(baudRate), 1);
+    logDebug("Initializing SerialManager with baud rate: " + String(baudRate), 1);
     Serial.begin(baudRate);
     Serial.println();
-    Serial.println("SerialCommandManager initialized.");
     setInitialized(true);
-    logDebug("SerialCommandManager initialized successfully", 1);
+    logDebug("SerialManager initialized successfully", 1);
 }
 
-void SerialCommandManager::loop()
+void SerialManager::loop()
 {
-    handleSerialInput();
+    handleInput();
 }
 
-void SerialCommandManager::handleSerialInput()
+void SerialManager::handleInput()
 {
     while (Serial.available() > 0) {
         char receivedChar = Serial.read();
+        // Handle special characters 13 = CR, 10 = LF
         if (receivedChar == 13) {
             return;
         }
@@ -47,9 +47,10 @@ void SerialCommandManager::handleSerialInput()
         }
 
         if (validate) {
-            inputBuffer.trim();
-            context->getEventManager()->triggerEvent("serial", "input", {inputBuffer});
+            String cmd = inputBuffer;
+            cmd.trim();
             inputBuffer = "";
+            context->getEventManager()->triggerEvent("serial", "input", {cmd});
             context->getEventManager()->triggerEvent("sys", "power_saving_resume", {"", "60"});
         } else if (receivedChar == '\b' || receivedChar == 127) {
             if (inputBuffer.length() > 0) {
@@ -59,4 +60,18 @@ void SerialCommandManager::handleSerialInput()
             inputBuffer += receivedChar;
         }
     }
+}
+
+void SerialManager::addToInputBuffer(const String input, bool resetBuffer)
+{
+    if (resetBuffer) {
+        inputBuffer = input;
+    } else {
+        inputBuffer += input;
+    }
+}
+
+void SerialManager::output(const String& output)
+{
+    Serial.print(output);
 }

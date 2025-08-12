@@ -2,11 +2,11 @@
 #define MQTTMANAGER_H
 
 #include <Arduino.h>
-#include <Manager.h>
+#include "Manager.h"
 #include <PubSubClient.h>
 #include <vector>
 #include <map>
-// #include <WiFiManager.h>
+// #include "WiFiManager.h"
 #include <FrameworkContext.h>
 #ifndef DISABLE_ESPUI
 #include <ESPUI.h>
@@ -154,6 +154,14 @@ class MQTTManager : public Manager
 #endif
 
   private:
+    // Constants for better maintainability
+    static constexpr unsigned long PING_INTERVAL_MS = 60000;
+    static constexpr unsigned long MQTT_LOOP_INTERVAL_MS = 25;
+    static constexpr unsigned long MAX_RECONNECT_DELAY_SEC = 60;
+    static constexpr unsigned long MS_PER_SECOND = 1000;
+    static constexpr size_t MAX_TOPIC_LENGTH = 128;
+    static constexpr size_t MAX_VALUE_LENGTH = 512;
+    
     FrameworkContext* context;
     
     void registerCommands();
@@ -164,7 +172,7 @@ class MQTTManager : public Manager
     bool connected = false;
 
     unsigned long lastPing = 0;
-    const unsigned long pingInterval = 60000; // 60 seconds
+    const unsigned long pingInterval = PING_INTERVAL_MS; // 60 seconds
 
     std::vector<String> subscriptions;
 

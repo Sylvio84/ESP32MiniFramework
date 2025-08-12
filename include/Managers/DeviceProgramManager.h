@@ -3,12 +3,12 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <Manager.h>
+#include "Manager.h"
 #include <FrameworkContext.h>
 #include <Devices/Device.h>
-#include <DeviceManager.h>
+#include "DeviceManager.h"
 #include <DeviceProgram.h>
-#include <TimeManager.h>
+#include "TimeManager.h"
 #include <memory>
 #include <vector>
 
