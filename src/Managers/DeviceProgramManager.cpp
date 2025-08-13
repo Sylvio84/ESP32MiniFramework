@@ -101,10 +101,20 @@ DeviceProgram* DeviceProgramManager::getDeviceProgramByName(const String& name)
 
 bool DeviceProgramManager::removeDeviceProgram(const String& id, bool saveAfterRemoval)
 {
-    auto deviceProgram = getDeviceProgramById(id);
-    if (deviceProgram) {
-        devicePrograms.erase(std::remove_if(devicePrograms.begin(), devicePrograms.end(), [&](DeviceProgram* dp) { return dp && dp->id == id; }),
-                             devicePrograms.end());
+    bool found = false;
+    auto it = devicePrograms.begin();
+    while (it != devicePrograms.end()) {
+        if (*it && (*it)->id == id) {
+            delete *it;  // Libérer la mémoire
+            it = devicePrograms.erase(it);  // Retirer de la liste
+            found = true;
+            break;  // Un seul programme avec cet ID devrait exister
+        } else {
+            ++it;
+        }
+    }
+    
+    if (found) {
         if (saveAfterRemoval) {
             return saveDevicePrograms();
         } else {
@@ -124,29 +134,42 @@ const std::vector<DeviceProgram*>& DeviceProgramManager::getAllDevicePrograms()
 
 bool DeviceProgramManager::importDeviceProgram(const String& json, String& errorMsg)
 {
-    DeviceProgram* deviceProgram = new DeviceProgram(*context->getEventManager());
     DeviceManager* deviceManager = context ? static_cast<DeviceManager*>(context->getManager("DeviceManager")) : nullptr;
     TimeManager* timeManager = context ? static_cast<TimeManager*>(context->getManager("TimeManager")) : nullptr;
-    if (deviceManager && timeManager && deviceProgram->fromJson(json, *deviceManager, *timeManager, errorMsg)) {
-        for (auto existingProgram : devicePrograms) {
-            if (existingProgram->id == deviceProgram->id) {
-                //errorMsg = "Un programme avec l'ID '" + deviceProgram->id + "' existe déjà.";
-                //delete deviceProgram;
-                //return false;
-                removeDeviceProgram(existingProgram->id, false);
+    
+    if (!deviceManager || !timeManager) {
+        errorMsg = "DeviceManager or TimeManager not available";
+        return false;
+    }
+    
+    DeviceProgram* deviceProgram = new DeviceProgram(*context->getEventManager());
+    
+    if (!deviceProgram) {
+        errorMsg = "Failed to allocate memory for DeviceProgram";
+        return false;
+    }
+    
+    if (deviceProgram->fromJson(json, *deviceManager, *timeManager, errorMsg)) {
+        // Supprimer un programme existant avec le même ID s'il existe
+        // Utiliser un itérateur pour éviter les problèmes avec la modification de la liste pendant l'itération
+        auto it = devicePrograms.begin();
+        while (it != devicePrograms.end()) {
+            if (*it && (*it)->id == deviceProgram->id) {
                 debug("A program with ID '" + deviceProgram->id + "' already exists. Replacing it.", 1);
+                delete *it;  // Supprimer l'ancien programme
+                it = devicePrograms.erase(it);  // Retirer de la liste et obtenir le nouvel itérateur
+                break;  // Un seul programme avec cet ID peut exister
+            } else {
+                ++it;
             }
         }
 
         devicePrograms.push_back(deviceProgram);
         return saveDevicePrograms();
     } else {
-        if (!deviceManager || !timeManager) {
-            errorMsg = "DeviceManager or TimeManager not available";
-        } else {
-            errorMsg = "Erreur lors de l'importation du programme : " + errorMsg;
-        }
+        errorMsg = "Erreur lors de l'importation du programme : " + errorMsg;
         delete deviceProgram;
+        deviceProgram = nullptr;  // Éviter double delete
         return false;
     }
 }
@@ -226,25 +249,37 @@ void DeviceProgramManager::registerCommands()
     auto* cmdMgr = static_cast<CommandManager*>(context ? context->getManager("CommandManager") : nullptr);
     if (!cmdMgr) return;
 
-    // Program list command
+    // Program list command - Enhanced with more details
     cmdMgr->registerCommand(Command(
-        "program", "list", "List all device programs",
+        "program", "list", "List all device programs with details",
         CommandSource::Any, true,
         [this](const std::vector<String>& args) -> String {
             String result = "Device Programs:\n";
             auto programs = getAllDevicePrograms();
             if (programs.empty()) {
-                result += "  (no programs)";
+                result += "  (no programs)\n";
             } else {
+                result += "  ID | Name                | Status    | Devices\n";
+                result += "  ---|---------------------|-----------|--------\n";
                 for (const auto& program : programs) {
-                    result += "  " + program->id + ": " + program->name + "\n";
+                    String status = program->enabled ? "Enabled  " : "Disabled ";
+                    String name = program->name;
+                    // Pad name to 20 chars
+                    while (name.length() < 20) name += " ";
+                    if (name.length() > 20) name = name.substring(0, 20);
+                    
+                    String idStr = program->id;
+                    while (idStr.length() < 3) idStr += " ";
+                    
+                    result += "  " + idStr + "| " + name + "| " + status + " | ";
+                    result += String(program->devices.size()) + " device(s)\n";
                 }
             }
             return result;
         }
     ));
 
-    // Program info command
+    // Program info command - Enhanced with full details
     cmdMgr->registerCommand(Command(
         "program", "info", "Show detailed program information",
         CommandSource::Any, true,
@@ -261,7 +296,55 @@ void DeviceProgramManager::registerCommands()
             String result = "Program Information:\n";
             result += "  ID: " + program->id + "\n";
             result += "  Name: " + program->name + "\n";
-            result += "  Enabled: " + String(program->enabled ? "Yes" : "No");
+            result += "  Status: " + String(program->enabled ? "Enabled" : "Disabled") + "\n";
+            
+            // Device list
+            result += "  Devices (" + String(program->devices.size()) + "):\n";
+            if (program->devices.empty()) {
+                result += "    (no devices)\n";
+            } else {
+                for (const auto& device : program->devices) {
+                    if (device) {
+                        result += "    - " + device->id + " (" + device->name + ")\n";
+                    }
+                }
+            }
+            
+            // Program timing details
+            if (program->program) {
+                result += "  Schedule:\n";
+                if (!program->program->startTime.isEmpty()) {
+                    result += "    Start Time: " + program->program->startTime + "\n";
+                }
+                if (program->program->duration > 0) {
+                    result += "    Duration: " + String(program->program->duration) + " minute(s)\n";
+                }
+                if (!program->program->startDate.isEmpty()) {
+                    result += "    Start Date: " + program->program->startDate + "\n";
+                }
+                if (!program->program->endDate.isEmpty()) {
+                    result += "    End Date: " + program->program->endDate + "\n";
+                }
+                if (!program->program->daysOfWeek.empty()) {
+                    result += "    Days: ";
+                    String days[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+                    bool first = true;
+                    for (int day : program->program->daysOfWeek) {
+                        if (day >= 0 && day < 7) {
+                            if (!first) result += ", ";
+                            result += days[day];
+                            first = false;
+                        }
+                    }
+                    result += "\n";
+                }
+                result += "    Active: " + String(program->program->active ? "Yes" : "No") + "\n";
+            }
+            
+            // Settings if present
+            if (!program->settingsJson.isEmpty()) {
+                result += "  Settings: " + program->settingsJson + "\n";
+            }
             
             return result;
         }
@@ -270,14 +353,23 @@ void DeviceProgramManager::registerCommands()
     // Program import command  
     cmdMgr->registerCommand(Command(
         "program", "import", "Import program from JSON",
-        CommandSource::Serial, false,
+        CommandSource::Any, false,
         [this](const std::vector<String>& args) -> String {
             if (args.size() == 0) {
                 return "Usage: program:import <json_data>";
             }
             
+            // Concatener tous les arguments au cas où le JSON a été splitté par des espaces
+            String jsonData = args[0];
+            for (size_t i = 1; i < args.size(); i++) {
+                jsonData += " " + args[i];
+            }
+            
+            // Debug pour voir ce qui est reçu
+            debug("program:import received " + String(args.size()) + " args, total JSON length: " + String(jsonData.length()), 2);
+            
             String errorMsg;
-            if (importDeviceProgram(args[0], errorMsg)) {
+            if (importDeviceProgram(jsonData, errorMsg)) {
                 return "Program imported successfully";
             } else {
                 return "Failed to import program: " + errorMsg;
@@ -285,7 +377,64 @@ void DeviceProgramManager::registerCommands()
         }
     ));
 
-    // Program remove command
+    // Program enable command
+    cmdMgr->registerCommand(Command(
+        "program", "enable", "Enable a device program",
+        CommandSource::Any, true,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() == 0) {
+                return "Usage: program:enable <program_id>";
+            }
+            
+            auto program = getDeviceProgramById(args[0]);
+            if (program == nullptr) {
+                return "Program not found: " + args[0];
+            }
+            
+            if (program->enabled) {
+                return "Program " + args[0] + " (" + program->name + ") is already enabled";
+            }
+            
+            program->activate();
+            if (saveDevicePrograms()) {
+                return "Program " + args[0] + " (" + program->name + ") enabled successfully";
+            } else {
+                return "Program enabled but failed to save configuration";
+            }
+        }
+    ));
+
+    // Program disable command
+    cmdMgr->registerCommand(Command(
+        "program", "disable", "Disable a device program",
+        CommandSource::Any, true,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() == 0) {
+                return "Usage: program:disable <program_id>";
+            }
+            
+            auto program = getDeviceProgramById(args[0]);
+            if (program == nullptr) {
+                return "Program not found: " + args[0];
+            }
+            
+            if (!program->enabled) {
+                return "Program " + args[0] + " (" + program->name + ") is already disabled";
+            }
+            
+            // Stop devices if program is currently running
+            program->stopDevices();
+            program->deactivate();
+            
+            if (saveDevicePrograms()) {
+                return "Program " + args[0] + " (" + program->name + ") disabled successfully";
+            } else {
+                return "Program disabled but failed to save configuration";
+            }
+        }
+    ));
+
+    // Program remove command - Enhanced to stop program before removal
     cmdMgr->registerCommand(Command(
         "program", "remove", "Remove a device program",
         CommandSource::Any, true,
@@ -294,8 +443,17 @@ void DeviceProgramManager::registerCommands()
                 return "Usage: program:remove <program_id>";
             }
             
+            auto program = getDeviceProgramById(args[0]);
+            if (program == nullptr) {
+                return "Program not found: " + args[0];
+            }
+            
+            // Stop devices before removal
+            String programName = program->name;
+            program->stopDevices();
+            
             if (removeDeviceProgram(args[0])) {
-                return "Program " + args[0] + " removed successfully";
+                return "Program " + args[0] + " (" + programName + ") removed successfully";
             } else {
                 return "Failed to remove program: " + args[0];
             }
@@ -352,4 +510,7 @@ void DeviceProgramManager::registerCommands()
     // Register useful aliases
     cmdMgr->registerAlias("programs", "program:list");
     cmdMgr->registerAlias("prog", "program:info");
+    cmdMgr->registerAlias("progenable", "program:enable");
+    cmdMgr->registerAlias("progdisable", "program:disable");
+    cmdMgr->registerAlias("progdel", "program:remove");
 }

@@ -96,7 +96,7 @@ void DeviceProgram::applyToDevicesOnStop() {
 
 String DeviceProgram::toJson() const
 {
-    JsonDocument doc;
+    StaticJsonDocument<1024> doc;  // Cohérence avec fromJson
 
     doc["name"] = name;
     doc["id"] = id;
@@ -128,13 +128,16 @@ String DeviceProgram::toJson() const
 
 bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, TimeManager& timeManager, String& errorMsg)
 {
-    //eventManager->debug("Importing DeviceProgram from JSON: " + json, 2);
-    //Serial.println("Importing DeviceProgram from JSON: " + json);
+    // Debug: afficher le JSON reçu et sa taille
+    eventManager->debug("Importing DeviceProgram from JSON (length=" + String(json.length()) + "): " + json, 2);
+    Serial.println("JSON received (length " + String(json.length()) + "): " + json);
 
-    JsonDocument doc;
+    StaticJsonDocument<1024> doc;  // Utiliser une taille fixe plus grande
     DeserializationError error = deserializeJson(doc, json);
     if (error) {
-        errorMsg = "JSON parse error: " + String(error.c_str());
+        errorMsg = "JSON parse error: " + String(error.c_str()) + " - JSON length: " + String(json.length()) + ", First 100 chars: " + json.substring(0, 100);
+        Serial.println("JSON parse failed: " + String(error.c_str()));
+        Serial.println("JSON content: " + json);
         return false;
     }
 
@@ -198,6 +201,11 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
         }
 
         program = timeManager.addProgram(programJson, std::bind(&DeviceProgram::startDevices, this), std::bind(&DeviceProgram::stopDevices, this));
+        
+        if (!program) {
+            errorMsg = "Failed to create program from JSON. Check startTime (format HH:MM) and duration (minutes) fields.";
+            return false;
+        }
 
         /*program = timeManager.addProgram(
             programJson,

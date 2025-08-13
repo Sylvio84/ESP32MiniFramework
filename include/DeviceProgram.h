@@ -31,7 +31,7 @@ class DeviceProgram
     String name;
     String id;
     bool enabled = true;
-    TimeManager::Program* program;
+    TimeManager::Program* program = nullptr;
     std::vector<Device*> devices;
     String settingsJson;
 
