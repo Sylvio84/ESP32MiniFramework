@@ -339,12 +339,12 @@ TimeManager::Program* TimeManager::addProgram(const String& json, std::function<
     }
 
     // Champs obligatoires
-    if (!doc.containsKey("startTime") || !doc["startTime"].is<const char*>()) {
+    if (!doc["startTime"].is<const char*>()) {
         debug("Champ startTime invalide ou manquant", 1);
         delete program;
         return nullptr;
     }
-    if (!doc.containsKey("duration") || (!doc["duration"].is<int>() && !doc["duration"].is<uint16_t>())) {
+    if (!doc["duration"].is<int>() && !doc["duration"].is<uint16_t>()) {
         debug("Champ duration invalide ou manquant", 1);
         delete program;
         return nullptr;

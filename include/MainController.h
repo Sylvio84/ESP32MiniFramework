@@ -154,7 +154,7 @@ public:
     virtual void processUI(String action, std::vector<String> params);
 #endif
     bool processInput(const String input);
-    virtual void processCommand(String command, std::vector<String> params);
+    // processCommand removed - now handled by CommandManager
     virtual void processEvent(String type, String event, std::vector<String> params);
 
     virtual void processMQTT(String topic, String value);

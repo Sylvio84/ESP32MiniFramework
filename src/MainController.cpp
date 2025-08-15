@@ -204,11 +204,19 @@ bool MainController::processInput(const String input)
         return false;
     }
 
+    String processedInput = input;
+    
+    // Special case: single digit shortcuts for debug level (0-9)
+    if (input.length() == 1 && input[0] >= '0' && input[0] <= '9') {
+        processedInput = "sys:debug " + input;
+        eventManager.debug("Shortcut: " + input + " -> " + processedInput, 2);
+    }
+
     // Use CommandManager to execute commands
     auto* cmdMgr = static_cast<CommandManager*>(context.getManager("CommandManager"));
     if (cmdMgr) {
         // Execute the command string directly (this also adds to history)
-        String result = cmdMgr->executeCommandString(input, CommandSource::Serial);
+        String result = cmdMgr->executeCommandString(processedInput, CommandSource::Serial);
         if (!result.isEmpty()) {
             serialManager.output(result);
         }
@@ -230,24 +238,8 @@ bool MainController::processInput(const String input)
     return false;
 }
 
-void MainController::processCommand(String command, std::vector<String> params)
-{
-    // Special case: numeric command becomes debuglevel
-    if (command.length() == 1 && isdigit(command[0])) {
-        params.insert(params.begin(), String(command[0]));
-        command = "debuglevel";
-    }
-    
-    // Try all managers to handle the command using clean Manager interface
-    for (auto* manager : context.getManagers()) {
-        if (manager->onCommand(command, params)) {
-            return; // Command handled
-        }
-    }
-    
-    // Command not handled
-    eventManager.debug("Unknown command: " + command, 0);
-}
+// processCommand removed - now handled by CommandManager
+// Numeric shortcuts (0-3) are now handled in processInput()
 
 void MainController::processMQTT(String topic, String value)
 {

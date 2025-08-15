@@ -32,7 +32,7 @@ void InternalLedDevice::detectLedPin()
             pin = 2;
             break;
         default:
-            pin = LED_BUILTIN;
+            pin = 2;  // Default LED pin for most ESP32 boards
             break;
     }
 #elif defined(ESP8266)

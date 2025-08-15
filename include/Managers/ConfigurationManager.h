@@ -36,8 +36,8 @@
  * ## Usage:
  * ```cpp
  * auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
- * String ssid = configMgr->getPreference("wf_ssid", "default_ssid");
- * configMgr->setPreference("wf_ssid", "MyNetwork");
+ * String ssid = configMgr->getPreference("myvar", "default_value");
+ * configMgr->setPreference("myvar", "new_value");
  * ```
  * 
  * ## Commands Handled:

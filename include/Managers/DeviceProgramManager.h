@@ -53,7 +53,6 @@ class DeviceProgramManager : public Manager
     bool saveDevicePrograms();
 
     String getName() const override { return "DeviceProgramManager"; }
-    bool onCommand(const String& command, const std::vector<String>& params) override;
     
     void registerCommands();
 

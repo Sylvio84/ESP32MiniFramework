@@ -16,51 +16,6 @@ void DeviceProgramManager::init()
     setInitialized(true);
 }
 
-bool DeviceProgramManager::onCommand(const String& command, const std::vector<String>& params)
-{
-    if (command == "import_program") {
-        if (params.size() > 0) {
-            debug("Importing program from JSON: " + params[0], 0);
-            String errorMsg;
-            if (!importDeviceProgram(params[0], errorMsg)) {
-                debug("Error importing program: " + errorMsg, 0);
-            } else {
-                debug("Program imported successfully", 0);
-            }
-        } else {
-            debug("Usage: import_program <json_data>", 0);
-        }
-        return true;
-        
-    } else if (command == "remove_program") {
-        if (params.size() > 0) {
-            debug("Removing program with ID: " + params[0], 0);
-            if (removeDeviceProgram(params[0])) {
-                debug("Program removed successfully", 1);
-            } else {
-                debug("Failed to remove program with ID: " + params[0], 0);
-            }
-        } else {
-            debug("Usage: remove_program <program_id>", 0);
-        }
-        return true;
-        
-    } else if (command == "display_program") {
-        auto programs = getAllDevicePrograms();
-        if (programs.empty()) {
-            debug("No programs found", 0);
-        } else {
-            debug("List of programs:", 1);
-            for (const auto& program : programs) {
-                debug(" #" + program->id + " : " + program->name, 0);
-            }
-        }
-        return true;
-    }
-    
-    return false; // Command not handled
-}
-
 void DeviceProgramManager::addDeviceProgram(DeviceProgram& deviceProgram)
 {
     devicePrograms.push_back(&deviceProgram);
