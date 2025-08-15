@@ -9,9 +9,6 @@ MainController::MainController()
       systemManager(context),
       serialManager(context),
       commandManager(context),
-#ifndef DISABLE_DISPLAY
-      displayManager(context),
-#endif
       wiFiManager(context),
       mqttManager(context),
       timeManager(context),
@@ -34,9 +31,6 @@ MainController::MainController()
     context.registerManager(&timeManager);
     context.registerManager(&deviceManager);
     context.registerManager(&deviceProgramManager);
-#ifndef DISABLE_DISPLAY
-    context.registerManager(&displayManager);
-#endif
 #ifndef DISABLE_ESPUI
     context.registerManager(&espUIManager);
 #endif
@@ -63,15 +57,6 @@ void MainController::init()
     mqttManager.initEspUI();
 #endif
     deviceManager.initDevices();
-
-#ifndef DISABLE_DISPLAY
-    displayManager.clear();
-    if (wiFiManager.isConnected()) {
-        displayManager.printLine(0, "Wifi Connected");
-    } else {
-        displayManager.printLine(0, "Not connected");
-    }
-#endif
 
     if (deviceProgramManager.loadDevicePrograms()) {
         eventManager.debug("Device programs loaded successfully", 1);
@@ -116,7 +101,6 @@ void MainController::processUI(String action, std::vector<String> params)
         device->processUI(action, params);
     }
 
-    displayManager.printLine(1, action.c_str());
     if (action == "WiFiConnect") {
         wiFiManager.connect();
     } else if (action == "WiFiDisconnect") {
@@ -142,11 +126,6 @@ void MainController::processUI(String action, std::vector<String> params)
     } else if (action == "Reboot") {
         eventManager.debug("Restarting (espui)...", 1);
         ESP.restart();
-    } else if (action == "DisplayClear") {
-        displayManager.clear();
-    } else if (action == "DisplayPrintLine") {
-        int line = params[0].toInt();
-        displayManager.printLine(line, params[1].c_str());
     } else if (action == "WiFiConnected") {
         eventManager.debug("Connected to WiFi: " + params[0], 1);
         eventManager.debug("IP address: " + params[1], 1);

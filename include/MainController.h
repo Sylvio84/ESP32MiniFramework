@@ -11,9 +11,6 @@
 #include <Managers/SystemManager.h>
 #include <Managers/SerialManager.h>
 #include <Managers/CommandManager.h>
-#ifndef DISABLE_DISPLAY
-#include <Managers/DisplayManager.h>
-#endif
 #include <Managers/WiFiManager.h>
 #include <Managers/MQTTManager.h>
 #ifndef DISABLE_ESPUI
@@ -129,9 +126,6 @@ protected:
     SystemManager systemManager;
     SerialManager serialManager;
     CommandManager commandManager;
-    #ifndef DISABLE_DISPLAY
-    DisplayManager displayManager;
-    #endif
     WiFiManager wiFiManager;
     MQTTManager mqttManager;
     TimeManager timeManager;
