@@ -14,8 +14,8 @@
 #endif
 
 // Static constants
-const char* SystemManager::RELEASE_VERSION = "1.1.0";
-const char* SystemManager::RELEASE_DATE = "2025-08-06";
+const char* SystemManager::RELEASE_VERSION = "1.2.0";
+const char* SystemManager::RELEASE_DATE = "2025-08-16";
 
 SystemManager::SystemManager(FrameworkContext& context) : Manager(context) {}
 

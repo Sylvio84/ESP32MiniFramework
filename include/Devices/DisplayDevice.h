@@ -5,7 +5,10 @@
 #include <Arduino.h>
 #include "Device.h"
 #include <FrameworkContext.h>
-
+#include <Managers/TimeManager.h>
+#include <Managers/WiFiManager.h>
+#include <Managers/MQTTManager.h>
+//#include <Managers/EventManager.h>
 /**
  * Base class for all display devices
  * Provides common interface for different display types
@@ -16,6 +19,9 @@ protected:
     uint8_t cols;
     uint8_t rows;
     bool isInitialized = false;
+    TimeManager* timeManager;
+    WiFiManager* wifiManager;
+    MQTTManager* mqttManager;
     
 public:
     // System message constants
@@ -29,6 +35,9 @@ public:
     {
         type = "display";
         name = "Display Device";
+        timeManager = static_cast<TimeManager*>(ctx.getManager("TimeManager"));
+        wifiManager = static_cast<WiFiManager*>(ctx.getManager("WiFiManager"));
+        mqttManager = static_cast<MQTTManager*>(ctx.getManager("MQTTManager"));
     }
     
     virtual void init() override = 0;
@@ -43,8 +52,8 @@ public:
     
     virtual void clear() = 0;
     virtual void printText(uint8_t col, uint8_t row, const char *text) = 0;
-    virtual void printLine(uint8_t row, const char *text) = 0;
-    virtual void printLine(uint8_t row, String &text) = 0;
+    virtual void printLine(uint8_t row, const char *text, int col) = 0;
+    virtual void printLine(uint8_t row, String &text, int col = 0) = 0;
     
     // Display system messages
     virtual void displaySystemMessage(uint8_t messageType);

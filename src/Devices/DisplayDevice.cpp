@@ -9,8 +9,6 @@ void DisplayDevice::displaySystemMessage(uint8_t messageType) {
 
 // Process system events and trigger displaySystemMessage
 void DisplayDevice::processEvent(String type, String event, std::vector<String> params) {
-    // Debug log
-    Serial.println("[DisplayDevice] Event received: " + type + "/" + event);
     
     if (type == "system") {
         if (event == "init_complete") {

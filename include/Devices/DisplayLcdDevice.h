@@ -6,6 +6,7 @@
 #include <Wire.h>
 #include "DisplayDevice.h"
 #include <LiquidCrystal_I2C.h>
+#include <Managers/WiFiManager.h>
 
 /**
  * LCD Display Device base class
@@ -48,12 +49,13 @@ public:
     
     virtual void clear() override;
     virtual void printText(uint8_t col, uint8_t row, const char *text) override;
-    virtual void printLine(uint8_t row, const char *text) override;
-    virtual void printLine(uint8_t row, String &text) override;
+    virtual void printLine(uint8_t row, const char *text, int col = 0) override;
+    virtual void printLine(uint8_t row, String &text, int col = 0) override;
     
     LiquidCrystal_I2C* getLcd() { return lcd; }
     
-    void displayInfo();
+    void displayInitInfo();
+    void displayEspInfo();
 
     void displaySystemMessage(uint8_t messageType) override;
 

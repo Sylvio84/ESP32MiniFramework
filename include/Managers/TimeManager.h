@@ -96,7 +96,6 @@ class TimeManager : public Manager
     uint setTimeoutObj(void* obj, std::function<void(void*)> callback, unsigned long delay);
     void clearTimeout(uint id);
     
-  private:
 
     uint setInterval(std::function<void()> callback, unsigned long intervalTime);
     uint setIntervalObj(void* obj, std::function<void(void*)> callback, unsigned long intervalTime);
@@ -110,11 +109,9 @@ class TimeManager : public Manager
     void clearScheduler(uint id);
 
     void initProgram(Program& program);
-  public:
     TimeManager::Program* addProgram(const String& json, std::function<void()> onStart, std::function<void()> onStop);
     static String exportProgramToJson(const Program& program);
     
-  private:
 
     bool isNight();
 
@@ -158,6 +155,8 @@ class TimeManager : public Manager
     uint nextIntervalId = 1;
     uint nextSchedulerId = 1;
 
+  private:
+    
     void checkIntervals();
     void checkTimeouts();
     void checkSchedulers();  // @todo: to test
