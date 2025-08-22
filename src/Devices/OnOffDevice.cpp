@@ -47,6 +47,12 @@ void OnOffDevice::init()
         debug("Failed to subscribe to MQTT topic: " + topic, 1);
     }
 
+    // Load pin configuration using new system (default is pin variable)
+    pin = loadPin("pin", pin);
+    
+    // Register pin for listing
+    registerPin(pin, "output", name + " control pin");
+    
     // Initialize pin if set
     if (pin >= 0) {
         pinMode(pin, OUTPUT);
@@ -111,13 +117,11 @@ void OnOffDevice::registerBaseCommands()
         }
         setPin(newPin);
 
-        // Save to configuration
-        auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
-        if (configMgr) {
-            configMgr->setPreference(id + "_pin", newPin);
-        } else {
-            debug("Could not save pin to configuration", 2);
-        }
+        // Save to configuration using new system
+        savePin("pin", newPin);
+        
+        // Update pin registration for listing
+        registerPin(newPin, "output", name + " control pin");
 
         // Reinitialize with new pin
         pinMode(pin, OUTPUT);

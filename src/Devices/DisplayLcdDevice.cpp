@@ -1,4 +1,3 @@
-#ifndef DISABLE_DISPLAY
 #include "Devices/DisplayLcdDevice.h"
 #include <Managers/MQTTManager.h>
 
@@ -7,6 +6,24 @@ void DisplayLcdDevice::init()
     Device::init();
 
     debug("DisplayLcdDevice init...", 1);
+    
+    // Load pin configuration with intelligent defaults
+    int defaultSda = getDefaultI2CPin("sda");
+    int defaultScl = getDefaultI2CPin("scl");
+    
+    // Use configured defaults if auto-detection failed
+    if (defaultSda == -1) defaultSda = sdaPin;
+    if (defaultScl == -1) defaultScl = sclPin;
+    
+    // Load from configuration or use defaults
+    sdaPin = loadPin("sda", defaultSda);
+    sclPin = loadPin("scl", defaultScl);
+    lcdAddress = loadPin("address", lcdAddress);  // Also allow address configuration
+    
+    // Register pins for listing
+    registerPin(sdaPin, "sda", "I2C Data");
+    registerPin(sclPin, "scl", "I2C Clock");
+    
     debug("Config: " + String(cols) + "x" + String(rows) + " @ 0x" + String(lcdAddress, HEX) + " (SDA:" + String(sdaPin) + ", SCL:" + String(sclPin) + ")", 1);
 
     Wire.begin(sdaPin, sclPin);
@@ -62,6 +79,36 @@ void DisplayLcdDevice::init()
     registerDeviceCommand("info", "Display LCD info", [this](const std::vector<String>& params) {
         displayInitInfo();
         return "Info displayed on LCD";
+    });
+    
+    registerDeviceCommand("setsda", "Set SDA pin", [this](const std::vector<String>& params) -> String {
+        if (params.size() < 1)
+            return "Usage: setsda <pin>";
+        int newPin = params[0].toInt();
+        if (newPin < 0 || newPin > 40)
+            return "ERROR: Invalid pin number";
+        savePin("sda", newPin);
+        return String("SDA pin set to " + String(newPin) + " (restart required)");
+    });
+    
+    registerDeviceCommand("setscl", "Set SCL pin", [this](const std::vector<String>& params) -> String {
+        if (params.size() < 1)
+            return "Usage: setscl <pin>";
+        int newPin = params[0].toInt();
+        if (newPin < 0 || newPin > 40)
+            return "ERROR: Invalid pin number";
+        savePin("scl", newPin);
+        return String("SCL pin set to " + String(newPin) + " (restart required)");
+    });
+    
+    registerDeviceCommand("setaddress", "Set I2C address", [this](const std::vector<String>& params) -> String {
+        if (params.size() < 1)
+            return "Usage: setaddress <address>";
+        int newAddr = strtol(params[0].c_str(), NULL, 0);  // Support 0x27 format
+        if (newAddr < 0x08 || newAddr > 0x77)
+            return "ERROR: Invalid I2C address";
+        savePin("address", newAddr);
+        return String("I2C address set to 0x" + String(newAddr, HEX) + " (restart required)");
     });
 
     timeManager->setInterval([this]() {
@@ -334,5 +381,3 @@ void DisplayLcdDevice::displayEspInfo()
     String currentTime = timeManager->getFormattedDateTime("%H:%M:%S");
     printText(12, 0, currentTime.c_str());
 }
-
-#endif

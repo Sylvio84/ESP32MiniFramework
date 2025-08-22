@@ -1,4 +1,3 @@
-#ifndef DISABLE_DISPLAY
 #ifndef DISPLAYLCD4X20DEVICE_H
 #define DISPLAYLCD4X20DEVICE_H
 
@@ -19,5 +18,4 @@ public:
     }
 };
 
-#endif
 #endif

@@ -1,165 +1,150 @@
 #ifndef SENSORDEVICE_H
-#define SENSOREVICE_H
+#define SENSORDEVICE_H
 
 #include <Arduino.h>
-#include <Configuration.h>
 #include <Devices/Device.h>
 
+/**
+ * @class SensorDevice
+ * @brief Abstract base class for all sensor devices in ESP32 Mini Framework
+ * 
+ * This class provides common functionality for sensor devices including:
+ * - Periodic reading management with configurable intervals
+ * - Error handling and consecutive error tracking
+ * - Common MQTT publishing patterns
+ * - Standardized command interface
+ * 
+ * @details
+ * Common features for all sensors:
+ * - Automatic periodic readings
+ * - Force read command
+ * - Status reporting
+ * - Error detection and recovery
+ * - MQTT status publishing
+ * 
+ * Common MQTT Topics:
+ * - {base_topic}/status : Sensor status (online/offline/error)
+ * - {base_topic}/lastread : Timestamp of last successful reading
+ * 
+ * Common Commands:
+ * - read     : Force immediate sensor reading
+ * - ?        : Get current sensor status
+ * - interval : Get/set reading interval in seconds
+ * 
+ * @note Derived classes must implement:
+ * - performReading() : Actual sensor reading logic
+ * - publishSensorData() : Publish sensor-specific data
+ * - getSensorStatus() : Return sensor-specific status string
+ * 
+ * @author ESP32 Mini Framework
+ * @version 1.0.0
+ */
 class SensorDevice : public Device
 {
-
-  public:
-    int SENSOR_PIN = GPIO_NUM_20;
-    int triggerState = HIGH;
+protected:
+    // Configuration
+    int sensorPin = -1;
+    unsigned long readInterval = 60000;  // Default 60 seconds
+    unsigned long minReadInterval = 1000;  // Default minimum 1 second
     
-    int detection = LOW;
-    unsigned long lastDetection = 0;
-    std::tm lastDetectionTime;
-
-    bool state = false;
-
-    SensorDevice(String id, Configuration& config, EventManager& eventMgr, TimeManager& timeMgr) : Device(id, config, eventMgr, timeMgr)
-    {
-        //pin = config.getValue("relay_pin", 0);
-        addCommand("1", std::bind(&SensorDevice::activate, this));
-        addCommand("0", std::bind(&SensorDevice::deactivate, this));
-        addCommand("?", std::bind(&SensorDevice::getState, this));
-    }
-
-    // Implémentation des méthodes virtuelles
-    void init() override
-    {
-        Device::init();
-        pinMode(GPIO_NUM_20, INPUT);
-        triggerState = HIGH;
-        getDetection();
-    }
-
-    void loop() override {
-        static unsigned long sensorLoop = 0;
-        static unsigned long publishLoop = 0;
-        unsigned long currentMillis = millis();
-
-        if (currentMillis - sensorLoop >= 50) {
-            sensorLoop = currentMillis;
-            if (digitalRead(SENSOR_PIN) == triggerState) {
-                activateDetection();
-                publish();
-            } else {
-                deactivateDetection();
-            }
-        }
-
-        if (currentMillis - publishLoop >= 1000) {
-            publishLoop = currentMillis;
-            if (getDetection()) {
-                publish();
-            }
-        }
-    }
-
-    void publish(bool modeTime = false)
-    {
-        if (modeTime) {
-            String datetime = lastDetectionTime.tm_year + 1900 + "-" + lastDetectionTime.tm_mon + "-" + lastDetectionTime.tm_mday + " " + lastDetectionTime.tm_hour + ":" + lastDetectionTime.tm_min + ":" + lastDetectionTime.tm_sec;
-            eventManager->triggerEvent("mqtt", "publishAsap", {topic + "/last", datetime});
-        } else {
-            eventManager->triggerEvent("mqtt", "publishAsap", {topic + "/detection", "1"});
-        }
-    }
-
-    void activate()
-    {
-        eventManager->debug("Activating sensor", 1);
-        state = true;
-        getState();
-    }
-
-    void deactivate()
-    {
-        eventManager->debug("Deactivating sensor", 1);
-        state = false;
-        getState();
-    }
-
-    int toggle()
-    {
-        if (state == HIGH) {
-            deactivate();
-        } else {
-            activate();
-        }
-        return state;
-    }
-
-    void getState()
-    {
-        eventManager->debug("Relay state: " + String(state), 1);
-        eventManager->triggerEvent("mqtt", "publishAsap", {topic + "/status", state == HIGH ? "1" : "0"});
-    }
-
-    bool getDetection()
-    {
-        eventManager->debug("Detection: " + String(detection), 0);
-        return detection == HIGH;
-    }
-
-    float getLastDetection()
-    {
-        if (lastDetection == 0) {
-            return -1;
-        }
-        return (millis() - lastDetection) / 1000;
-        lastDetectionTime = timeManager.getDateTime();
-    }
-
-    void activateDetection()
-    {
-        eventManager->debug("Motion detected", 1);
-        detection = HIGH;
-        lastDetection = millis();
-    }
-
-    void deactivateDetection()
-    {
-        detection = LOW;
-    }
-
-    bool processCommand(String command, std::vector<String> params) override
-    {
-        eventManager->debug("Processing relay command: " + command, 3);
-        Device::processCommand(command, params);
-        if (command == "activate") {
-            activate();
-            return true;
-        } else if (command == "deactivate") {
-            deactivate();
-            return true;
-        } else if (command == "toggle") {
-            toggle();
-            return true;
-        } else if (command == "detection") {
-            getDetection();
-            return true;
-        }
-        return false;
-    }
-
-    bool processMQTT(String topic, String value) override
-    {
-        Device::processMQTT(topic, value);
-        eventManager->debug("SensorDevice #" + id + " MQTT message: " + topic + " = " + value, 3);
-
-        if (topic == this->topic && isInteger(value)) {
-            int duration = value.toInt();
-            if (duration > getLastDetection()) {
-                publish(true);
-            }
-            return true;
-        }
-
-        return false;
-    }
+    // Sensor state
+    unsigned long lastReadTime = 0;
+    unsigned long lastSuccessfulRead = 0;
+    bool sensorError = false;
+    int consecutiveErrors = 0;
+    int maxConsecutiveErrors = 3;
+    
+    // Protected methods for derived classes
+    
+    /**
+     * @brief Perform the actual sensor reading
+     * @return true if reading was successful, false otherwise
+     */
+    virtual bool performReading() = 0;
+    
+    /**
+     * @brief Publish sensor-specific data via MQTT
+     */
+    virtual void publishSensorData() = 0;
+    
+    /**
+     * @brief Get sensor-specific status information
+     * @return Status string with sensor details
+     */
+    virtual String getSensorStatus() = 0;
+    
+    /**
+     * @brief Handle successful sensor reading
+     */
+    virtual void handleReadSuccess();
+    
+    /**
+     * @brief Handle failed sensor reading
+     */
+    virtual void handleReadError();
+    
+    /**
+     * @brief Publish sensor status via MQTT
+     * @param status Status string to publish
+     */
+    void publishStatus(const String& status);
+    
+    /**
+     * @brief Publish last read timestamp via MQTT
+     */
+    void publishLastReadTime();
+    
+    /**
+     * @brief Check if enough time has passed for next reading
+     * @return true if it's time to read, false otherwise
+     */
+    bool isTimeToRead();
+    
+public:
+    // Constructor
+    SensorDevice(String id, FrameworkContext& ctx);
+    
+    // Virtual method implementations
+    void init() override;
+    void loop() override;
+    bool processCommand(String command, std::vector<String> params) override;
+    
+    // Public methods
+    
+    /**
+     * @brief Force an immediate sensor reading
+     */
+    virtual void forceRead();
+    
+    /**
+     * @brief Get current sensor status
+     * @return Status string
+     */
+    String getStatus();
+    
+    /**
+     * @brief Set the reading interval
+     * @param intervalSeconds Interval in seconds
+     */
+    virtual void setReadInterval(unsigned long intervalSeconds);
+    
+    /**
+     * @brief Get the current reading interval
+     * @return Interval in seconds
+     */
+    unsigned long getReadInterval() { return readInterval / 1000; }
+    
+    /**
+     * @brief Check if sensor is in error state
+     * @return true if sensor has errors
+     */
+    bool hasError() { return sensorError; }
+    
+    /**
+     * @brief Get time since last successful reading
+     * @return Time in seconds, -1 if never read
+     */
+    long getTimeSinceLastRead();
 };
 
 #endif  // SENSORDEVICE_H

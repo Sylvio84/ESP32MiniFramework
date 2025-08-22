@@ -12,16 +12,15 @@ RelayDevice::RelayDevice(String id, FrameworkContext& ctx) : OnOffDevice(id, ctx
 
 void RelayDevice::init()
 {
-    // Try to load configuration
+    // Load pin configuration using new system
+    pin = loadPin("pin", pin);
+    
+    // Register pin for listing
+    registerPin(pin, "output", "Relay control pin");
+    
+    // Try to load other configuration
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
     if (configMgr) {
-        // Load pin from configuration
-        int configPin = configMgr->getPreference(id + "_pin", pin);
-        if (configPin != pin) {
-            pin = configPin;
-            debug("Pin loaded from configuration: " + String(pin), 1);
-        }
-        
         // Load inverted logic setting from configuration
         bool configInverted = configMgr->getPreference(id + "_inverted", invertedLogic);
         if (configInverted != invertedLogic) {

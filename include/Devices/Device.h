@@ -15,9 +15,18 @@
 #include <ESPUI.h>
 #endif
 
+class DeviceManager;  // Forward declaration
+
 class Device
 {
   public:
+    // Structure pour stocker les informations de pins
+    struct PinInfo {
+        int pin;
+        String function;     // "output", "input", "sda", "scl", etc.
+        String description;  // Description détaillée du pin
+    };
+
     // Attributs publics
     String id;
     String name;
@@ -69,6 +78,10 @@ class Device
     void registerDeviceCommands();
     std::vector<Command> getDeviceCommands() const;
     
+    // Méthodes publiques pour la gestion des pins
+    virtual String getPinMapping() const;
+    static String getAllDevicesPinMapping(DeviceManager* deviceMgr);
+    static int getDefaultI2CPin(const String& type);
 
 #ifndef DISABLE_ESPUI
     void initEspUI();
@@ -78,6 +91,12 @@ class Device
   protected:
     FrameworkContext* context;
     std::vector<Command> deviceCommands;
+    std::vector<PinInfo> devicePins;  // Liste des pins utilisés par ce device
+    
+    // Méthodes protégées pour la gestion des pins
+    int loadPin(const String& pinName, int defaultPin = -1);
+    void savePin(const String& pinName, int pin);
+    void registerPin(int pin, const String& function, const String& description = "");
     
     /**
      * @brief Device-specific MQTT processing (override in derived classes)

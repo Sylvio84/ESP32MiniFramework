@@ -1,4 +1,3 @@
-#ifndef DISABLE_DISPLAY
 #include "Devices/DisplayDevice.h"
 
 // Default empty implementation
@@ -30,5 +29,3 @@ void DisplayDevice::processEvent(String type, String event, std::vector<String> 
         }
     }
 }
-
-#endif

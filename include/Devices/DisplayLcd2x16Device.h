@@ -1,4 +1,3 @@
-#ifndef DISABLE_DISPLAY
 #ifndef DISPLAYLCD2X16DEVICE_H
 #define DISPLAYLCD2X16DEVICE_H
 
@@ -19,5 +18,4 @@ public:
     }
 };
 
-#endif
 #endif

@@ -1,4 +1,3 @@
-#ifndef DISABLE_DISPLAY
 #ifndef DISPLAYDEVICE_H
 #define DISPLAYDEVICE_H
 
@@ -66,5 +65,4 @@ protected:
     virtual bool processMQTTDevice(String topic, String value) override = 0;
 };
 
-#endif
 #endif

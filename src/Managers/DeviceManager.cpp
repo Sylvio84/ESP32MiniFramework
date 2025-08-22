@@ -216,6 +216,43 @@ void DeviceManager::registerCommands()
         }
     ));
 
+    // Pin management commands
+    cmdMgr->registerCommand(Command(
+        "pins", "list", "List all pins used by devices",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            return Device::getAllDevicesPinMapping(this);
+        }
+    ));
+    
+    cmdMgr->registerCommand(Command(
+        "pins", "show", "Show pins for specific device",
+        CommandSource::Any, false,
+        [this](const std::vector<String>& args) -> String {
+            if (args.size() < 1) {
+                return "Usage: pins:show <device_id>";
+            }
+            Device* device = getDeviceById(args[0]);
+            if (!device) {
+                return "Device not found: " + args[0];
+            }
+            return device->getPinMapping();
+        }
+    ));
+    
+    cmdMgr->registerCommand(Command(
+        "pins", "set", "Set pin for a device",
+        CommandSource::Any, false,
+        [this, cmdMgr](const std::vector<String>& args) -> String {
+            if (args.size() < 2) {
+                return "Usage: pins:set <device_id> <pin_number>";
+            }
+            // Delegate to device's setpin command
+            String cmd = args[0] + ":setpin";
+            std::vector<String> pinArg = {args[1]};
+            return cmdMgr->executeCommand(cmd, pinArg, CommandSource::Serial);
+        }
+    ));
 
     // Register useful aliases
     cmdMgr->registerAlias("devices", "device:list");
