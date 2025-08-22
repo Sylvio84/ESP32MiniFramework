@@ -9,6 +9,12 @@
 
 void WiFiManager::init()
 {
+    #ifdef ESP8266
+    // TEMPORARY: Completely skip WiFiManager init on ESP8266 to prevent crashes
+    logDebug("WiFiManager disabled on ESP8266 (temporary)", 1);
+    setInitialized(true);
+    return;
+    #endif
 
     logDebug("Init WiFiManager", 1);
 
@@ -80,13 +86,33 @@ void WiFiManager::initConnection(bool auto_connect = true)
 
 void WiFiManager::loop()
 {
-    telnet.loop();
+    #ifdef ESP8266
+    // TEMPORARY: Completely disable WiFiManager loop on ESP8266 to debug crash
+    return;
+    #endif
+    
+    // Only run telnet if WiFi is connected
+    if (WiFi.status() == WL_CONNECTED) {
+        telnet.loop();
+    }
+    
     if (!this->ssid.length()) {
         return;
     }
 
     static unsigned long lastMillis = 0;
     unsigned long currentMillis = millis();
+    
+    #ifdef ESP8266
+    // Delayed initialization for ESP8266
+    if (connectionStatus == -1) {
+        if (currentMillis > 5000) {  // Wait 5 seconds after boot
+            initConnection(true);
+            connectionStatus = 0;
+        }
+        return;  // Don't process anything else until initialized
+    }
+    #endif
 
     if (connectionStatus == 0) {
         this->connect();
@@ -280,6 +306,13 @@ bool WiFiManager::connect()
 
     WiFi.begin(this->ssid.c_str(), this->password.c_str());
 
+    #ifdef ESP8266
+    // Non-blocking mode for ESP8266 to prevent watchdog reset
+    // The connection will be checked in loop()
+    logDebug("WiFi connection initiated (non-blocking)", 1);
+    return false;  // Will be handled by loop()
+    #else
+    // ESP32 can handle blocking wait
     // Wait for connection with timeout (10 seconds)
     unsigned long startTime = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - startTime < CONNECTION_TIMEOUT) {
@@ -296,6 +329,7 @@ bool WiFiManager::connect()
         logDebug("Connection timeout for: " + this->ssid, 1);
         return false;
     }
+    #endif
 }
 
 void WiFiManager::setConnected(bool recovered)
@@ -705,7 +739,7 @@ bool WiFiManager::otaUpdate()
         return false;
     }
 
-    String otaFingerprint = config ? config->OTA_FINGERPRINT : "";
+    String otaFingerprint = configMgr ? configMgr->getPreference("ota_fingerprint", String("")) : "";
 
     String otaUrl = configMgr ? configMgr->getPreference("ota_url", configMgr->OTA_URL) : "";
     if (otaUrl.length() == 0) {
@@ -972,6 +1006,18 @@ bool WiFiManager::connectToSavedNetwork()
     // Sort networks by priority (highest first)
     std::sort(savedNetworks.begin(), savedNetworks.end(), [](const SavedNetwork& a, const SavedNetwork& b) { return a.priority > b.priority; });
 
+    #ifdef ESP8266
+    // For ESP8266, just set the first network and let loop() handle it
+    if (!savedNetworks.empty()) {
+        const auto& network = savedNetworks[0];
+        logDebug("Setting network for connection: " + network.ssid, 1);
+        this->ssid = network.ssid;
+        this->password = network.password;
+        connect();  // Non-blocking on ESP8266
+        return false;  // Will be handled by loop()
+    }
+    #else
+    // ESP32 can try all networks in sequence
     // Try each network in priority order
     for (const auto& network : savedNetworks) {
         logDebug("Trying saved network: " + network.ssid, 1);
@@ -986,6 +1032,7 @@ bool WiFiManager::connectToSavedNetwork()
         // Wait a bit before trying next network
         delay(NETWORK_RETRY_DELAY_MS);
     }
+    #endif
 
     logDebug("Failed to connect to any saved network", 1);
     return false;
@@ -1121,6 +1168,9 @@ void WiFiManager::registerCommands()
                 if (count >= 0)
                     break;  // Scan complete
                 delay(100);
+                #ifdef ESP8266
+                yield();  // Let the ESP8266 watchdog breathe
+                #endif
             }
 
             if (count == -1) {

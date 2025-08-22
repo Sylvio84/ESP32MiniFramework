@@ -125,9 +125,13 @@ protected:
     ConfigurationManager configManager;
     SystemManager systemManager;
     SerialManager serialManager;
+    #ifndef ESP8266
     CommandManager commandManager;
+    #endif
     WiFiManager wiFiManager;
+    #ifndef ESP8266
     MQTTManager mqttManager;
+    #endif
     TimeManager timeManager;
 
     #ifndef DISABLE_ESPUI
@@ -135,7 +139,9 @@ protected:
     #endif
 
     DeviceManager deviceManager;
+    #ifndef ESP8266
     DeviceProgramManager deviceProgramManager;
+    #endif
 
 
 public:

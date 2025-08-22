@@ -3,7 +3,9 @@
 
 #include <Arduino.h>
 #include <Devices/OnOffDevice.h>
+#ifdef ESP32
 #include <esp_chip_info.h>
+#endif
 
 class InternalLedDevice : public OnOffDevice
 {

@@ -34,7 +34,11 @@ void DHTSensorDevice::init()
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
     if (configMgr) {
         // Load DHT specific configuration
+        #ifdef ESP32
         sensorPin = configMgr->getPreference(id + "_pin", GPIO_NUM_4);
+        #else
+        sensorPin = configMgr->getPreference(id + "_pin", 4);  // ESP8266 uses direct pin numbers
+        #endif
         SENSOR_TYPE = configMgr->getPreference(id + "_type", DHT22_TYPE);
     }
     

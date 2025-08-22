@@ -288,11 +288,16 @@ String CommandManager::executeCommand(const String& nameOrAlias, const std::vect
     // Execute command
     String result;
     if (cmd.execute) {
+        #ifdef ESP32
         try {
             result = cmd.execute(args);
         } catch (...) {
             result = "Error executing command: " + fullName;
         }
+        #else
+        // ESP8266 doesn't support exceptions by default
+        result = cmd.execute(args);
+        #endif
     } else {
         result = "Command has no execution handler: " + fullName;
     }

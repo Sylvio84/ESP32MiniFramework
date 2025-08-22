@@ -8,15 +8,21 @@ MainController::MainController()
       configManager(context),
       systemManager(context),
       serialManager(context),
+#ifndef ESP8266
       commandManager(context),
+#endif
       wiFiManager(context),
+#ifndef ESP8266
       mqttManager(context),
+#endif
       timeManager(context),
 #ifndef DISABLE_ESPUI
       espUIManager(context),
 #endif
-      deviceManager(context),
-      deviceProgramManager(context)
+      deviceManager(context)
+#ifndef ESP8266
+      ,deviceProgramManager(context)
+#endif
 {
     // Register all services in the context
     context.registerService(&eventManager);
@@ -25,12 +31,18 @@ MainController::MainController()
     context.registerManager(&configManager);
     context.registerManager(&systemManager);
     context.registerManager(&serialManager);
+#ifndef ESP8266
     context.registerManager(&commandManager);
+#endif
     context.registerManager(&wiFiManager);
+#ifndef ESP8266
     context.registerManager(&mqttManager);
+#endif
     context.registerManager(&timeManager);
     context.registerManager(&deviceManager);
+#ifndef ESP8266
     context.registerManager(&deviceProgramManager);
+#endif
 #ifndef DISABLE_ESPUI
     context.registerManager(&espUIManager);
 #endif
@@ -50,19 +62,25 @@ void MainController::init()
         manager->init();
     }
     
+    #ifndef ESP8266
     mqttManager.addSubscription(configManager.getHostname() + "/cmd/#");
     //mqttManager.addSubscription(configManager.getHostname() + "/#");
+    #endif
 #ifndef DISABLE_ESPUI
     wiFiManager.initEspUI();
+    #ifndef ESP8266
     mqttManager.initEspUI();
+    #endif
 #endif
     deviceManager.initDevices();
 
+    #ifndef ESP8266
     if (deviceProgramManager.loadDevicePrograms()) {
         eventManager.debug("Device programs loaded successfully", 1);
     } else {
         eventManager.debug("Failed to load device programs", 0);
     }
+    #endif
 
     // Register TimeManager commands after all managers are initialized
     auto* timeMgr = static_cast<TimeManager*>(context.getManager("TimeManager"));
