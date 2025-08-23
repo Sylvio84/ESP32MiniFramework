@@ -28,6 +28,16 @@ void CommandManager::registerBuiltInCommands()
     generalHelpCmd.source = CommandSource::Any;
     generalHelpCmd.historyEnabled = false;
     generalHelpCmd.execute = [this](const std::vector<String>& args) {
+        #ifdef ESP8266
+        // Simplified version for ESP8266 - minimal text to save memory
+        String result = "Namespaces:\n";
+        result += "  sys, wifi, mqtt, time\n";
+        result += "  config, device, program\n";
+        result += "  espui, command\n";
+        result += "Use: <namespace>:help\n";
+        result += "Ex: sys:help";
+        #else
+        // Full version for ESP32 and other platforms
         String result = "Available Command Namespaces:\n\n";
         result += "  sys      - System commands (version, uptime, restart, etc.)\n";
         result += "  wifi     - WiFi connection management\n";
@@ -46,6 +56,7 @@ void CommandManager::registerBuiltInCommands()
         result += "  sys:help     - Show system commands\n";
         result += "  wifi:status  - Show WiFi status\n";
         result += "  command:list - List all available commands";
+        #endif
         return result;
     };
     registerCommand(generalHelpCmd);
@@ -81,6 +92,19 @@ void CommandManager::registerBuiltInCommands()
             }
             result += "\n";
         } else {
+            #ifdef ESP8266
+            // Simplified version for ESP8266 - no descriptions
+            int count = 0;
+            for (const auto& cmd : cmds) {
+                if (count >= 20) {  // Limit to 20 commands on ESP8266
+                    result += "  ... (" + String(cmds.size() - 20) + " more)\n";
+                    break;
+                }
+                result += "  " + cmd.getFullName() + "\n";
+                count++;
+            }
+            #else
+            // Full version with descriptions for ESP32
             for (const auto& cmd : cmds) {
                 result += "  " + cmd.getFullName();
                 if (!cmd.description.isEmpty()) {
@@ -88,6 +112,7 @@ void CommandManager::registerBuiltInCommands()
                 }
                 result += "\n";
             }
+            #endif
         }
 
         return result;
@@ -288,11 +313,16 @@ String CommandManager::executeCommand(const String& nameOrAlias, const std::vect
     // Execute command
     String result;
     if (cmd.execute) {
-        try {
+        #ifdef ESP8266
+            // ESP8266 doesn't support exceptions by default
             result = cmd.execute(args);
-        } catch (...) {
-            result = "Error executing command: " + fullName;
-        }
+        #else
+            try {
+                result = cmd.execute(args);
+            } catch (...) {
+                result = "Error executing command: " + fullName;
+            }
+        #endif
     } else {
         result = "Command has no execution handler: " + fullName;
     }
@@ -597,6 +627,36 @@ String CommandManager::generateNamespaceHelp(const String& namespaceName)
     result[0] = toupper(result[0]);  // Capitalize first letter
     result += " Commands:\n";
 
+    #ifdef ESP8266
+    // Simplified version for ESP8266 - no descriptions to save memory
+    for (const auto& pair : commands) {
+        const Command& cmd = pair.second;
+        if (cmd.namespaceName == namespaceName && cmd.name != "help") {
+            result += "  " + namespaceName + ":" + cmd.name + "\n";
+        }
+    }
+    
+    // Add help command reference
+    result += "  " + namespaceName + ":help\n";
+    
+    // Show aliases in compact format
+    bool hasAliases = false;
+    for (const auto& aliasPair : aliases) {
+        String targetNs = extractNamespace(aliasPair.second);
+        if (targetNs == namespaceName) {
+            if (!hasAliases) {
+                result += "Aliases: ";
+                hasAliases = true;
+            }
+            result += aliasPair.first + " ";
+        }
+    }
+    if (hasAliases) {
+        result += "\n";
+    }
+    
+    #else
+    // Full version for ESP32 and other platforms
     // Collect commands for this namespace
     std::vector<Command> namespaceCommands;
     for (const auto& pair : commands) {
@@ -647,6 +707,7 @@ String CommandManager::generateNamespaceHelp(const String& namespaceName)
             result += namespaceAliases[i];
         }
     }
+    #endif
 
     return result;
 }

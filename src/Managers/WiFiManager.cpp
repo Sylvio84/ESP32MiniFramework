@@ -705,7 +705,7 @@ bool WiFiManager::otaUpdate()
         return false;
     }
 
-    String otaFingerprint = config ? config->OTA_FINGERPRINT : "";
+    String otaFingerprint = configMgr ? configMgr->OTA_FINGERPRINT : "";
 
     String otaUrl = configMgr ? configMgr->getPreference("ota_url", configMgr->OTA_URL) : "";
     if (otaUrl.length() == 0) {

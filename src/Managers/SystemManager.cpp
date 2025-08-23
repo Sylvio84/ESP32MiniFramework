@@ -217,6 +217,10 @@ void SystemManager::showSystemInfo()
 
 #ifdef ESP8266
     debug("Reset reason: " + ESP.getResetReason(), 0);
+    // Additional memory monitoring for ESP8266
+    debug("Heap Fragmentation: " + String(ESP.getHeapFragmentation()) + "%", 0);
+    debug("Max Free Block: " + String(ESP.getMaxFreeBlockSize()) + " bytes", 0);
+    debug("Free Cont Stack: " + String(ESP.getFreeContStack()) + " bytes", 0);
 #endif
 
     // Get information from other managers
@@ -279,6 +283,18 @@ String SystemManager::getSystemInfo()
 
 #ifdef ESP8266
     info += "Reset reason: " + ESP.getResetReason() + "\n";
+    // Additional memory monitoring for ESP8266
+    info += "Heap Fragmentation: " + String(ESP.getHeapFragmentation()) + "%\n";
+    info += "Max Free Block Size: " + String(ESP.getMaxFreeBlockSize()) + " bytes\n";
+    info += "Free Cont Stack: " + String(ESP.getFreeContStack()) + " bytes\n";
+    
+    // Flash information
+    uint32_t realSize = ESP.getFlashChipRealSize();
+    uint32_t ideSize = ESP.getFlashChipSize();
+    if (realSize != ideSize) {
+        info += "Flash Real Size: " + String(realSize / 1024) + " KB\n";
+        info += "Flash IDE Size: " + String(ideSize / 1024) + " KB (mismatch!)\n";
+    }
 #endif
 
     // Get information from other managers

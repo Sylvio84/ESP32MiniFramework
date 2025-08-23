@@ -96,7 +96,11 @@ void DeviceProgram::applyToDevicesOnStop() {
 
 String DeviceProgram::toJson() const
 {
-    StaticJsonDocument<1024> doc;  // Cohérence avec fromJson
+    JsonDocument doc;
+    #ifdef ESP8266
+        // Limit capacity for ESP8266 to save memory
+        doc.shrinkToFit();
+    #endif
 
     doc["name"] = name;
     doc["id"] = id;
@@ -132,7 +136,11 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
     eventManager->debug("Importing DeviceProgram from JSON (length=" + String(json.length()) + "): " + json, 2);
     Serial.println("JSON received (length " + String(json.length()) + "): " + json);
 
-    StaticJsonDocument<1024> doc;  // Utiliser une taille fixe plus grande
+    JsonDocument doc;
+    #ifdef ESP8266
+        // Limit capacity for ESP8266 to save memory
+        doc.shrinkToFit();
+    #endif
     DeserializationError error = deserializeJson(doc, json);
     if (error) {
         errorMsg = "JSON parse error: " + String(error.c_str()) + " - JSON length: " + String(json.length()) + ", First 100 chars: " + json.substring(0, 100);

@@ -162,7 +162,7 @@ bool ConfigurationManager::removePreference(const String key)
     return prefs.remove(key.c_str());
 #else
     // For ESP8266, remove from JSON preferences and save
-    if (json_preferences.containsKey(key)) {
+    if (json_preferences[key]) {  // Check if key exists (non-null)
         json_preferences.remove(key);
         writeJsonPreferences();
         return true;
@@ -297,23 +297,41 @@ void ConfigurationManager::setPowerSaving(int value, bool save)
 #ifndef ESP32
 bool ConfigurationManager::readJsonPreferences()
 {
-    char buffer[EEPROM_PREFERENCES_SIZE];
-    for (int i = 0; i < EEPROM_PREFERENCES_SIZE; i++) {
-        buffer[i] = eeprom.read(i);
-    }
+    #ifdef ESP8266
+        // Use shared buffer for ESP8266 to save stack memory
+        for (int i = 0; i < EEPROM_PREFERENCES_SIZE; i++) {
+            sharedBuffer[i] = eeprom.read(i);
+        }
+        DeserializationError error = deserializeJson(json_preferences, sharedBuffer);
+    #else
+        // Original implementation for other platforms
+        char buffer[EEPROM_PREFERENCES_SIZE];
+        for (int i = 0; i < EEPROM_PREFERENCES_SIZE; i++) {
+            buffer[i] = eeprom.read(i);
+        }
+        DeserializationError error = deserializeJson(json_preferences, buffer);
+    #endif
     
-    DeserializationError error = deserializeJson(json_preferences, buffer);
     return error == DeserializationError::Ok;
 }
 
 bool ConfigurationManager::writeJsonPreferences()
 {
-    char buffer[EEPROM_PREFERENCES_SIZE];
-    serializeJson(json_preferences, buffer, EEPROM_PREFERENCES_SIZE);
+    #ifdef ESP8266
+        // Use shared buffer for ESP8266 to save stack memory
+        serializeJson(json_preferences, sharedBuffer, EEPROM_PREFERENCES_SIZE);
+        for (int i = 0; i < EEPROM_PREFERENCES_SIZE; i++) {
+            eeprom.write(i, sharedBuffer[i]);
+        }
+    #else
+        // Original implementation for other platforms
+        char buffer[EEPROM_PREFERENCES_SIZE];
+        serializeJson(json_preferences, buffer, EEPROM_PREFERENCES_SIZE);
+        for (int i = 0; i < EEPROM_PREFERENCES_SIZE; i++) {
+            eeprom.write(i, buffer[i]);
+        }
+    #endif
     
-    for (int i = 0; i < EEPROM_PREFERENCES_SIZE; i++) {
-        eeprom.write(i, buffer[i]);
-    }
     eeprom.commit();
     return true;
 }

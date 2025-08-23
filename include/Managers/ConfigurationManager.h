@@ -111,8 +111,15 @@ private:
 
 public:
 #ifndef ESP32
-#define EEPROM_PREFERENCES_SIZE 4096
-    JsonDocument json_preferences;
+    #ifdef ESP8266
+        // Optimized for ESP8266 limited memory
+        #define EEPROM_PREFERENCES_SIZE 1024
+        JsonDocument json_preferences;  // Using JsonDocument with limited capacity for ESP8266
+    #else
+        // Original size for other platforms
+        #define EEPROM_PREFERENCES_SIZE 4096
+        JsonDocument json_preferences;
+    #endif
     void debugJsonPreferences();
 #endif
 
@@ -134,6 +141,11 @@ private:
     bool writeVariable(const String key, String value);
     int readVariableInt(const String key, int defaultValue = 0);
     String readVariableString(const String key, String defaultValue = "");
+    
+    #ifdef ESP8266
+        // Shared buffer to avoid multiple stack allocations
+        char sharedBuffer[EEPROM_PREFERENCES_SIZE];
+    #endif
 #endif
 };
 

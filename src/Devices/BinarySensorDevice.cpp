@@ -19,7 +19,11 @@ void BinarySensorDevice::init()
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
     if (configMgr) {
         // Load binary sensor specific configuration
-        sensorPin = configMgr->getPreference(id + "_pin", GPIO_NUM_20);
+        #ifdef ESP32
+            sensorPin = configMgr->getPreference(id + "_pin", GPIO_NUM_20);
+        #else
+            sensorPin = configMgr->getPreference(id + "_pin", 20);  // ESP8266 uses plain integers
+        #endif
         triggerState = configMgr->getPreference(id + "_trigger", HIGH);
     }
     
