@@ -108,6 +108,7 @@ class MQTTManager : public Manager
     String password = "";
     String server = "";
     int port = 1883;
+    bool autoReconnect = true;
 
     void init() override;
     void loop() override;
@@ -119,6 +120,7 @@ class MQTTManager : public Manager
 
     bool reconnect();
     bool isConnected();
+    void disconnect();
 
     // void onMessage(char* topic, byte* payload, unsigned int length);
 
@@ -162,12 +164,12 @@ class MQTTManager : public Manager
     
     #ifdef ESP8266
         // Reduced buffer sizes for ESP8266 limited memory
-        static constexpr size_t MAX_TOPIC_LENGTH = 64;
-        static constexpr size_t MAX_VALUE_LENGTH = 256;
+        static constexpr size_t MAX_TOPIC_LENGTH = 48;
+        static constexpr size_t MAX_VALUE_LENGTH = 128;
     #else
         // Original sizes for ESP32 and other platforms
-        static constexpr size_t MAX_TOPIC_LENGTH = 128;
-        static constexpr size_t MAX_VALUE_LENGTH = 512;
+        static constexpr size_t MAX_TOPIC_LENGTH = 64;
+        static constexpr size_t MAX_VALUE_LENGTH = 256;
     #endif
     
     FrameworkContext* context;

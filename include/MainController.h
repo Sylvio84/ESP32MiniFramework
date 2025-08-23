@@ -5,6 +5,9 @@
 #ifdef ESP32
 #include <esp_chip_info.h>
 #endif
+#ifdef ESP8266
+#define BEARSSL_SMALL 1
+#endif
 
 #include <FrameworkContext.h>
 #include <Managers/ConfigurationManager.h>
@@ -26,8 +29,8 @@
 
 #define DEBUG_LOG() debugLog(__FILE__, __LINE__)
 
-#define RELEASE_VERSION "1.2.0"
-#define RELEASE_DATE "2025-08-16"
+#define RELEASE_VERSION "1.2.1"
+#define RELEASE_DATE "2025-08-23"
 
 inline void debugLog( const char* file, int line)
 {

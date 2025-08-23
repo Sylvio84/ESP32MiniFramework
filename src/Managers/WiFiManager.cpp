@@ -283,7 +283,7 @@ bool WiFiManager::connect()
     // Wait for connection with timeout (10 seconds)
     unsigned long startTime = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - startTime < CONNECTION_TIMEOUT) {
-        delay(100);
+        delay(50);  // Reduced from 100ms to 50ms
         if ((millis() - startTime) % 1000 == 0) {
             logDebug(".", 0);
         }
@@ -335,8 +335,13 @@ void WiFiManager::startAccessPoint(bool restart)
     String hostname = configMgr ? configMgr->getHostname() : "ESP32";
     logDebug("Creating Hotspot: " + hostname, 0);
     logDebug("IP Address: " + this->apIP.toString(), 0);
-    WiFi.mode(WIFI_AP_STA);
-    delay(100);
+    
+    // Use pure AP mode if not connected to WiFi to improve performance
+    WiFiMode_t mode = (WiFi.status() == WL_CONNECTED) ? WIFI_AP_STA : WIFI_AP;
+    WiFi.mode(mode);
+    
+    // Reduced delay from 100ms to 10ms
+    delay(10);
     WiFi.softAPConfig(this->apIP, this->apIP, IPAddress(255, 255, 255, 0));
     WiFi.softAP(hostname.c_str());
     setupTelnet();
@@ -697,54 +702,116 @@ bool WiFiManager::otaUpdate()
         return false;
     }
 
+    // Free up memory before OTA
+    ESP.wdtFeed();
+    yield();
+    
+    // Get configuration parameters and release strings early
     auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
-    String otaHost = configMgr ? configMgr->getPreference("ota_host", configMgr->OTA_HOST) : "";
-    int otaPort = configMgr ? configMgr->getPreference("ota_port", configMgr->OTA_PORT) : 443;
+    if (!configMgr) {
+        logDebug("No configuration manager", 1);
+        return false;
+    }
+    
+    // Get OTA configuration
+    String otaHost = configMgr->getPreference("ota_host", configMgr->OTA_HOST);
+    int otaPort = configMgr->getPreference("ota_port", configMgr->OTA_PORT);
+    String otaUrl = configMgr->getPreference("ota_url", configMgr->OTA_URL);
+    
     if (otaHost.length() == 0) {
-        logDebug("No OTA Host", 1);
+        logDebug("No OTA Host configured", 1);
         return false;
     }
-
-    String otaFingerprint = configMgr ? configMgr->OTA_FINGERPRINT : "";
-
-    String otaUrl = configMgr ? configMgr->getPreference("ota_url", configMgr->OTA_URL) : "";
+    
     if (otaUrl.length() == 0) {
-        logDebug("No OTA URL", 1);
+        logDebug("No OTA URL configured", 1);
         return false;
     }
-
-    //WiFiClient client;
-
-    WiFiClientSecure client;
-    bool mfln = client.probeMaxFragmentLength(otaHost, otaPort, 1024);
-    if (mfln) {
-        logDebug("Maximum fragment Length negotiation supported.", 2);
-        client.setBufferSizes(1024, 1024);
-    }
-    client.setInsecure();
-
-    if (!client.connect(otaHost, otaPort)) {
-        logDebug("Connection to " + otaHost + ":" + String(otaPort) + " failed", 1);
+    
+    // Check available heap before proceeding
+    uint32_t freeHeap = ESP.getFreeHeap();
+    logDebug("Free heap before OTA: " + String(freeHeap) + " bytes", 1);
+    
+    if (freeHeap < 10240) {  // Minimum 10KB required for HTTPS
+        logDebug("Not enough memory for OTA (need 10KB, have " + String(freeHeap) + ")", 0);
         return false;
+    }
+    
+    logDebug("OTA Config - Host: " + otaHost + ", Port: " + String(otaPort) + ", URL: " + otaUrl, 1);
+    
+    // Feed watchdog
+    ESP.wdtFeed();
+    yield();
+    
+    t_httpUpdate_return ret;
+    
+    if (otaPort == 443) {
+        // Use HTTPS with optimized memory settings
+        logDebug("Using HTTPS for OTA update", 1);
+        
+        WiFiClientSecure client;
+        
+        // Enable MFLN to reduce memory usage
+        bool mfln = client.probeMaxFragmentLength(otaHost, otaPort, 512);  // Reduced from 1024
+        if (mfln) {
+            logDebug("MFLN negotiation supported, using 512 byte fragments", 2);
+            client.setBufferSizes(512, 512);  // Reduced buffer size
+        } else {
+            logDebug("MFLN not supported, using minimal buffers", 2);
+            client.setBufferSizes(512, 128);  // Minimal receive/transmit buffers
+        }
+        
+        // Skip certificate validation to save memory
+        client.setInsecure();
+        
+        logDebug("Starting HTTPS OTA update from " + otaHost + ":" + String(otaPort) +"/" + otaUrl, 1);
+        
+        // Feed watchdog before update
+        ESP.wdtFeed();
+        
+        // Configure ESPhttpUpdate
+        ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
+        ESPhttpUpdate.rebootOnUpdate(true);
+        ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+        
+        // Perform HTTPS update
+        ret = ESPhttpUpdate.update(client, otaHost, otaPort, otaUrl);
+        
     } else {
-        logDebug("Connected to " + otaHost + ":" + String(otaPort), 2);
+        // Use HTTP (more memory efficient)
+        logDebug("Using HTTP for OTA update", 1);
+        
+        WiFiClient client;
+        
+        logDebug("Starting HTTP OTA update from " + otaHost + ":" + String(otaPort) + otaUrl, 1);
+        
+        // Feed watchdog before update
+        ESP.wdtFeed();
+        
+        // Configure ESPhttpUpdate
+        ESPhttpUpdate.setLedPin(LED_BUILTIN, LOW);
+        ESPhttpUpdate.rebootOnUpdate(true);
+        ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+        
+        // Perform HTTP update
+        ret = ESPhttpUpdate.update(client, otaHost, otaPort, otaUrl);
     }
-
-    logDebug("Start OTA update from " + otaHost + ":" + String(otaPort) + otaUrl, 1);
-    auto ret = ESPhttpUpdate.update(client, otaHost, otaPort, otaUrl);
-    // if successful, ESP will restart
+    
+    // Handle result
     switch (ret) {
         case HTTP_UPDATE_FAILED:
-            logDebug("OTA Update failed: " + ESPhttpUpdate.getLastErrorString(), 1);
+            logDebug("OTA Update failed: " + ESPhttpUpdate.getLastErrorString() + " (Error: " + String(ESPhttpUpdate.getLastError()) + ")", 1);
             return false;
         case HTTP_UPDATE_NO_UPDATES:
-            logDebug("OTA No updates", 1);
+            logDebug("OTA: No updates available", 1);
             return false;
         case HTTP_UPDATE_OK:
-            logDebug("OTA Update successful", 1);  // may not be called since we reboot the ESP
+            logDebug("OTA Update successful, rebooting...", 1);
             return true;
+        default:
+            logDebug("OTA: Unknown result: " + String(ret), 1);
+            return false;
     }
-    return false;
 }
 #endif
 #ifdef ESP32
@@ -1112,8 +1179,8 @@ void WiFiManager::registerCommands()
             WiFi.scanNetworks(true);  // Start async scan
 
             // Wait for scan to complete (with timeout)
-            int timeout = CONNECTION_TIMEOUT_MS;  // 10 seconds
-            int startTime = millis();
+            unsigned long timeout = CONNECTION_TIMEOUT_MS;  // 10 seconds
+            unsigned long startTime = millis();
             int count = -1;
 
             while (millis() - startTime < timeout) {

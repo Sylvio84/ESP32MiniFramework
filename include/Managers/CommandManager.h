@@ -239,6 +239,8 @@ public:
      * @return true if removed, false if not found
      */
     bool removeAlias(const String& alias);
+
+    void clearCommands();
     
     /**
      * @brief Request user input with a callback

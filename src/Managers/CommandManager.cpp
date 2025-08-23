@@ -11,7 +11,7 @@ void CommandManager::init()
 
     // Register built-in commands
     registerBuiltInCommands();
-    
+
     // onEvent will be called automatically by the framework
 
     setInitialized(true);
@@ -28,7 +28,7 @@ void CommandManager::registerBuiltInCommands()
     generalHelpCmd.source = CommandSource::Any;
     generalHelpCmd.historyEnabled = false;
     generalHelpCmd.execute = [this](const std::vector<String>& args) {
-        #ifdef ESP8266
+#ifdef ESP8266
         // Simplified version for ESP8266 - minimal text to save memory
         String result = "Namespaces:\n";
         result += "  sys, wifi, mqtt, time\n";
@@ -36,7 +36,7 @@ void CommandManager::registerBuiltInCommands()
         result += "  espui, command\n";
         result += "Use: <namespace>:help\n";
         result += "Ex: sys:help";
-        #else
+#else
         // Full version for ESP32 and other platforms
         String result = "Available Command Namespaces:\n\n";
         result += "  sys      - System commands (version, uptime, restart, etc.)\n";
@@ -56,7 +56,7 @@ void CommandManager::registerBuiltInCommands()
         result += "  sys:help     - Show system commands\n";
         result += "  wifi:status  - Show WiFi status\n";
         result += "  command:list - List all available commands";
-        #endif
+#endif
         return result;
     };
     registerCommand(generalHelpCmd);
@@ -92,7 +92,7 @@ void CommandManager::registerBuiltInCommands()
             }
             result += "\n";
         } else {
-            #ifdef ESP8266
+#ifdef ESP8266
             // Simplified version for ESP8266 - no descriptions
             int count = 0;
             for (const auto& cmd : cmds) {
@@ -103,7 +103,7 @@ void CommandManager::registerBuiltInCommands()
                 result += "  " + cmd.getFullName() + "\n";
                 count++;
             }
-            #else
+#else
             // Full version with descriptions for ESP32
             for (const auto& cmd : cmds) {
                 result += "  " + cmd.getFullName();
@@ -112,7 +112,7 @@ void CommandManager::registerBuiltInCommands()
                 }
                 result += "\n";
             }
-            #endif
+#endif
         }
 
         return result;
@@ -163,7 +163,7 @@ void CommandManager::registerBuiltInCommands()
     };
     registerCommand(historyCmd);
     registerAlias("hist", "command:history");
-    
+
     // Test input command - demonstrates the new requestInput functionality
     Command testInputCmd;
     testInputCmd.namespaceName = "command";
@@ -313,16 +313,16 @@ String CommandManager::executeCommand(const String& nameOrAlias, const std::vect
     // Execute command
     String result;
     if (cmd.execute) {
-        #ifdef ESP8266
-            // ESP8266 doesn't support exceptions by default
+#ifdef ESP8266
+        // ESP8266 doesn't support exceptions by default
+        result = cmd.execute(args);
+#else
+        try {
             result = cmd.execute(args);
-        #else
-            try {
-                result = cmd.execute(args);
-            } catch (...) {
-                result = "Error executing command: " + fullName;
-            }
-        #endif
+        } catch (...) {
+            result = "Error executing command: " + fullName;
+        }
+#endif
     } else {
         result = "Command has no execution handler: " + fullName;
     }
@@ -570,6 +570,15 @@ bool CommandManager::removeAlias(const String& alias)
     return aliases.erase(alias) > 0;
 }
 
+void CommandManager::clearCommands()
+{
+    commands.clear();
+    aliases.clear();
+    registerCommand(Command("sys", "restart", "Reboot", CommandSource::Any, true, 
+                            [this](const std::vector<String>& args) -> String { ESP.restart(); return "Restarting..."; }));
+    registerAlias("reboot", "sys:restart");
+}
+
 bool CommandManager::onCommand(const String& command, const std::vector<String>& params)
 {
     // Handle direct command execution
@@ -627,7 +636,7 @@ String CommandManager::generateNamespaceHelp(const String& namespaceName)
     result[0] = toupper(result[0]);  // Capitalize first letter
     result += " Commands:\n";
 
-    #ifdef ESP8266
+#ifdef ESP8266
     // Simplified version for ESP8266 - no descriptions to save memory
     for (const auto& pair : commands) {
         const Command& cmd = pair.second;
@@ -635,10 +644,10 @@ String CommandManager::generateNamespaceHelp(const String& namespaceName)
             result += "  " + namespaceName + ":" + cmd.name + "\n";
         }
     }
-    
+
     // Add help command reference
     result += "  " + namespaceName + ":help\n";
-    
+
     // Show aliases in compact format
     bool hasAliases = false;
     for (const auto& aliasPair : aliases) {
@@ -654,8 +663,8 @@ String CommandManager::generateNamespaceHelp(const String& namespaceName)
     if (hasAliases) {
         result += "\n";
     }
-    
-    #else
+
+#else
     // Full version for ESP32 and other platforms
     // Collect commands for this namespace
     std::vector<Command> namespaceCommands;
@@ -707,7 +716,7 @@ String CommandManager::generateNamespaceHelp(const String& namespaceName)
             result += namespaceAliases[i];
         }
     }
-    #endif
+#endif
 
     return result;
 }
@@ -745,27 +754,26 @@ void CommandManager::generateHelpCommands()
     debug("Automatic help generation completed for " + String(namespaces.size()) + " namespaces", 1);
 }
 
-bool CommandManager::requestInput(const String& prompt, 
-                                 std::function<void(const String&)> callback)
+bool CommandManager::requestInput(const String& prompt, std::function<void(const String&)> callback)
 {
     // Check if already waiting for input
     if (waitingForInput) {
         debug("Already waiting for input, cannot start new request", 1);
         return false;
     }
-    
+
     // Store the request
     activeInputPrompt = prompt;
     activeInputCallback = callback;
     waitingForInput = true;
-    
+
     // Display the prompt
     Serial.println();
     Serial.print(prompt);
     if (!prompt.endsWith(" ") && !prompt.endsWith(": ") && !prompt.endsWith("> ")) {
         Serial.print(" ");
     }
-    
+
     debug("Started input request: " + prompt, 2);
     return true;
 }
@@ -775,51 +783,50 @@ void CommandManager::cancelInput()
     if (!waitingForInput) {
         return;
     }
-    
+
     waitingForInput = false;
-    
+
     // Call callback with empty string to indicate cancellation
     if (activeInputCallback) {
         activeInputCallback("");
     }
-    
+
     activeInputPrompt = "";
     activeInputCallback = nullptr;
-    
+
     debug("Input request cancelled", 2);
 }
 
-bool CommandManager::onEvent(const String& type, const String& event, 
-                            const std::vector<String>& params)
+bool CommandManager::onEvent(const String& type, const String& event, const std::vector<String>& params)
 {
     // Only intercept serial input when waiting for input
     if (!waitingForInput || type != "serial" || event != "input") {
         return false;
     }
-    
+
     // Get the input
     String input = params.size() > 0 ? params[0] : "";
     input.trim();
-    
+
     // Check for cancel commands
     if (input == "cancel" || input == "abort") {
         Serial.println("Input cancelled.");
         cancelInput();
         return true;
     }
-    
+
     // Save callback before clearing state
     auto callback = activeInputCallback;
-    
+
     // Clear state
     waitingForInput = false;
     activeInputPrompt = "";
     activeInputCallback = nullptr;
-    
+
     // Call the callback
     if (callback) {
         callback(input);
     }
-    
-    return true; // Consume the event
+
+    return true;  // Consume the event
 }

@@ -14,8 +14,8 @@
 #endif
 
 // Static constants
-const char* SystemManager::RELEASE_VERSION = "1.2.0";
-const char* SystemManager::RELEASE_DATE = "2025-08-16";
+const char* SystemManager::RELEASE_VERSION = "1.2.1";
+const char* SystemManager::RELEASE_DATE = "2025-08-23";
 
 SystemManager::SystemManager(FrameworkContext& context) : Manager(context) {}
 
@@ -269,7 +269,7 @@ String SystemManager::getSystemInfo()
 #ifdef ESP32
     info += "Total Heap: " + String(ESP.getHeapSize() / 1024) + " KB\n";
 #endif
-    info += "Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB\n";
+    info += "Free Heap: " + String(ESP.getFreeHeap()) + " / " + String(ESP.getFreeHeap() / 1024) + " KB\n";
     info += "Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB\n";
     info += "Sketch size: " + String(ESP.getSketchSize() / 1024) + " KB\n";
     info += "Free sketch space: " + String(ESP.getFreeSketchSpace() / 1024) + " KB\n";
@@ -423,6 +423,18 @@ void SystemManager::restartSystem()
 
 void SystemManager::performOtaUpdate()
 {
+    // clear commands
+    auto* cmdMgr = static_cast<CommandManager*>(context->getManager("CommandManager"));
+    if (cmdMgr) {
+        cmdMgr->clearCommands();
+    }
+
+    // disconnect MQTT
+    auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
+    if (mqttMgr && mqttMgr->isConnected()) {
+        mqttMgr->disconnect();
+    }
+
     auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
     if (wifiMgr) {
         wifiMgr->otaUpdate();
@@ -503,12 +515,13 @@ void SystemManager::registerCommands()
     }
 
     // Version command
-    cmdMgr->registerCommand(Command("sys", "version", "Show framework version", CommandSource::Any, true, [this](const std::vector<String>& args) {
+    cmdMgr->registerCommand(Command("sys", "version", "Framework version", CommandSource::Any, true, [this](const std::vector<String>& args) {
         return "Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")";
     }));
 
+    #ifndef ESP8266
     // Uptime command
-    cmdMgr->registerCommand(Command("sys", "uptime", "Show system uptime", CommandSource::Any, true,
+    cmdMgr->registerCommand(Command("sys", "uptime", "System uptime", CommandSource::Any, true,
                                     [this](const std::vector<String>& args) { return "Uptime: " + String(millis() / 1000) + " seconds"; }));
 
     // Echo command
@@ -526,13 +539,9 @@ void SystemManager::registerCommands()
     }));
 
     // Temperature command
-    cmdMgr->registerCommand(Command("sys", "temp", "Show CPU temperature", CommandSource::Any, true, [this](const std::vector<String>& args) {
-#ifdef ESP32
+    cmdMgr->registerCommand(Command("sys", "temp", "CPU temp.", CommandSource::Any, true, [this](const std::vector<String>& args) {
         float temp = getCpuTemperature();
         return "Temperature: " + String(temp) + "°C";
-#else
-            return "Temperature not supported on this device";
-#endif
     }));
 
     // LED command - now delegates to InternalLedDevice
@@ -560,7 +569,6 @@ void SystemManager::registerCommands()
     // CPU Frequency command
     cmdMgr->registerCommand(
         Command("sys", "freq", "Get/Set CPU frequency (80/160/240 MHz)", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
-#ifdef ESP32
             if (args.size() > 0) {
                 int freq = args[0].toInt();
                 if (freq == 80 || freq == 160 || freq == 240) {
@@ -576,21 +584,20 @@ void SystemManager::registerCommands()
                 int freq = getCpuFrequency();
                 return String("CPU Frequency: " + String(freq) + " MHz");
             }
-#else
-            return String("Frequency command not supported on this device");
-#endif
         }));
 
-    // System info command
-    cmdMgr->registerCommand(Command("sys", "info", "Show comprehensive system information", CommandSource::Any, true,
-                                    [this](const std::vector<String>& args) -> String { return getSystemInfo(); }));
-
     // Filesystem info command
-    cmdMgr->registerCommand(Command("sys", "fs", "Show filesystem information", CommandSource::Any, true,
+    cmdMgr->registerCommand(Command("sys", "fs", "Filesystem info", CommandSource::Any, true,
                                     [this](const std::vector<String>& args) -> String { return getFilesystemInfo(); }));
 
+    #endif
+
+    // System info command
+    cmdMgr->registerCommand(Command("sys", "info", "System info", CommandSource::Any, true,
+                                    [this](const std::vector<String>& args) -> String { return getSystemInfo(); }));
+
     // Restart command
-    cmdMgr->registerCommand(Command("sys", "restart", "Restart the system", CommandSource::Any, true,  // Enable history for restart
+    cmdMgr->registerCommand(Command("sys", "restart", "Reboot", CommandSource::Any, true,  // Enable history for restart
                                     [this](const std::vector<String>& args) -> String {
                                         debug("Restarting system...", 1);
                                         delay(500);
@@ -602,7 +609,7 @@ void SystemManager::registerCommands()
     cmdMgr->registerAlias("reboot", "sys:restart");
 
     // OTA Update command
-    cmdMgr->registerCommand(Command("sys", "ota", "Start OTA firmware update",
+    cmdMgr->registerCommand(Command("sys", "ota", "OTA FW update",
                                     CommandSource::Serial,  // Only from Serial for security
                                     true,                   // Enable history
                                     [this](const std::vector<String>& args) -> String {
@@ -655,7 +662,7 @@ void SystemManager::registerCommands()
     }));
 
     cmdMgr->registerCommand(
-        Command("wifi", "connect", "Connect to WiFi with saved credentials", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        Command("wifi", "connect", "Connect to WiFi", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
             if (!wifiMgr) {
                 return String("WiFiManager not available");
@@ -666,7 +673,7 @@ void SystemManager::registerCommands()
         }));
 
     cmdMgr->registerCommand(
-        Command("wifi", "status", "Show WiFi connection status", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        Command("wifi", "status", "WiFi conn. status", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
             if (!wifiMgr) {
                 return String("WiFiManager not available");
@@ -697,22 +704,37 @@ void SystemManager::registerCommands()
                 return String("Debug level: " + String(debugLevel));
             }
         }));
-    
-    // Alias for backward compatibility (single digit command)
-    cmdMgr->registerCommand(Command("", "debuglevel", "Set debug level (0-9)", CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            if (args.size() > 0) {
-                int level = args[0].toInt();
-                if (level >= 0 && level <= 9) {
-                    setDebugLevel(level);
-                    return String("Debug level set to: " + String(level));
-                } else {
-                    return String("Invalid debug level. Valid range: 0-9");
-                }
-            } else {
-                return String("Debug level: " + String(debugLevel));
-            }
-        }));
 
-    debug("System, WiFi, LED and Debug commands registered", 2);
+    /*cmdMgr->registerCommand(Command("sys", "clearmem", "Clear memory caches and perform garbage collection", CommandSource::Any, true,
+       [this](const std::vector<String>& args) -> String {
+           // Clear MQTT subscriptions history if too large
+           auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
+           if (mqttMgr) {
+               // Clear retained publications not needed
+               std::vector<String> subs = mqttMgr->getSubscriptions();
+               for (const auto& sub : subs) {
+                   mqttMgr->removePublication(sub);
+               }
+           }
+           
+           // Clear event manager callbacks that are no longer needed
+           //auto* evtMgr = static_cast<EventManager*>(context->getManager("EventManager"));
+           
+           // Force String pool cleanup
+           #ifdef ESP8266
+           // ESP8266 specific memory cleanup
+           ESP.wdtFeed();
+           yield();
+           #elif defined(ESP32)
+           // ESP32 specific cleanup
+           heap_caps_malloc_extmem_enable(0);
+           #endif
+           
+           // Report memory status
+           size_t freeBefore = ESP.getFreeHeap();
+           
+           // Return memory status
+           return "Memory cleaned. Free heap: " + String(freeBefore) + " bytes";
+       }
+    ));*/
 }

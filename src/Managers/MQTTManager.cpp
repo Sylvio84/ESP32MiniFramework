@@ -75,8 +75,9 @@ void MQTTManager::loop()
         lastPing = currentMillis;
     }
 
-    if (currentMillis - lastMQTTReconnect >= (reconnectDelay * MS_PER_SECOND)) {
-        if ((status >= 2) && server != "" && !mqttClient.connected()) {
+    if (autoReconnect && currentMillis - lastMQTTReconnect >= (reconnectDelay * MS_PER_SECOND)) {
+        // Only try MQTT connection if WiFi is actually connected (not in AP-only mode)
+        if ((status >= 2) && server != "" && !mqttClient.connected() && WiFi.status() == WL_CONNECTED) {
             logDebug("MQTT: Try to connect....", 1);
             if (!reconnect()) {
                 retry++;
@@ -121,8 +122,18 @@ bool MQTTManager::isConnected()
     return mqttClient.connected();
 }
 
+void MQTTManager::disconnect()
+{
+    if (mqttClient.connected()) {
+        mqttClient.disconnect();
+        logDebug("MQTT disconnected", 1);
+    }
+    autoReconnect = false;
+}
+
 bool MQTTManager::reconnect()
 {
+    autoReconnect = true;
     if (!mqttClient.connected()) {
         context->getEventManager()->triggerEvent("mqtt", "ConnectionInProgress", {});
         logDebug("Attempting MQTT connection...", 1);
