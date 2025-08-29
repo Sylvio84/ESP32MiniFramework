@@ -68,7 +68,7 @@ void MQTTManager::loop()
         if (mqttClient.connected()) {
             auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
             String hostname = configMgr ? configMgr->getHostname() : "ESP32";
-            publish(hostname + "/status", "online", false);
+            publish(hostname + "/status", "online", true, false);
         } else {
             logDebug("MQTT status #" + String(status) + ": " + (mqttClient.connected() ? "connected" : "disconnected"), 1);
         }
@@ -184,6 +184,18 @@ void MQTTManager::publish(String topic, String payload, bool enableDebug)
         return;
     }
     mqttClient.publish(topic.c_str(), payload.c_str());
+}
+
+void MQTTManager::publish(String topic, String payload, bool retain, bool enableDebug)
+{
+    if (enableDebug) {
+        logDebug("Publishing to " + topic + ": " + payload + (retain ? " (retained)" : ""), 2);
+    }
+    if (!mqttClient.connected()) {
+        logDebug("MQTT not connected, can't publish: " + topic + " = " + payload, 1);
+        return;
+    }
+    mqttClient.publish(topic.c_str(), payload.c_str(), retain);
 }
 
 void MQTTManager::subscribe(String topic)
@@ -308,6 +320,18 @@ bool MQTTManager::onEvent(const String& type, const String& event, const std::ve
                 if (isConnected()) {
                     publish(params[0], params[1]);
                 } else {
+                    storePublication(params[0], params[1]);
+                }
+            } else {
+                logDebug("Missing topic or payload", 1);
+            }
+            return true;
+        } else if (event == "publishRetain") {
+            if (params.size() > 1) {
+                if (isConnected()) {
+                    publish(params[0], params[1], true, true);
+                } else {
+                    // Store for later publication (note: retain flag will be lost)
                     storePublication(params[0], params[1]);
                 }
             } else {

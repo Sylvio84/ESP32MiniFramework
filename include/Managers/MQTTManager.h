@@ -126,6 +126,7 @@ class MQTTManager : public Manager
 
     // void registerCallback(MQTTCallback callback);
     void publish(String topic, String payload, bool enableDebug = true);
+    void publish(String topic, String payload, bool retain, bool enableDebug);
     void subscribe(String topic);
     void unsubscribe(String topic);
 

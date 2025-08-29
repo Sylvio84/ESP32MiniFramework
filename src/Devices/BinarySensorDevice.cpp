@@ -107,7 +107,7 @@ bool BinarySensorDevice::performReading()
 void BinarySensorDevice::publishSensorData()
 {
     // Publish detection state
-    processEvent("mqtt", "publishAsap", {topic + "/detection", detection == HIGH ? "1" : "0"});
+    processEvent("mqtt", "publishRetain", {topic + "/detection", detection == HIGH ? "1" : "0"});
     
     // Publish activation state
     processEvent("mqtt", "publish", {topic + "/state", activated ? "1" : "0"});
@@ -175,7 +175,7 @@ int BinarySensorDevice::toggle()
 void BinarySensorDevice::getState()
 {
     debug("Binary sensor state: " + String(activated ? "active" : "inactive"), 2);
-    processEvent("mqtt", "publishAsap", {topic + "/state", activated ? "1" : "0"});
+    processEvent("mqtt", "publishRetain", {topic + "/state", activated ? "1" : "0"});
 }
 
 bool BinarySensorDevice::getDetection()

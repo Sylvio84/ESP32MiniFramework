@@ -107,8 +107,8 @@ void SensorDevice::handleReadError()
 
 void SensorDevice::publishStatus(const String& status)
 {
-    // Use triggerEvent to properly propagate to MQTTManager
-    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/status", status});
+    // Use triggerEvent to properly propagate to MQTTManager with retain flag
+    context->getEventManager()->triggerEvent("mqtt", "publishRetain", {topic + "/status", status});
 }
 
 void SensorDevice::publishLastReadTime()
@@ -118,8 +118,8 @@ void SensorDevice::publishLastReadTime()
     struct tm* timeinfo = localtime(&now);
     char timeStr[20];
     strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
-    // Use triggerEvent to properly propagate to MQTTManager
-    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/lastread", String(timeStr)});
+    // Use triggerEvent to properly propagate to MQTTManager with retain flag
+    context->getEventManager()->triggerEvent("mqtt", "publishRetain", {topic + "/lastread", String(timeStr)});
 }
 
 void SensorDevice::forceRead()

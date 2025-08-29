@@ -2,8 +2,8 @@
 #define DHTSENSORDEVICE_H
 
 #include <Arduino.h>
-#include <Devices/SensorDevice.h>
 #include <DHT.h>
+#include <Devices/SensorDevice.h>
 
 // DHT sensor types
 #define DHT11_TYPE 11
@@ -47,44 +47,45 @@
  */
 class DHTSensorDevice : public SensorDevice
 {
-private:
+  private:
     // DHT specific configuration
     int SENSOR_TYPE = DHT22_TYPE;
-    
+
     // Sensor readings
     float lastTemperature = NAN;
     float lastHumidity = NAN;
     float lastHeatIndex = NAN;
-    
+
     // DHT library instance
     DHT* dhtSensor = nullptr;
-    
+
     // Initialization timing
     unsigned long initStartTime = 0;
     bool sensorReady = false;
     static const unsigned long INIT_DELAY_MS = 2000;  // 2 seconds stabilization
-    
+
     // Internal methods
     float computeHeatIndex(float temperature, float humidity);
     bool validateReading(float temperature, float humidity);
-    
-protected:
+
+  protected:
     // Implement abstract methods from SensorDevice
     bool performReading() override;
     void publishSensorData() override;
     String getSensorStatus() override;
-    
-public:
+    bool isTimeToRead() override;
+
+  public:
     // Constructor
     DHTSensorDevice(String id, FrameworkContext& ctx);
-    
+
     // Destructor
     ~DHTSensorDevice();
-    
+
     // Override parent methods
     void init() override;
     bool processCommand(String command, std::vector<String> params) override;
-    
+
     // DHT specific public methods
     float getTemperature() { return lastTemperature; }
     float getHumidity() { return lastHumidity; }

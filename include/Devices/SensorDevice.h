@@ -44,7 +44,7 @@ class SensorDevice : public Device
 protected:
     // Configuration
     int sensorPin = -1;
-    unsigned long readInterval = 60000;  // Default 60 seconds
+    unsigned long readInterval = 10000;  // Default 10 seconds
     unsigned long minReadInterval = 1000;  // Default minimum 1 second
     
     // Sensor state
@@ -98,7 +98,7 @@ protected:
      * @brief Check if enough time has passed for next reading
      * @return true if it's time to read, false otherwise
      */
-    bool isTimeToRead();
+    virtual bool isTimeToRead();
     
 public:
     // Constructor

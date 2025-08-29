@@ -56,9 +56,25 @@ void DHTSensorDevice::init()
     
     // Set default interval if not already configured
     if (readInterval < minReadInterval) {
-        setReadInterval(60);  // Default 60 seconds
+        setReadInterval(30);  // Default 60 seconds
     }
     debug("Read interval set to: " + String(readInterval) + "ms", 1);
+}
+
+bool DHTSensorDevice::isTimeToRead()
+{
+    if (SensorDevice::isTimeToRead()) {
+        return true;
+    }
+    if (!sensorReady) {
+        unsigned long elapsed = millis() - initStartTime;
+        if (elapsed >= INIT_DELAY_MS) {
+            sensorReady = true;
+            debug("DHT sensor is now ready for readings", 1);
+            return true;  // First reading after stabilization
+        }
+    }
+    return false;
 }
 
 bool DHTSensorDevice::performReading()
@@ -110,10 +126,10 @@ void DHTSensorDevice::publishSensorData()
     debug("Humidity: " + String(lastHumidity, 1) + "%", 2);
     debug("Heat Index: " + String(lastHeatIndex, 1) + "°C", 2);
     
-    // Use triggerEvent like OnOffDevice does, not processEvent
-    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/temperature", String(lastTemperature, 1)});
-    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/humidity", String(lastHumidity, 1)});
-    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/heatindex", String(lastHeatIndex, 1)});
+    // Use triggerEvent with retain flag for sensor data
+    context->getEventManager()->triggerEvent("mqtt", "publishRetain", {topic + "/temperature", String(lastTemperature, 1)});
+    context->getEventManager()->triggerEvent("mqtt", "publishRetain", {topic + "/humidity", String(lastHumidity, 1)});
+    context->getEventManager()->triggerEvent("mqtt", "publishRetain", {topic + "/heatindex", String(lastHeatIndex, 1)});
 }
 
 String DHTSensorDevice::getSensorStatus()

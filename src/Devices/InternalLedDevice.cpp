@@ -113,7 +113,7 @@ void InternalLedDevice::deactivate()
 bool InternalLedDevice::getActive()
 {
     debug("LED active state: " + String(active), 1);
-    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/active", active ? "1" : "0"});
+    context->getEventManager()->triggerEvent("mqtt", "publishRetain", {topic + "/active", active ? "1" : "0"});
     return active;
 }
 

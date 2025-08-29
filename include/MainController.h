@@ -132,14 +132,12 @@ protected:
     WiFiManager wiFiManager;
     MQTTManager mqttManager;
     TimeManager timeManager;
+    DeviceManager deviceManager;
+    DeviceProgramManager deviceProgramManager;
 
     #ifndef DISABLE_ESPUI
     ESPUIManager espUIManager;
     #endif
-
-    DeviceManager deviceManager;
-    DeviceProgramManager deviceProgramManager;
-
 
 public:
     MainController();
@@ -151,15 +149,15 @@ public:
     virtual void processUI(String action, std::vector<String> params);
 #endif
     bool processInput(const String input);
-    // processCommand removed - now handled by CommandManager
     virtual void processEvent(String type, String event, std::vector<String> params);
-
     virtual void processMQTT(String topic, String value);
 
     EventManager* getEventManager();
     FrameworkContext& getContext() { return context; }
 
     void processDebugMessage(String message, int level = 0, bool displayTime = true);
+    void debug(const String& message, int level = 0, bool displayTime = true);
+
 };
 
 #endif

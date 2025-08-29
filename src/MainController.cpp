@@ -20,7 +20,7 @@ MainController::MainController()
 {
     // Register all services in the context
     context.registerService(&eventManager);
-    
+
     // Register all managers (including ConfigurationManager which is now a Manager)
     context.registerManager(&configManager);
     context.registerManager(&systemManager);
@@ -49,7 +49,7 @@ void MainController::init()
     for (auto* manager : context.getManagers()) {
         manager->init();
     }
-    
+
     mqttManager.addSubscription(configManager.getHostname() + "/cmd/#");
     //mqttManager.addSubscription(configManager.getHostname() + "/#");
 #ifndef DISABLE_ESPUI
@@ -64,18 +64,10 @@ void MainController::init()
         eventManager.debug("Failed to load device programs", 0);
     }
 
-    // Register TimeManager commands after all managers are initialized
-    auto* timeMgr = static_cast<TimeManager*>(context.getManager("TimeManager"));
-    if (timeMgr) {
-        timeMgr->registerCommands();
-    }
+    timeManager.registerCommands();
 
-    // Generate automatic help commands now that all managers have registered their commands
-    auto* cmdMgr = static_cast<CommandManager*>(context.getManager("CommandManager"));
-    if (cmdMgr) {
-        cmdMgr->generateHelpCommands();
-    }
-    
+    commandManager.generateHelpCommands();
+
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + configManager.getHostname() + "!", 0);
 }
@@ -86,7 +78,7 @@ void MainController::loop()
     for (auto* manager : context.getManagers()) {
         manager->loop();
     }
-    
+
     deviceManager.loopDevices();
 }
 
@@ -149,20 +141,20 @@ void MainController::processEvent(String type, String event, std::vector<String>
             return;
         }
     }
-    
+
     // Handle remaining events that need MainController-specific logic
     if (type == "mqtt" && event == "message") {
         // MQTT messages need special handling in MainController
         processMQTT(params[0], params[1]);
         return;
     }
-    
+
     if ((type == "serial" || type == "telnet") && event == "input") {
         // Input processing needs MainController logic
         processInput(params[0]);
         return;
     }
-    
+
 #ifndef DISABLE_ESPUI
     if (type == "espui" && event != "Command" && event != "Reboot") {
         // Custom UI events need MainController processUI
@@ -184,7 +176,7 @@ bool MainController::processInput(const String input)
     }
 
     String processedInput = input;
-    
+
     // Special case: single digit shortcuts for debug level (0-9)
     if (input.length() == 1 && input[0] >= '0' && input[0] <= '9') {
         processedInput = "sys:debug " + input;
@@ -192,15 +184,12 @@ bool MainController::processInput(const String input)
     }
 
     // Use CommandManager to execute commands
-    auto* cmdMgr = static_cast<CommandManager*>(context.getManager("CommandManager"));
-    if (cmdMgr) {
-        // Execute the command string directly (this also adds to history)
-        String result = cmdMgr->executeCommandString(processedInput, CommandSource::Serial);
-        if (!result.isEmpty()) {
-            serialManager.output(result);
-        }
-        return true;
+    // Execute the command string directly (this also adds to history)
+    String result = commandManager.executeCommandString(processedInput, CommandSource::Serial);
+    if (!result.isEmpty()) {
+        serialManager.output(result);
     }
+    return true;
 
     // If CommandManager didn't handle it, try MQTT publish format
     int topicIndex = input.indexOf('/');
@@ -229,47 +218,43 @@ void MainController::processMQTT(String topic, String value)
     deviceManager.processEventDevices("mqtt", "message", {topic, value});
 
     String hostname = configManager.getHostname();
-    
+
     // Check for command topic format: hostname/cmd/...
     if (topic.startsWith(hostname + "/cmd/")) {
         String commandPart = topic.substring(hostname.length() + 5);  // 5 = length of "/cmd/"
-        
+
         // Try CommandManager first
-        auto* cmdMgr = static_cast<CommandManager*>(context.getManager("CommandManager"));
-        if (cmdMgr) {
-            // Build command string from topic and value
-            // Convert first / to : for namespace:command format, rest to spaces
-            String commandStr = commandPart;
-            int firstSlash = commandStr.indexOf('/');
-            if (firstSlash > 0) {
-                // Replace first / with : to get namespace:command format
-                commandStr = commandStr.substring(0, firstSlash) + ":" + commandStr.substring(firstSlash + 1);
-            }
-            // Replace any remaining / with space for additional arguments
-            commandStr.replace('/', ' ');
-            
-            if (!value.isEmpty()) {
-                commandStr += " " + value;
-            }
-            
-            String result = cmdMgr->executeCommandString(commandStr, CommandSource::MQTT);
-            if (!result.startsWith("Command not found")) {
-                // Publish result back via MQTT on /log topic
-                // (device commands handle their own response topics)
-                eventManager.triggerEvent("mqtt", "publishAsap", 
-                    {hostname + "/log", result});
-                return;
-            }
+        // Build command string from topic and value
+        // Convert first / to : for namespace:command format, rest to spaces
+        String commandStr = commandPart;
+        int firstSlash = commandStr.indexOf('/');
+        if (firstSlash > 0) {
+            // Replace first / with : to get namespace:command format
+            commandStr = commandStr.substring(0, firstSlash) + ":" + commandStr.substring(firstSlash + 1);
         }
-        
+        // Replace any remaining / with space for additional arguments
+        commandStr.replace('/', ' ');
+
+        if (!value.isEmpty()) {
+            commandStr += " " + value;
+        }
+
+        String result = commandManager.executeCommandString(commandStr, CommandSource::MQTT);
+        if (!result.startsWith("Command not found")) {
+            // Publish result back via MQTT on /log topic
+            // (device commands handle their own response topics)
+            eventManager.triggerEvent("mqtt", "publishAsap", {hostname + "/log", result});
+            return;
+        }
+
         // Fallback to old format for backward compatibility
         int slashIndex = commandPart.indexOf('/');
         if (slashIndex > 0) {
             String ns = commandPart.substring(0, slashIndex);
             String command = commandPart.substring(slashIndex + 1);
-            
+
             eventManager.debug("Processing command: " + ns + ":" + command + " with value: " + value, 1);
-            
+
             if (value.startsWith("{") && value.endsWith("}")) {
                 // Handle JSON value
                 eventManager.triggerEvent(ns, "@" + command, {value});
@@ -313,4 +298,8 @@ void MainController::processDebugMessage(String message, int level, bool display
     }
 }
 
-
+// Simplified debug helper
+void MainController::debug(const String& message, int level, bool displayTime)
+{
+    eventManager.debug(message, level, displayTime);
+}

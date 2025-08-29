@@ -241,7 +241,7 @@ bool OnOffDevice::isOn()
 
 void OnOffDevice::publishState()
 {
-    context->getEventManager()->triggerEvent("mqtt", "publishAsap", {topic + "/status", state ? "1" : "0"});
+    context->getEventManager()->triggerEvent("mqtt", "publishRetain", {topic + "/status", state ? "1" : "0"});
 }
 
 void OnOffDevice::setPin(int newPin)
