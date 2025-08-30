@@ -124,8 +124,7 @@ class MQTTManager : public Manager
     // void onMessage(char* topic, byte* payload, unsigned int length);
 
     // void registerCallback(MQTTCallback callback);
-    void publish(String topic, String payload, bool enableDebug = true);
-    void publish(String topic, String payload, bool retain, bool enableDebug);
+    void publish(String topic, String payload, bool retain = false, bool storeIfNotConnected = false, bool enableDebug = false);
     void subscribe(String topic);
     void unsubscribe(String topic);
 

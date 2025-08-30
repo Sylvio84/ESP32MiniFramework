@@ -5,7 +5,12 @@
 void Device::init()
 {
     retrieveName();
-    retrieveTopic();
+    // Don't retrieve topic - let derived classes set it based on current hostname
+    // retrieveTopic();
+    
+    // Register device commands (name, topic, status, help)
+    registerDeviceCommands();
+    
 #ifndef DISABLE_ESPUI
     initEspUI();
 #endif
@@ -17,7 +22,6 @@ void Device::init()
 }
 
 void Device::loop() {}
-
 
 void Device::saveTopic(String topic)
 {
@@ -280,6 +284,8 @@ void Device::registerDeviceCommands()
         [this](const std::vector<String>& args) -> String {
             String result = "Commands for device '" + name + "' (" + id + "):\n";
             for (const auto& cmd : deviceCommands) {
+                // Skip the help command itself to avoid duplication
+                if (cmd.name == "help") continue;
                 result += "  " + id + ":" + cmd.name + " - " + cmd.description + "\n";
             }
             return result;
@@ -299,23 +305,41 @@ void Device::registerDeviceCommands()
         }
     );
     
-    registerDeviceCommand("setname", "Set device name",
+    registerDeviceCommand("name", "Get or set device name",
         [this](const std::vector<String>& args) -> String {
-            if (args.size() > 0) {
-                saveName(args[0]);
-                return "Device name set to: " + args[0];
+            if (args.empty()) {
+                // Get current name
+                return name.isEmpty() ? "(no name set)" : name;
             }
-            return "ERROR: Name required";
+            
+            // Set new name (join all args to support names with spaces)
+            String newName = args[0];
+            for (size_t i = 1; i < args.size(); i++) {
+                newName += " " + args[i];
+            }
+            
+            String oldName = name;
+            saveName(newName);
+            return "Device " + id + " name changed from '" + oldName + "' to '" + newName + "'";
         }
     );
     
-    registerDeviceCommand("settopic", "Set device MQTT topic",
+    registerDeviceCommand("topic", "Get or set device MQTT topic",
         [this](const std::vector<String>& args) -> String {
-            if (args.size() > 0) {
-                saveTopic(args[0]);
-                return "Device topic set to: " + args[0];
+            if (args.empty()) {
+                // Get current topic
+                return topic.isEmpty() ? "(no topic set)" : topic;
             }
-            return "ERROR: Topic required";
+            
+            // Set new topic (join all args if needed)
+            String newTopic = args[0];
+            for (size_t i = 1; i < args.size(); i++) {
+                newTopic += " " + args[i];
+            }
+            
+            String oldTopic = topic;
+            saveTopic(newTopic);
+            return "Device " + id + " topic changed from '" + oldTopic + "' to '" + newTopic + "'";
         }
     );
 }

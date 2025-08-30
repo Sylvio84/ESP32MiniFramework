@@ -300,12 +300,18 @@ bool ConfigurationManager::writeVariable(const String key, String value)
 
 int ConfigurationManager::readVariableInt(const String key, int defaultValue)
 {
-    return json_preferences[key] | defaultValue;
+    if (json_preferences.containsKey(key)) {
+        return json_preferences[key].as<int>();
+    }
+    return defaultValue;
 }
 
 String ConfigurationManager::readVariableString(const String key, String defaultValue)
 {
-    return json_preferences[key] | defaultValue;
+    if (json_preferences.containsKey(key)) {
+        return json_preferences[key].as<String>();
+    }
+    return defaultValue;
 }
 
 void ConfigurationManager::debugJsonPreferences()

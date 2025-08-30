@@ -14,7 +14,7 @@
 #endif
 
 // Static constants
-const char* SystemManager::RELEASE_VERSION = "1.2.2";
+const char* SystemManager::RELEASE_VERSION = "1.2.6";
 const char* SystemManager::RELEASE_DATE = "2025-08-30";
 
 SystemManager::SystemManager(FrameworkContext& context) : Manager(context) {}
@@ -190,75 +190,9 @@ InternalLedDevice* SystemManager::getLedDevice()
     return ledDevice;
 }
 
-// === System Information ===
-
-void SystemManager::showSystemInfo()
-{
-    debug("ESP32 Mini Framework Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")", 0);
-    debug("Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz", 0);
-
-#ifdef ESP32
-    debug("Total Heap: " + String(ESP.getHeapSize() / 1024) + " KB", 0);
-#endif
-    debug("Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB", 0);
-    debug("Flash size: " + String(ESP.getFlashChipSize() / 1024) + " KB", 0);
-    debug("Sketch size: " + String(ESP.getSketchSize() / 1024) + " KB", 0);
-    debug("Free sketch space: " + String(ESP.getFreeSketchSpace() / 1024) + " KB", 0);
-
-#ifdef ESP32
-    debug("Chip ID: " + String(ESP.getEfuseMac()), 0);
-    debug("Chip model: " + String(ESP.getChipModel()), 0);
-    debug("Chip revision: " + String(ESP.getChipRevision()), 0);
-    debug("Chip core: " + String(ESP.getChipCores()), 0);
-#endif
-
-#ifdef ESP8266
-    debug("Reset reason: " + ESP.getResetReason(), 0);
-    // Additional memory monitoring for ESP8266
-    debug("Heap Fragmentation: " + String(ESP.getHeapFragmentation()) + "%", 0);
-    debug("Max Free Block: " + String(ESP.getMaxFreeBlockSize()) + " bytes", 0);
-    debug("Free Cont Stack: " + String(ESP.getFreeContStack()) + " bytes", 0);
-#endif
-
-    // Get information from other managers
-    auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
-    if (configMgr) {
-        debug("Hostname: " + configMgr->getHostname(), 0);
-    }
-    debug("Debug level: " + String(debugLevel), 0);
-    debug("Power saving time: " + String(powerSaving), 0);
-
-    auto* timeMgr = static_cast<TimeManager*>(context->getManager("TimeManager"));
-    if (timeMgr) {
-        debug("Time: " + timeMgr->getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
-    }
-
-    auto* wifiMgr = static_cast<WiFiManager*>(context->getManager("WiFiManager"));
-    if (wifiMgr) {
-        if (wifiMgr->isConnected()) {
-            debug("Connected to WiFi: " + wifiMgr->retrieveSSID(), 0);
-            debug("IP address: " + wifiMgr->retrieveIP(), 0);
-        } else {
-            debug("Not connected to WiFi", 0);
-        }
-    }
-
-    auto* mqttMgr = static_cast<MQTTManager*>(context->getManager("MQTTManager"));
-    if (mqttMgr) {
-        if (mqttMgr->isConnected()) {
-            debug("Connected to MQTT server: " + mqttMgr->retrieveServer(), 0);
-        } else {
-            debug("Not connected to MQTT server", 0);
-        }
-    }
-
-#ifdef ESP8266
-    debug("Power saving: " + String(wifi_get_sleep_type() == NONE_SLEEP_T ? "disabled" : "enabled"), 0);
-#endif
-}
-
 String SystemManager::getSystemInfo()
 {
+    Serial.println("=== Show system information ===");
     String info = "";
     info += "ESP32 Mini Framework Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")\n";
     info += "Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz\n";
@@ -420,6 +354,8 @@ void SystemManager::restartSystem()
 
 void SystemManager::performOtaUpdate()
 {
+    debug("Performing OTA update...", 0);
+    delay(1000);
     // clear commands
     auto* cmdMgr = static_cast<CommandManager*>(context->getManager("CommandManager"));
     if (cmdMgr) {
@@ -607,10 +543,9 @@ void SystemManager::registerCommands()
 
     // OTA Update command
     cmdMgr->registerCommand(Command("sys", "ota", "OTA FW update",
-                                    CommandSource::Serial,  // Only from Serial for security
+                                    CommandSource::Any,  // Allow from any source (Serial, MQTT, etc.)
                                     true,                   // Enable history
                                     [this](const std::vector<String>& args) -> String {
-                                        debug("Starting OTA update...", 1);
                                         performOtaUpdate();
                                         return String("OTA update started");
                                     }));

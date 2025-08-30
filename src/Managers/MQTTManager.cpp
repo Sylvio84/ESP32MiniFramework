@@ -137,9 +137,16 @@ bool MQTTManager::reconnect()
             }
             for (const auto& pub : publications) {
                 logDebug("Publishing stored publication: " + pub.first + " = " + pub.second, 2);
-                publish(pub.first, pub.second);
+                publish(pub.first, pub.second, true);
                 removePublication(pub.first);
             }
+            
+            // Send startup message with IP address to log topic
+            String logTopic = hostname + "/log";
+            String ipAddress = WiFi.localIP().toString();
+            String startupMessage = "ESP started - IP: " + ipAddress + " - Hostname: " + hostname;
+            publish(logTopic, startupMessage, true);
+            
             return true;
         } else {
             context->getEventManager()->triggerEvent("mqtt", "ConnectionFailed", {});
@@ -163,25 +170,16 @@ bool MQTTManager::reconnect()
     return true;
 }
 
-void MQTTManager::publish(String topic, String payload, bool enableDebug)
-{
-    if (enableDebug) {
-        logDebug("Publishing to " + topic + ": " + payload, 2);
-    }
-    if (!mqttClient.connected()) {
-        logDebug("MQTT not connected, can't publish: " + topic + " = " + payload, 1);
-        return;
-    }
-    mqttClient.publish(topic.c_str(), payload.c_str());
-}
-
-void MQTTManager::publish(String topic, String payload, bool retain, bool enableDebug)
+void MQTTManager::publish(String topic, String payload, bool retain, bool storeIfNotConnected, bool enableDebug)
 {
     if (enableDebug) {
         logDebug("Publishing to " + topic + ": " + payload + (retain ? " (retained)" : ""), 2);
     }
     if (!mqttClient.connected()) {
         logDebug("MQTT not connected, can't publish: " + topic + " = " + payload, 1);
+        if (storeIfNotConnected) {
+            storePublication(topic, payload);
+        }
         return;
     }
     mqttClient.publish(topic.c_str(), payload.c_str(), retain);

@@ -56,7 +56,7 @@ void MainController::init()
     wiFiManager.initEspUI();
     mqttManager.initEspUI();
 #endif
-    deviceManager.initDevices();
+    // deviceManager.initDevices(); // Already called in DeviceManager::init()
 
     if (deviceProgramManager.loadDevicePrograms()) {
         eventManager.debug("Device programs loaded successfully", 1);
@@ -240,32 +240,18 @@ void MainController::processMQTT(String topic, String value)
         }
 
         String result = commandManager.executeCommandString(commandStr, CommandSource::MQTT);
+        eventManager.debug("MQTT command '" + commandStr + "' result: '" + result + "'", 2);
+        result.trim();  // Enlever les espaces et retours à la ligne en début et fin
+
+        // Always publish result if command was found (even if result is empty)
         if (!result.startsWith("Command not found")) {
-            // Publish result back via MQTT on /log topic
-            // (device commands handle their own response topics)
-            eventManager.triggerEvent("mqtt", "publishAsap", {hostname + "/log", result});
+            if (result.isEmpty()) {
+                return;
+            }
+            eventManager.triggerEvent("mqtt", "publishAsap", { hostname + "/log", result});
             return;
         }
-
-        // Fallback to old format for backward compatibility
-        int slashIndex = commandPart.indexOf('/');
-        if (slashIndex > 0) {
-            String ns = commandPart.substring(0, slashIndex);
-            String command = commandPart.substring(slashIndex + 1);
-
-            eventManager.debug("Processing command: " + ns + ":" + command + " with value: " + value, 1);
-
-            if (value.startsWith("{") && value.endsWith("}")) {
-                // Handle JSON value
-                eventManager.triggerEvent(ns, "@" + command, {value});
-            } else {
-                std::vector<String> params;
-                if (value.length() > 0) {
-                    params.push_back(value);
-                }
-                eventManager.triggerEvent(ns, "@" + command, params);
-            }
-        }
+        eventManager.debug("Command not found: '" + commandStr + "'", 2);
     }
 }
 
@@ -277,24 +263,19 @@ EventManager* MainController::getEventManager()
 void MainController::processDebugMessage(String message, int level, bool displayTime)
 {
     if (level <= systemManager.getDebugLevel()) {
-        String logJson;
         if (displayTime && level > 0) {
             String time = timeManager.getFormattedDateTime("%H:%M:%S");
-            logJson = "{\"time\":\"" + time + "\",\"level\":" + String(level) + ",\"message\":\"" + message + "\"}";
             message = time + "> " + message;
-        } else {
-            logJson = "{\"level\":" + String(level) + ",\"message\":\"" + message + "\"}";
         }
         Serial.println(message);
         wiFiManager.printTelnet(message + "\n");
 #ifndef DISABLE_ESPUI
         espUIManager.addDebugMessage(message, level);
 #endif
-        // Debug messages are not sent via MQTT anymore
-        // Only command responses are sent to MQTT
-        /*if (mqttManager.isConnected()) {
-            mqttManager.publish(configManager.getHostname() + "/log", logJson, false);
-        }*/
+    }
+    if ((level == 0) && mqttManager.isConnected()) {
+        Serial.println("Publishing log to MQTT: " + message);
+        mqttManager.publish(configManager.getHostname() + "/log", message, true, true);
     }
 }
 

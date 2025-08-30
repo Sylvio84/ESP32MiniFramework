@@ -4,8 +4,6 @@
 
 OnOffDevice::OnOffDevice(String id, FrameworkContext& ctx) : Device(id, ctx)
 {
-    topic = "ESP32/" + id;  // Temporary topic
-    debug("OnOffDevice constructed - will setup topic in init()", 1);
 }
 
 void OnOffDevice::writePin(bool logicalState)
@@ -24,6 +22,9 @@ void OnOffDevice::writePin(bool logicalState)
 
 void OnOffDevice::init()
 {
+    // Call parent init first (handles name, registerDeviceCommands, ESPUI, MQTT subscription)
+    Device::init();
+    
     // Get hostname from configuration if available
     String hostname = "ESP32";  // Default
     auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
@@ -36,16 +37,8 @@ void OnOffDevice::init()
         debug("ConfigurationManager not available, using default hostname", 2);
     }
 
-    // Set topic with correct hostname
-    topic = hostname + "/" + id;
-    debug("Device initialized with topic: " + topic, 1);
-
-    // Subscribe to MQTT topic for the device
-    if (subscribeMQTT(topic)) {
-        debug("Subscribed to MQTT topic: " + topic, 1);
-    } else {
-        debug("Failed to subscribe to MQTT topic: " + topic, 1);
-    }
+    // Additional topic subscription if needed
+    debug("OnOffDevice initialized with topic: " + topic, 1);
 
     // Load pin configuration using new system (default is pin variable)
     pin = loadPin("pin", pin);
@@ -71,8 +64,8 @@ void OnOffDevice::init()
 
 void OnOffDevice::registerBaseCommands()
 {
-    // First register base device commands (help, status, setname, settopic)
-    registerDeviceCommands();
+    // Base device commands are already registered in Device::init()
+    // Just register ON/OFF specific commands here
 
     // Register ON/OFF commands
     registerDeviceCommand("on", "Turn on (optional: timeout in ms)", [this](const std::vector<String>& args) -> String {
@@ -142,26 +135,6 @@ void OnOffDevice::registerBaseCommands()
     debug("Base ON/OFF commands registered", 1);
 }
 
-void OnOffDevice::updateTopicFromConfiguration()
-{
-    auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
-    if (configMgr) {
-        String configHostname = configMgr->getHostname();
-        if (!configHostname.isEmpty()) {
-            unsubscribeMQTT(topic);
-            topic = configHostname + "/" + id;
-            debug("Topic updated to: " + topic, 1);
-
-            if (subscribeMQTT(topic)) {
-                debug("Subscribed to MQTT topic: " + topic, 1);
-            } else {
-                debug("Failed to subscribe to MQTT topic: " + topic, 1);
-            }
-        }
-    } else {
-        debug("ConfigurationManager not available - keeping current topic", 2);
-    }
-}
 
 void OnOffDevice::loop()
 {

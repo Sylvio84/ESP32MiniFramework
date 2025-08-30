@@ -1,19 +1,17 @@
 #include "Managers/DeviceManager.h"
+#include "Managers/CommandManager.h"
 #include "Managers/ConfigurationManager.h"
 #include "Managers/EventManager.h"
-#include "Managers/CommandManager.h"
-
 
 void DeviceManager::init()
 {
     // Register device commands with CommandManager
     registerCommands();
-    
+
     // Initialize devices by calling initDevices
     initDevices();
     setInitialized(true);
 }
-
 
 void DeviceManager::addDevice(Device& device)
 {
@@ -54,13 +52,7 @@ void DeviceManager::removeDevice(const String& id)
 {
     auto device = getDeviceById(id);
     if (device) {
-        devices.erase(
-            std::remove_if(devices.begin(), devices.end(), 
-                [&](Device* d) { 
-                    return d && d->id == id; 
-                }), 
-            devices.end()
-        );
+        devices.erase(std::remove_if(devices.begin(), devices.end(), [&](Device* d) { return d && d->id == id; }), devices.end());
     } else {
         debug("Device with id '" + id + "' not found", 0);
     }
@@ -74,6 +66,7 @@ const std::vector<Device*>& DeviceManager::getAllDevices()
 void DeviceManager::initDevices()
 {
     for (auto device : devices) {
+        // Just initialize the device - it will register its own commands
         device->init();
     }
 }
@@ -115,13 +108,12 @@ void DeviceManager::processCommandDevices(String command, std::vector<String> pa
 void DeviceManager::registerCommands()
 {
     auto* cmdMgr = static_cast<CommandManager*>(context ? context->getManager("CommandManager") : nullptr);
-    if (!cmdMgr) return;
+    if (!cmdMgr)
+        return;
 
     // Device list command
-    cmdMgr->registerCommand(Command(
-        "device", "list", "List all registered devices",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("device", "list", "List all registered devices", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             String result = "Registered devices:\n";
             auto devices = getAllDevices();
             if (devices.empty()) {
@@ -129,7 +121,9 @@ void DeviceManager::registerCommands()
             } else {
                 for (const auto& device : devices) {
                     result += "  " + device->id + ": " + device->name;
-                    result += " (" + device->type + ")";
+                    if (!device->type.isEmpty()) {
+                        result += " (" + device->type + ")";
+                    }
                     if (!device->topic.isEmpty()) {
                         result += " [topic: " + device->topic + "]";
                     }
@@ -137,75 +131,60 @@ void DeviceManager::registerCommands()
                 }
             }
             return result;
-        }
-    ));
+        }));
 
     // Device info command
-    cmdMgr->registerCommand(Command(
-        "device", "info", "Show detailed device information",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(
+        Command("device", "info", "Show detailed device information", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
             if (args.size() == 0) {
                 return "Usage: device:info <device_id>";
             }
-            
+
             auto device = getDeviceById(args[0]);
             if (device == nullptr) {
                 return "Device not found: " + args[0];
             }
-            
+
             String result = "Device Information:\n";
             result += "  ID: " + device->id + "\n";
             result += "  Name: " + device->name + "\n";
             result += "  Type: " + device->type + "\n";
             result += "  Topic: " + device->topic + "\n";
             result += "  State: " + String(device->state ? "ON" : "OFF");
-            
+
             return result;
-        }
-    ));
+        }));
 
     // Device command execution
-    cmdMgr->registerCommand(Command(
-        "device", "cmd", "Send command to device",
-        CommandSource::Any, true,
-        [this](const std::vector<String>& args) -> String {
-            if (args.size() < 2) {
-                return "Usage: device:cmd <device_id> <command>";
-            }
-            
-            auto device = getDeviceById(args[0]);
-            if (device == nullptr) {
-                return "Device not found: " + args[0];
-            }
-            
-            // Create params vector (skip first two args: device_id and command)
-            std::vector<String> params;
-            for (size_t i = 2; i < args.size(); i++) {
-                params.push_back(args[i]);
-            }
-            
-            if (device->processCommand(args[1], params)) {
-                return "Command sent to device " + device->id;
-            } else {
-                return "Command not handled by device " + device->id;
-            }
+    cmdMgr->registerCommand(Command("device", "cmd", "Send command to device", CommandSource::Any, true, [this](const std::vector<String>& args) -> String {
+        if (args.size() < 2) {
+            return "Usage: device:cmd <device_id> <command>";
         }
-    ));
+
+        auto device = getDeviceById(args[0]);
+        if (device == nullptr) {
+            return "Device not found: " + args[0];
+        }
+
+        // Create params vector (skip first two args: device_id and command)
+        std::vector<String> params;
+        for (size_t i = 2; i < args.size(); i++) {
+            params.push_back(args[i]);
+        }
+
+        if (device->processCommand(args[1], params)) {
+            return "Command sent to device " + device->id;
+        } else {
+            return "Command not handled by device " + device->id;
+        }
+    }));
 
     // Pin management commands
-    cmdMgr->registerCommand(Command(
-        "pins", "list", "List all pins used by devices",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
-            return Device::getAllDevicesPinMapping(this);
-        }
-    ));
-    
-    cmdMgr->registerCommand(Command(
-        "pins", "show", "Show pins for specific device",
-        CommandSource::Any, false,
-        [this](const std::vector<String>& args) -> String {
+    cmdMgr->registerCommand(Command("pins", "list", "List all pins used by devices", CommandSource::Any, false,
+                                    [this](const std::vector<String>& args) -> String { return Device::getAllDevicesPinMapping(this); }));
+
+    cmdMgr->registerCommand(
+        Command("pins", "show", "Show pins for specific device", CommandSource::Any, false, [this](const std::vector<String>& args) -> String {
             if (args.size() < 1) {
                 return "Usage: pins:show <device_id>";
             }
@@ -214,13 +193,10 @@ void DeviceManager::registerCommands()
                 return "Device not found: " + args[0];
             }
             return device->getPinMapping();
-        }
-    ));
-    
-    cmdMgr->registerCommand(Command(
-        "pins", "set", "Set pin for a device",
-        CommandSource::Any, false,
-        [this, cmdMgr](const std::vector<String>& args) -> String {
+        }));
+
+    cmdMgr->registerCommand(
+        Command("pins", "set", "Set pin for a device", CommandSource::Any, false, [this, cmdMgr](const std::vector<String>& args) -> String {
             if (args.size() < 2) {
                 return "Usage: pins:set <device_id> <pin_number>";
             }
@@ -228,8 +204,7 @@ void DeviceManager::registerCommands()
             String cmd = args[0] + ":setpin";
             std::vector<String> pinArg = {args[1]};
             return cmdMgr->executeCommand(cmd, pinArg, CommandSource::Serial);
-        }
-    ));
+        }));
 
     // Register useful aliases
     cmdMgr->registerAlias("devices", "device:list");

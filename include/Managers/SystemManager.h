@@ -80,7 +80,6 @@ private:
     InternalLedDevice* getLedDevice();
     
     // === System Information ===
-    void showSystemInfo();
     String getSystemInfo();
     void showFilesystemInfo();
     String getFilesystemInfo();

@@ -429,18 +429,13 @@ void WiFiManager::savePassword(String password, bool reconnect)
     this->password = password;
     logDebug("New WiFi password: " + this->password, 1);
 
-    // Save to legacy preferences for backward compatibility
-    auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
-    if (configMgr) {
-        configMgr->setPreference("wf_pass", password);
-        logDebug("Password saved to legacy preferences", 2);
-    }
-
     // If we have both SSID and password, save to unified system with highest priority
     if (!this->ssid.isEmpty() && !this->password.isEmpty()) {
         if (saveNetwork(this->ssid, this->password, 1000)) {
             logDebug("Network saved to unified system with priority 1000", 2);
         }
+    } else {
+        logDebug("Cannot save network - SSID or password is empty", 1);
     }
 
     if (reconnect) {
@@ -736,7 +731,7 @@ bool WiFiManager::otaUpdate()
         // Skip certificate validation to save memory
         client.setInsecure();
         
-        logDebug("Starting HTTPS OTA update from " + otaHost + ":" + String(otaPort) +"/" + otaUrl, 1);
+        logDebug("Starting HTTPS OTA update from " + otaHost + ":" + String(otaPort) + otaUrl, 0);
         
         // Feed watchdog before update
         ESP.wdtFeed();
@@ -755,7 +750,7 @@ bool WiFiManager::otaUpdate()
         
         WiFiClient client;
         
-        logDebug("Starting HTTP OTA update from " + otaHost + ":" + String(otaPort) + otaUrl, 1);
+        logDebug("Starting HTTP OTA update from " + otaHost + ":" + String(otaPort) + otaUrl, 0);
         
         // Feed watchdog before update
         ESP.wdtFeed();

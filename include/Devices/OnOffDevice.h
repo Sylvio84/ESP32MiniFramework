@@ -37,7 +37,6 @@ public:
     // Configuration methods
     virtual void setPin(int newPin);
     void setInvertedLogic(bool inverted);
-    void updateTopicFromConfiguration();
     
     // Event handlers
     void onProgramStart() override;

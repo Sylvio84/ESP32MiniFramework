@@ -6,8 +6,12 @@ RelayDevice::RelayDevice(String id, FrameworkContext& ctx) : OnOffDevice(id, ctx
 {
     name = "Relay";
     pin = 12;  // Default pin for relay
-    invertedLogic = false;  // Default: normal logic (can be changed)
-    debug("RelayDevice constructed with default pin " + String(pin), 1);
+    #ifdef ESP8266
+    invertedLogic = true;   // ESP8266: Most relay modules are active-low
+    #else
+    invertedLogic = false;  // ESP32: Default to normal logic
+    #endif
+    debug("RelayDevice constructed with default pin " + String(pin) + ", inverted=" + String(invertedLogic), 1);
 }
 
 void RelayDevice::init()
