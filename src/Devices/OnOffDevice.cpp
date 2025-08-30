@@ -145,8 +145,8 @@ void OnOffDevice::activate(int timeout)
                 deactivate();
                 timeoutId = 0;
             },
-            timeout);
-        debug("Activated with timeout: " + String(timeout) + "ms", 2);
+            timeout * 1000);
+        debug("Activated with timeout: " + String(timeout) + "s", 2);
     } else {
         debug("Activated without timeout", 2);
     }
@@ -271,7 +271,7 @@ bool OnOffDevice::processMQTTDevice(String topic, String value)
                 return true;
             } else if (val > 1) {
                 activate(val);  // Activate for val milliseconds
-                debug("Activated via MQTT for " + String(val) + "ms", 1);
+                debug("Activated via MQTT for " + String(val) + "s", 1);
                 return true;
             }
         } else if (value == "on" || value == "ON") {
