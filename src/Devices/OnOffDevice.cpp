@@ -24,21 +24,6 @@ void OnOffDevice::init()
 {
     // Call parent init first (handles name, registerDeviceCommands, ESPUI, MQTT subscription)
     Device::init();
-    
-    // Get hostname from configuration if available
-    String hostname = "ESP32";  // Default
-    auto* configMgr = static_cast<ConfigurationManager*>(context->getManager("ConfigurationManager"));
-    if (configMgr) {
-        String configHostname = configMgr->getHostname();
-        if (!configHostname.isEmpty()) {
-            hostname = configHostname;
-        }
-    } else {
-        debug("ConfigurationManager not available, using default hostname", 2);
-    }
-
-    // Additional topic subscription if needed
-    debug("OnOffDevice initialized with topic: " + topic, 1);
 
     // Load pin configuration using new system (default is pin variable)
     pin = loadPin("pin", pin);

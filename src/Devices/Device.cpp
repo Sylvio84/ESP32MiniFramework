@@ -14,6 +14,7 @@ void Device::init()
 #ifndef DISABLE_ESPUI
     initEspUI();
 #endif
+    debug("Subscribing to MQTT topic: " + topic, 0);
     subscribeMQTT(topic);
 
     //addCommand("cmd", std::bind(&Device::executeCmd, this, std::placeholders::_1));

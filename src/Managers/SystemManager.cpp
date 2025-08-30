@@ -192,7 +192,6 @@ InternalLedDevice* SystemManager::getLedDevice()
 
 String SystemManager::getSystemInfo()
 {
-    Serial.println("=== Show system information ===");
     String info = "";
     info += "ESP32 Mini Framework Version: " + String(RELEASE_VERSION) + " (" + String(RELEASE_DATE) + ")\n";
     info += "Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz\n";

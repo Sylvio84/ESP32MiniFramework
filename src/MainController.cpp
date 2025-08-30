@@ -274,7 +274,6 @@ void MainController::processDebugMessage(String message, int level, bool display
 #endif
     }
     if ((level == 0) && mqttManager.isConnected()) {
-        Serial.println("Publishing log to MQTT: " + message);
         mqttManager.publish(configManager.getHostname() + "/log", message, true, true);
     }
 }
