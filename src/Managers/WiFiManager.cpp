@@ -199,47 +199,19 @@ bool WiFiManager::onEvent(const String& type, const String& event, const std::ve
             return false;  // Don't block other managers from handling this event
 
         } else if (event.startsWith("@")) {
-            // Handle WiFi commands via events
-            return onCommand(event.substring(1), params);
+            // Handle WiFi commands via CommandManager
+            auto* cmdMgr = static_cast<CommandManager*>(context->getManager("CommandManager"));
+            if (cmdMgr) {
+                cmdMgr->executeCommand(event.substring(1), params, CommandSource::Internal);
+                return true;
+            }
+            return false;
         }
     }
 
     return false;  // Event not handled
 }
 
-bool WiFiManager::onCommand(const String& command, const std::vector<String>& params)
-{
-    // Legacy command system - most commands migrated to registerCommands()
-    // Keep only non-duplicated commands here
-
-    logDebug("Processing legacy WiFi command: " + command, 3);
-
-    if (command == "debug") {
-        logDebug("Debug infos:", 0);
-        logDebug("SSID: " + retrieveSSID() + "\nPassword: " + retrievePassword(), 0);
-    } else if (command == "keep") {
-        if (keepConnection()) {
-            logDebug("Keep connection: ON", 0);
-        } else {
-            logDebug("Keep connection: OFF", 0);
-        }
-    } else if (command == "telnet") {
-        setupTelnet();
-#ifdef ESP32
-    } else if (command == "ping") {
-        if (params.size() > 0) {
-            logDebug("Ping: " + params[0], 0);
-            // NOTE: Ping functionality currently disabled due to library dependency
-            logDebug("Ping functionality not available", 1);
-        } else {
-            logDebug("Missing IP address", 1);
-        }
-#endif
-    } else {
-        return false;  // Command not handled by legacy system
-    }
-    return true;
-}
 
 bool WiFiManager::autoConnect()
 {

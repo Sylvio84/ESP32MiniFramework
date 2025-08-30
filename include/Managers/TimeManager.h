@@ -86,7 +86,6 @@ class TimeManager : public Manager
     void init() override;
     void loop() override;
     String getName() const override { return "TimeManager"; }
-    bool onCommand(const String& command, const std::vector<String>& params) override;
     
   public:
     void registerCommands();

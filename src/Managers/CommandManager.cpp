@@ -579,21 +579,6 @@ void CommandManager::clearCommands()
     registerAlias("reboot", "sys:restart");
 }
 
-bool CommandManager::onCommand(const String& command, const std::vector<String>& params)
-{
-    // Handle direct command execution
-    // This allows CommandManager to process commands sent to it via the framework
-    String result = executeCommand(command, params, CommandSource::Internal);
-
-    // Log result if it's an error
-    if (result.startsWith("Command not found") || result.startsWith("Error")) {
-        debug(result, 1);
-        return false;
-    }
-
-    debug(result, 2);
-    return true;
-}
 
 String CommandManager::extractNamespace(const String& fullName)
 {

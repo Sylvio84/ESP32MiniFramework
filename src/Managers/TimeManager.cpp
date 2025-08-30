@@ -11,31 +11,13 @@
 void TimeManager::init() {
     logDebug("Initializing TimeManager", 1);
     
-    // Don't register commands here - will be done after all managers are initialized
-    // registerCommands();
+    // Register commands after initialization
+    registerCommands();
     
     setInitialized(true);
     logDebug("TimeManager initialized successfully", 1);
 }
 
-bool TimeManager::onCommand(const String& command, const std::vector<String>& params) {
-    if (command == "date") {
-        debug(getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
-        return true;
-    } else if (command == "time") {
-        debug(getFormattedDateTime("%H:%M:%S"), 0);
-        return true;
-    } else if (command == "ntp") {
-        if (update(true)) {
-            debug("Time updated", 0);
-            debug("Time: " + getFormattedDateTime("%d/%m/%Y %H:%M:%S"), 0);
-        } else {
-            debug("Failed to update time", 0);
-        }
-        return true;
-    }
-    return false; // Command not handled
-}
 
 void TimeManager::loop()
 {

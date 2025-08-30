@@ -51,7 +51,6 @@ class DeviceManager : public Manager
     void initDevices();
     void loopDevices();
     String getName() const override { return "DeviceManager"; }
-    bool onCommand(const String& command, const std::vector<String>& params) override;
     
     void registerCommands();
 

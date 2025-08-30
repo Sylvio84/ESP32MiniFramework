@@ -14,8 +14,8 @@
 #endif
 
 // Static constants
-const char* SystemManager::RELEASE_VERSION = "1.2.1";
-const char* SystemManager::RELEASE_DATE = "2025-08-23";
+const char* SystemManager::RELEASE_VERSION = "1.2.2";
+const char* SystemManager::RELEASE_DATE = "2025-08-30";
 
 SystemManager::SystemManager(FrameworkContext& context) : Manager(context) {}
 
@@ -65,13 +65,6 @@ void SystemManager::loop()
     }
 }
 
-bool SystemManager::onCommand(const String& command, const std::vector<String>& params)
-{
-    // All commands are now handled by CommandManager
-    // This method is kept for backward compatibility with event system
-    debug("SystemManager::onCommand deprecated - use CommandManager", 2);
-    return false;
-}
 
 bool SystemManager::onEvent(const String& type, const String& event, const std::vector<String>& params)
 {
@@ -148,7 +141,11 @@ bool SystemManager::onEvent(const String& type, const String& event, const std::
         if (event == "Command") {
             // Handle ESPUI commands via command system
             if (params.size() > 0) {
-                return onCommand(params[0], {});
+                auto* cmdMgr = static_cast<CommandManager*>(context->getManager("CommandManager"));
+                if (cmdMgr) {
+                    cmdMgr->executeCommand(params[0], {}, CommandSource::Web);
+                    return true;
+                }
             }
             return true;
         } else if (event == "Reboot") {

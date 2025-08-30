@@ -83,7 +83,6 @@ public:
     void init() override;
     String getName() const override { return "ConfigurationManager"; }
     
-    bool onCommand(const String& command, const std::vector<String>& params) override;
 
     // === Configuration API (former Configuration class methods) ===
     static int getValue(const String key, int defaultValue = 0);

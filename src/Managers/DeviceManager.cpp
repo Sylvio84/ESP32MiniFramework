@@ -14,29 +14,6 @@ void DeviceManager::init()
     setInitialized(true);
 }
 
-bool DeviceManager::onCommand(const String& command, const std::vector<String>& params)
-{
-    if (command == "device") {
-        if (params.size() == 0) {
-            debug("List of devices:", 0);
-            for (const auto& device : getAllDevices()) {
-                debug(" #" + device->id + " : " + device->name + " (" + device->topic + ")", 0);
-            }
-        } else {
-            auto device = getDeviceById(params[0]);
-            if (device != nullptr) {
-                debug("ID: " + device->id, 0);
-                debug("Type: " + device->type, 0);
-                debug("Name: " + device->name, 0);
-                debug("Topic: " + device->topic, 0);
-            } else {
-                debug("Device not found: " + params[0], 0);
-            }
-        }
-        return true;
-    }
-    return false; // Command not handled
-}
 
 void DeviceManager::addDevice(Device& device)
 {

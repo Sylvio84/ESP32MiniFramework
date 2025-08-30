@@ -71,7 +71,6 @@ public:
     void loop() override;
     String getName() const override { return "SystemManager"; }
     
-    bool onCommand(const String& command, const std::vector<String>& params) override;
     bool onEvent(const String& type, const String& event, const std::vector<String>& params) override;
 
 private:

@@ -33,7 +33,6 @@ public:
     
 
     void init() override;
-    bool onCommand(const String& command, const std::vector<String>& params) override;
     void onEvent(const String& type, const String& event, const std::vector<String>& params) override;
 
     void print(uint8_t labelId, String text);

@@ -262,14 +262,6 @@ public:
      */
     bool isWaitingForInput() const { return waitingForInput; }
     
-    /**
-     * @brief Handle framework commands (help, list, etc.)
-     * @param command Command name
-     * @param params Command parameters
-     * @return true if handled
-     */
-    bool onCommand(const String& command, 
-                  const std::vector<String>& params) override;
     
     /**
      * @brief Handle events from EventManager

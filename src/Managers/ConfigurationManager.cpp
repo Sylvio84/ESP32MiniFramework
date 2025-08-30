@@ -55,56 +55,6 @@ void ConfigurationManager::init()
     setInitialized(true);
 }
 
-bool ConfigurationManager::onCommand(const String& command, const std::vector<String>& params)
-{
-    if (command == "debuglevel") {
-        if (params.size() > 0) {
-            setPreference("debug_level", params[0].toInt());
-            debug("Debug level set to: " + params[0], 1);
-        } else {
-            int debugLevel = getPreference("debug_level", 0);
-            debug("Debug level: " + String(debugLevel), 0);
-        }
-        return true;
-        
-    } else if (command == "hostname") {
-        if (params.size() > 0) {
-            setPreference("hostname", params[0]);
-            debug("Hostname set to: " + params[0], 1);
-        } else {
-            debug("Hostname: " + getHostname(), 0);
-        }
-        return true;
-        
-    } else if (command == "power_saving") {
-        if (params.size() > 0) {
-            if (!isInteger(params[0])) {
-                debug("Invalid value: " + params[0], 0);
-                debug("Usage: sys:power_saving <value>, the value should be a number >= 0 (ms) / 0 = disable", 0);
-                return true;
-            }
-            setPowerSaving(params[0].toInt());
-        } else {
-            int powerSaving = getPreference("power_saving", 0);
-            debug("Power saving: " + String(powerSaving), 0);
-        }
-        return true;
-        
-    } else if (command == "config") {
-        if (params.size() > 0) {
-            setJsonConfig(params[0]);
-            debug("Configuration updated", 1);
-        } else {
-            auto vars = getPreferences();
-            for (const auto& pair : vars) {
-                debug(pair.first + " = " + pair.second, 0);
-            }
-        }
-        return true;
-    }
-    
-    return false; // Command not handled
-}
 
 // === Configuration API Implementation (from Configuration.cpp) ===
 

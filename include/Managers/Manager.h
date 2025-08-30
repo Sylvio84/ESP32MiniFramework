@@ -131,15 +131,6 @@ public:
     virtual bool onEvent(const String& type, const String& event, 
                         const std::vector<String>& params) { return false; }
     
-    /**
-     * @brief Process external commands
-     * @param command Command name
-     * @param params Command parameters
-     * @return true if command was handled, false otherwise
-     * Override to handle relevant commands
-     */
-    virtual bool onCommand(const String& command, 
-                          const std::vector<String>& params) { return false; }
 
     // === Status and Information ===
     

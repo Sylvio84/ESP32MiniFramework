@@ -45,10 +45,6 @@ uint16_t ESPUIManager::initDebugTab()
     return debugTab;
 }
 
-bool ESPUIManager::onCommand(const String& command, const std::vector<String>& params)
-{
-    return false;
-}
 
 void ESPUIManager::onEvent(const String& type, const String& event, const std::vector<String>& params)
 {

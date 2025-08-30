@@ -52,18 +52,6 @@ void MQTTManager::loop()
     static unsigned long reconnectDelay = 1; // initial delay in seconds
     unsigned long currentMillis = millis();
 
-//  every seconds display status
-//  static unsigned long lastStatusDisplay = 0;
-//  if (currentMillis - lastStatusDisplay >= 1000) {
-//       lastStatusDisplay = currentMillis;
-//       eventManager->debug("MQTT status #" + String(status) + ": " + (mqttClient.connected() ? "connected" : "disconnected"), 1);
-//  }
-
-    /*if (!wifiClient.available()) {
-        eventManager->debug("No WiFi connection, MQTT disabled", 1);
-        return;
-    }*/
-
     if (currentMillis - lastPing >= pingInterval) {
         if (mqttClient.connected()) {
             auto* configMgr = static_cast<ConfigurationManager*>(context ? context->getManager("ConfigurationManager") : nullptr);
@@ -94,6 +82,7 @@ void MQTTManager::loop()
                 retry = 0;
                 reconnectDelay = 1;
                 logDebug("MQTT connected successfully to " + server, 0);
+                lastPing = currentMillis - pingInterval - 1; // Force immediate ping
             }
         }
         lastMQTTReconnect = currentMillis;
@@ -283,7 +272,12 @@ bool MQTTManager::onEvent(const String& type, const String& event, const std::ve
     }
     if (type == "mqtt") {
         if (event.startsWith("@")) {
-            return onCommand(event.substring(1), params);
+            auto* cmdMgr = static_cast<CommandManager*>(context->getManager("CommandManager"));
+            if (cmdMgr) {
+                cmdMgr->executeCommand(event.substring(1), params, CommandSource::Internal);
+                return true;
+            }
+            return false;
         } else if (event == "connected") {
             logDebug("Connected to MQTT server: " + (params.size() > 0 ? params[0] : "unknown"), 1);
             return true;
@@ -351,76 +345,6 @@ bool MQTTManager::onEvent(const String& type, const String& event, const std::ve
     return false; // Event not handled
 }
 
-bool MQTTManager::onCommand(const String& command, const std::vector<String>& params)
-{
-    logDebug("Processing MQTT command: " + command, 3);
-    if (command == "server") {
-        if (params.size() > 0) {
-            saveServer(params[0]);
-            logDebug("Server set to: " + params[0], 0);
-        } else {
-            logDebug("Server: " + retrieveServer(), 0);
-        }
-    } else if (command == "port") {
-        if (params.size() > 0) {
-            savePort(params[0].toInt());
-            logDebug("Port set to: " + params[0], 0);
-        } else {
-            logDebug("Port: " + String(retrievePort()), 0);
-        }
-    } else if (command == "user") {
-        if (params.size() > 0) {
-            saveUsername(params[0]);
-            logDebug("Username set to: " + params[0], 0);
-        } else {
-            logDebug("Username: " + retrieveUsername(), 0);
-        }
-    } else if (command == "pass") {
-        if (params.size() > 0) {
-            savePassword(params[0]);
-            logDebug("Password set to: " + params[0], 0);
-        } else {
-            logDebug("Password: " + retrievePassword(), 0);
-        }
-    } else if (command == "status") {
-        if (isConnected()) {
-            logDebug("MQTT: Connected", 0);
-        } else {
-            logDebug("MQTT: Not connected", 0);
-        }
-    } else if (command == "connect") {
-        reconnect();
-    } else if (command == "subscribe") {
-        if (params.size() > 0) {
-            addSubscription(params[0]);
-            subscribe(params[0]);
-        } else {
-            logDebug("Missing topic", 1);
-        }
-    } else if (command == "unsubscribe") {
-        if (params.size() > 0) {
-            removeSubscription(params[0]);
-            unsubscribe(params[0]);
-        } else {
-            logDebug("Missing topic", 1);
-        }
-    } else if (command == "publish") {
-        if (params.size() > 1) {
-            publish(params[0], params[1]);
-        } else {
-            logDebug("Missing topic or payload", 1);
-        }
-    } else if (command == "subscriptions") {
-        for (const auto& topic : getSubscriptions()) {
-            logDebug("- Subscription: " + topic, 0);
-        }
-    } else if (command == "debug") {
-        logDebug(getDebugInfos(), 0);
-    } else {
-        return false;
-    }
-    return true;
-}
 
 void MQTTManager::registerCommands()
 {

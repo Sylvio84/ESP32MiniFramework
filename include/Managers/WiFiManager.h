@@ -102,7 +102,6 @@ class WiFiManager : public Manager
     void loop() override;
 
     bool onEvent(const String& type, const String& event, const std::vector<String>& params) override;
-    bool onCommand(const String& command, const std::vector<String>& params) override;
     
     void registerCommands();
     
