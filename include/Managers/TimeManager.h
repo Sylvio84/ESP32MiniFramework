@@ -64,8 +64,8 @@ class TimeManager : public Manager
     {
         String startDate;             // Format "DD/MM"
         String endDate;               // Format "DD/MM"
-        String startTime;             // Format "HH:MM"
-        uint16_t duration;            // en minutes
+        String startTime;             // Format "HH:MM" or "HH:MM:SS"
+        uint16_t duration;            // en secondes
         std::vector<int> daysOfWeek;  // 0=Dimanche, 1=Lundi, ..., 6=Samedi
 
         std::function<void()> onStart;
@@ -101,9 +101,9 @@ class TimeManager : public Manager
     void clearInterval(uint id);
 
     // @todo: to test
-    uint setScheduler(std::function<void()> callback, int hour, int minute, const std::vector<int>& daysOfWeek, const String& startDate = "",
+    uint setScheduler(std::function<void()> callback, int hour, int minute, int second, const std::vector<int>& daysOfWeek, const String& startDate = "",
                       const String& endDate = "");
-    uint setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, const std::vector<int>& daysOfWeek, const String& startDate = "",
+    uint setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, int second, const std::vector<int>& daysOfWeek, const String& startDate = "",
                          const String& endDate = "");
     void clearScheduler(uint id);
 
@@ -137,6 +137,7 @@ class TimeManager : public Manager
         uint id;
         int hour;
         int minute;
+        int second;
         std::vector<int> daysOfWeek;  // 0 (Sunday) to 6 (Saturday)
         String startDate;             // Format "DD/MM"
         String endDate;               // Format "DD/MM"

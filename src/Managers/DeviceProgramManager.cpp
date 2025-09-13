@@ -97,34 +97,89 @@ bool DeviceProgramManager::importDeviceProgram(const String& json, String& error
         return false;
     }
     
-    DeviceProgram* deviceProgram = new DeviceProgram(*context->getEventManager());
-    
-    if (!deviceProgram) {
-        errorMsg = "Failed to allocate memory for DeviceProgram";
+    // Parse JSON to detect if it's an array or single object
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, json);
+    if (error) {
+        errorMsg = "Invalid JSON format: " + String(error.c_str());
+        debug("Import JSON parse FAILED: " + String(error.c_str()), 0);
         return false;
     }
     
-    if (deviceProgram->fromJson(json, *deviceManager, *timeManager, errorMsg)) {
-        // Supprimer un programme existant avec le même ID s'il existe
-        // Utiliser un itérateur pour éviter les problèmes avec la modification de la liste pendant l'itération
-        auto it = devicePrograms.begin();
-        while (it != devicePrograms.end()) {
-            if (*it && (*it)->id == deviceProgram->id) {
-                debug("A program with ID '" + deviceProgram->id + "' already exists. Replacing it.", 1);
-                delete *it;  // Supprimer l'ancien programme
-                it = devicePrograms.erase(it);  // Retirer de la liste et obtenir le nouvel itérateur
-                break;  // Un seul programme avec cet ID peut exister
+    // Handle JSON array (multiple programs)
+    if (doc.is<JsonArray>()) {
+        debug("Importing ARRAY of " + String(doc.as<JsonArray>().size()) + " programs", 0);
+        
+        for (JsonObject obj : doc.as<JsonArray>()) {
+            String objJson;
+            serializeJson(obj, objJson);
+            
+            DeviceProgram* deviceProgram = new DeviceProgram(*context->getEventManager());
+            if (!deviceProgram) {
+                errorMsg = "Failed to allocate memory for DeviceProgram";
+                return false;
+            }
+            
+            String individualError;
+            if (deviceProgram->fromJson(objJson, *deviceManager, *timeManager, individualError)) {
+                // Remove existing program with same ID if it exists
+                auto it = devicePrograms.begin();
+                while (it != devicePrograms.end()) {
+                    if (*it && (*it)->id == deviceProgram->id) {
+                        debug("Replacing existing program with ID '" + deviceProgram->id + "'", 1);
+                        delete *it;
+                        it = devicePrograms.erase(it);
+                        break;
+                    } else {
+                        ++it;
+                    }
+                }
+                
+                devicePrograms.push_back(deviceProgram);
             } else {
-                ++it;
+                errorMsg = "Failed to import program: " + individualError;
+                delete deviceProgram;
+                return false;
             }
         }
-
-        devicePrograms.push_back(deviceProgram);
+        
         return saveDevicePrograms();
-    } else {
-        errorMsg = "Erreur lors de l'importation du programme : " + errorMsg;
-        delete deviceProgram;
-        deviceProgram = nullptr;  // Éviter double delete
+    }
+    // Handle single JSON object (backward compatibility)
+    else if (doc.is<JsonObject>()) {
+        debug("Importing SINGLE program object", 0);
+        
+        DeviceProgram* deviceProgram = new DeviceProgram(*context->getEventManager());
+        if (!deviceProgram) {
+            errorMsg = "Failed to allocate memory for DeviceProgram";
+            return false;
+        }
+        
+        if (deviceProgram->fromJson(json, *deviceManager, *timeManager, errorMsg)) {
+            // Remove existing program with same ID if it exists
+            auto it = devicePrograms.begin();
+            while (it != devicePrograms.end()) {
+                if (*it && (*it)->id == deviceProgram->id) {
+                    debug("Replacing existing program with ID '" + deviceProgram->id + "'", 1);
+                    delete *it;
+                    it = devicePrograms.erase(it);
+                    break;
+                } else {
+                    ++it;
+                }
+            }
+
+            devicePrograms.push_back(deviceProgram);
+            return saveDevicePrograms();
+        } else {
+            errorMsg = "Failed to import program: " + errorMsg;
+            delete deviceProgram;
+            return false;
+        }
+    }
+    else {
+        errorMsg = "JSON must be either an object or an array";
+        debug("Import FAILED: JSON is neither object nor array", 0);
         return false;
     }
 }
@@ -310,6 +365,10 @@ void DeviceProgramManager::registerCommands()
         "program", "import", "Import program from JSON",
         CommandSource::Any, false,
         [this](const std::vector<String>& args) -> String {
+            
+            //Serial.println("program:import called");
+            //debug("program:import called", 0);
+            
             if (args.size() == 0) {
                 return "Usage: program:import <json_data>";
             }
@@ -321,12 +380,30 @@ void DeviceProgramManager::registerCommands()
             }
             
             // Debug pour voir ce qui est reçu
-            debug("program:import received " + String(args.size()) + " args, total JSON length: " + String(jsonData.length()), 2);
+            debug("program:import received " + String(args.size()) + " args, total JSON length: " + String(jsonData.length()), 0);
             
             String errorMsg;
             if (importDeviceProgram(jsonData, errorMsg)) {
+                debug("Program import SUCCESS", 0);
+                
+                // Afficher récapitulatif de tous les programmes actifs
+                const auto& programs = getAllDevicePrograms();
+                debug("=== ACTIVE PROGRAMS SUMMARY ===", 0);
+                for (const auto* prog : programs) {
+                    if (prog && prog->enabled && prog->program) {
+                        String devicesStr = "";
+                        for (size_t i = 0; i < prog->devices.size(); i++) {
+                            if (i > 0) devicesStr += ",";
+                            devicesStr += prog->devices[i]->id;
+                        }
+                        debug("ACTIVE: " + prog->name + " [" + devicesStr + "] at " + prog->program->startTime + " for " + String(prog->program->duration) + "s", 0);
+                    }
+                }
+                debug("=== END SUMMARY ===", 0);
+                
                 return "Program imported successfully";
             } else {
+                debug("Program import FAILED: " + errorMsg, 0);
                 return "Failed to import program: " + errorMsg;
             }
         }

@@ -164,6 +164,7 @@ void TimeManager::checkSchedulers()
 
     int currentHour = timeinfo.tm_hour;
     int currentMinute = timeinfo.tm_min;
+    int currentSecond = timeinfo.tm_sec;
     // Convert tm_wday (0=Sunday, 1=Monday, ..., 6=Sat) To 1=Monday, ..., 7=Sunday
     int currentDayOfWeek = (timeinfo.tm_wday == 0) ? 7 : timeinfo.tm_wday;
 
@@ -186,10 +187,10 @@ void TimeManager::checkSchedulers()
             continue;
         }
 
-        // Vérifie heure/minute
-        if (scheduler.hour == currentHour && scheduler.minute == currentMinute) {
+        // Vérifie heure/minute/seconde
+        if (scheduler.hour == currentHour && scheduler.minute == currentMinute && scheduler.second == currentSecond) {
             if (scheduler.lastTriggeredDate != todayStr) {
-                debug("Scheduler triggered at " + String(currentHour) + ":" + String(currentMinute), 1);
+                debug("Scheduler triggered at " + String(currentHour) + ":" + String(currentMinute) + ":" + String(currentSecond), 1);
                 #ifdef ESP32
                 try {
                     scheduler.callback();
@@ -205,20 +206,20 @@ void TimeManager::checkSchedulers()
     }
 }
 
-uint TimeManager::setScheduler(std::function<void()> callback, int hour, int minute, const std::vector<int>& daysOfWeek, const String& startDate,
+uint TimeManager::setScheduler(std::function<void()> callback, int hour, int minute, int second, const std::vector<int>& daysOfWeek, const String& startDate,
                                const String& endDate)
 {
     uint id = nextSchedulerId++;
-    Scheduler newScheduler = {id, hour, minute, daysOfWeek, startDate, endDate, callback, true};
+    Scheduler newScheduler = {id, hour, minute, second, daysOfWeek, startDate, endDate, callback, true, ""};
     schedulers.push_back(newScheduler);
     return id;
 }
 
-uint TimeManager::setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, const std::vector<int>& daysOfWeek,
+uint TimeManager::setSchedulerObj(void* obj, std::function<void(void*)> callback, int hour, int minute, int second, const std::vector<int>& daysOfWeek,
                                   const String& startDate, const String& endDate)
 {
     uint id = nextSchedulerId++;
-    Scheduler newScheduler = {id, hour, minute, daysOfWeek, startDate, endDate, [obj, callback]() { callback(obj); }, true};
+    Scheduler newScheduler = {id, hour, minute, second, daysOfWeek, startDate, endDate, [obj, callback]() { callback(obj); }, true, ""};
     schedulers.push_back(newScheduler);
     return id;
 }
@@ -288,18 +289,37 @@ void TimeManager::initProgram(Program& program)
 {
     int hour = program.startTime.substring(0, 2).toInt();
     int minute = program.startTime.substring(3, 5).toInt();
+    int second = 0;
+    
+    // Check if seconds are provided in format HH:MM:SS
+    if (program.startTime.length() >= 8 && program.startTime.charAt(5) == ':') {
+        second = program.startTime.substring(6, 8).toInt();
+    }
+    
+    debug("initProgram: startTime=" + program.startTime + " parsed as " + String(hour) + ":" + String(minute) + ":" + String(second) + " duration=" + String(program.duration), 1);
 
-    uint startId = setScheduler(program.onStart, hour, minute, program.daysOfWeek, program.startDate, program.endDate);
+    uint startId = setScheduler(program.onStart, hour, minute, second, program.daysOfWeek, program.startDate, program.endDate);
 
     uint stopId = 0;
     if (program.duration > 0 && program.onStop) {
         int endHour = hour;
-        int endMinute = minute + program.duration;
+        int endMinute = minute;
+        int endSecond = second + program.duration;
+        
+        // Handle seconds overflow
+        endMinute += endSecond / 60;
+        endSecond %= 60;
+        
+        // Handle minutes overflow  
         endHour += endMinute / 60;
         endMinute %= 60;
+        
+        // Handle hours overflow
         endHour %= 24;
+        
+        debug("initProgram: stop time calculated as " + String(endHour) + ":" + String(endMinute) + ":" + String(endSecond), 1);
 
-        stopId = setScheduler(program.onStop, endHour, endMinute, program.daysOfWeek, program.startDate, program.endDate);
+        stopId = setScheduler(program.onStop, endHour, endMinute, endSecond, program.daysOfWeek, program.startDate, program.endDate);
     }
 
     program.startSchedulerId = startId;
@@ -315,19 +335,32 @@ TimeManager::Program* TimeManager::addProgram(const String& json, std::function<
     Program* program = new Program();
 
     if (error) {
-        debug("Erreur parsing JSON Program", 1);
+        debug("TimeManager addProgram FAILED: JSON parse error: " + String(error.c_str()), 0);
         delete program;
         return nullptr;
     }
 
     // Champs obligatoires
     if (!doc["startTime"].is<const char*>()) {
-        debug("Champ startTime invalide ou manquant", 1);
+        debug("TimeManager addProgram FAILED: startTime missing or invalid", 0);
+        delete program;
+        return nullptr;
+    }
+    
+    String startTime = doc["startTime"].as<String>();
+    // Validate startTime format: HH:MM or HH:MM:SS
+    if (startTime.length() != 5 && startTime.length() != 8) {
+        debug("TimeManager addProgram FAILED: startTime format invalid (expected HH:MM or HH:MM:SS), got: " + startTime, 0);
+        delete program;
+        return nullptr;
+    }
+    if (startTime.charAt(2) != ':' || (startTime.length() == 8 && startTime.charAt(5) != ':')) {
+        debug("TimeManager addProgram FAILED: startTime format invalid (colon missing), got: " + startTime, 0);
         delete program;
         return nullptr;
     }
     if (!doc["duration"].is<int>() && !doc["duration"].is<uint16_t>()) {
-        debug("Champ duration invalide ou manquant", 1);
+        debug("TimeManager addProgram FAILED: duration missing or invalid (expected seconds)", 0);
         delete program;
         return nullptr;
     }
@@ -367,6 +400,8 @@ TimeManager::Program* TimeManager::addProgram(const String& json, std::function<
     program->onStop = onStop;
 
     initProgram(*program);
+    
+    debug("TimeManager addProgram SUCCESS: " + program->startTime + " duration=" + String(program->duration) + "s", 0);
 
     return program;
 }

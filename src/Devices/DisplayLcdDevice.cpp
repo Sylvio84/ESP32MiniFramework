@@ -27,7 +27,7 @@ void DisplayLcdDevice::init()
     debug("Config: " + String(cols) + "x" + String(rows) + " @ 0x" + String(lcdAddress, HEX) + " (SDA:" + String(sdaPin) + ", SCL:" + String(sclPin) + ")", 1);
 
     Wire.begin(sdaPin, sclPin);
-    delay(100);
+    delay(500);
 
     if (!this->i2CAddrTest(lcdAddress)) {
         debug("LCD not found at address 0x" + String(lcdAddress, HEX), 0);
@@ -42,13 +42,20 @@ void DisplayLcdDevice::init()
     }
 
     lcd->init();
+    delay(100);
     lcd->backlight();
+    delay(50);
     lcd->clear();
+    delay(50);
     lcd->setCursor(0, 0);
+    delay(50);
+    
     printLine(0, "");
     printLine(1, "");
     printLine(2, "");
     printLine(3, "");
+    delay(100);
+    
     createChars();
 
     isInitialized = true;

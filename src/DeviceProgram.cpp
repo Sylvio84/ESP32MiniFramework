@@ -146,16 +146,19 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
         errorMsg = "JSON parse error: " + String(error.c_str()) + " - JSON length: " + String(json.length()) + ", First 100 chars: " + json.substring(0, 100);
         Serial.println("JSON parse failed: " + String(error.c_str()));
         Serial.println("JSON content: " + json);
+        eventManager->debug("DeviceProgram JSON parse FAILED: " + String(error.c_str()), 0);
         return false;
     }
 
     if (!doc["id"].is<int>() && !doc["id"].is<String>()) {
         errorMsg = "Missing or invalid 'id'";
+        eventManager->debug("DeviceProgram FAILED: Missing or invalid 'id'", 0);
         return false;
     }
 
     if (!doc["name"].is<String>()) {
         errorMsg = "Missing or invalid 'name'";
+        eventManager->debug("DeviceProgram FAILED: Missing or invalid 'name'", 0);
         return false;
     }
 
@@ -181,6 +184,7 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
                 devices.push_back(device);
             } else {
                 errorMsg = "Device with id '" + id + "' not found";
+                eventManager->debug("DeviceProgram FAILED: Device '" + id + "' not found", 0);
                 return false;
             }
             //eventManager->debug("Device added to program: " + device->id, 2);
@@ -204,6 +208,7 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
         for (Device* d : devices) {
             if (d == nullptr) {
                 errorMsg = "One of the devices in the program is null";
+                eventManager->debug("DeviceProgram FAILED: One of the devices is null", 0);
                 return false;
             }
         }
@@ -211,7 +216,8 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
         program = timeManager.addProgram(programJson, std::bind(&DeviceProgram::startDevices, this), std::bind(&DeviceProgram::stopDevices, this));
         
         if (!program) {
-            errorMsg = "Failed to create program from JSON. Check startTime (format HH:MM) and duration (minutes) fields.";
+            errorMsg = "Failed to create program from JSON. Check startTime (format HH:MM or HH:MM:SS) and duration (seconds) fields.";
+            eventManager->debug("DeviceProgram FAILED: TimeManager.addProgram failed", 0);
             return false;
         }
 
@@ -248,8 +254,18 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
             });*/
     } else {
         errorMsg = "Missing or invalid 'program'";
+        eventManager->debug("DeviceProgram FAILED: Missing or invalid 'program'", 0);
         return false;
     }
+
+    // Log succès avec détails du programme
+    String devicesStr = "";
+    for (size_t i = 0; i < devices.size(); i++) {
+        if (i > 0) devicesStr += ", ";
+        devicesStr += devices[i]->id;
+    }
+    
+    eventManager->debug("DeviceProgram SUCCESS: '" + name + "' (id:" + id + ") -> devices[" + devicesStr + "] at " + program->startTime + " for " + String(program->duration) + "s", 0);
 
     return true;
 }
