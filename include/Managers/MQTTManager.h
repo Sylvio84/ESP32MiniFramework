@@ -160,6 +160,8 @@ class MQTTManager : public Manager
     static constexpr unsigned long MQTT_LOOP_INTERVAL_MS = 25;
     static constexpr unsigned long MAX_RECONNECT_DELAY_SEC = 60;
     static constexpr unsigned long MS_PER_SECOND = 1000;
+    static constexpr unsigned int MAX_INCOMING_PACKET = MQTT_MAX_PACKET_SIZE;
+
     
     #ifdef ESP8266
         // Reduced buffer sizes for ESP8266 limited memory

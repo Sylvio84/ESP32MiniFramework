@@ -29,8 +29,8 @@
 
 #define DEBUG_LOG() debugLog(__FILE__, __LINE__)
 
-#define RELEASE_VERSION "1.2.6"
-#define RELEASE_DATE "2025-08-30"
+#define RELEASE_VERSION "1.2.7"
+#define RELEASE_DATE "2025-09-14"
 
 inline void debugLog( const char* file, int line)
 {
@@ -143,6 +143,7 @@ public:
     MainController();
 
     virtual void init();
+    virtual void addDevices();
     virtual void loop();
 
 #ifndef DISABLE_ESPUI

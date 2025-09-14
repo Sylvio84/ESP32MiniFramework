@@ -50,7 +50,10 @@ public:
     virtual void printText(uint8_t col, uint8_t row, const char *text) override;
     virtual void printLine(uint8_t row, const char *text, int col = 0) override;
     virtual void printLine(uint8_t row, String &text, int col = 0) override;
+    virtual void clearLine(uint8_t row) override;
     
+    void displaySpecialChar(uint8_t charNum, uint8_t row, uint8_t col);
+
     LiquidCrystal_I2C* getLcd() { return lcd; }
     
     void displayInitInfo();

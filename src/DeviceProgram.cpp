@@ -43,7 +43,8 @@ void DeviceProgram::deactivate()
 
 void DeviceProgram::startDevices()
 {
-    eventManager->debug("Starting devices for program: " + name, 1);
+    eventManager->debug("Starting devices for program: " + name, 0);
+    eventManager->triggerEvent("program", "start", {id, name});
     for (Device* d : devices) {
         if (d) {
 #ifdef ESP32
@@ -61,7 +62,8 @@ void DeviceProgram::startDevices()
 
 void DeviceProgram::stopDevices()
 {
-    eventManager->debug("Stopping devices for program: " + name, 1);
+    eventManager->debug("Stopping devices for program: " + name, 0);
+    eventManager->triggerEvent("program", "stop", {id, name});
     for (Device* d : devices) {
         if (d) {
 #ifdef ESP32
@@ -134,7 +136,6 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
 {
     // Debug: afficher le JSON reçu et sa taille
     eventManager->debug("Importing DeviceProgram from JSON (length=" + String(json.length()) + "): " + json, 2);
-    Serial.println("JSON received (length " + String(json.length()) + "): " + json);
 
     JsonDocument doc;
     #ifdef ESP8266
@@ -144,8 +145,6 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
     DeserializationError error = deserializeJson(doc, json);
     if (error) {
         errorMsg = "JSON parse error: " + String(error.c_str()) + " - JSON length: " + String(json.length()) + ", First 100 chars: " + json.substring(0, 100);
-        Serial.println("JSON parse failed: " + String(error.c_str()));
-        Serial.println("JSON content: " + json);
         eventManager->debug("DeviceProgram JSON parse FAILED: " + String(error.c_str()), 0);
         return false;
     }

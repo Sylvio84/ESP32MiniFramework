@@ -1,6 +1,6 @@
 {
     "name": "ESP32 Mini Framework",
-    "version": "1.2.6",
+    "version": "1.2.7",
     "description": "ESP32 Mini Framework for IOT Projects using C++ OOP",
     "keywords": "ESP32, Framework, IOT, C++, OOP",
     "repository": {

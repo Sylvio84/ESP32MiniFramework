@@ -53,6 +53,7 @@ public:
     virtual void printText(uint8_t col, uint8_t row, const char *text) = 0;
     virtual void printLine(uint8_t row, const char *text, int col) = 0;
     virtual void printLine(uint8_t row, String &text, int col = 0) = 0;
+    virtual void clearLine(uint8_t row) = 0;
     
     // Display system messages
     virtual void displaySystemMessage(uint8_t messageType);

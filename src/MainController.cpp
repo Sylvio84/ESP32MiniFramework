@@ -58,18 +58,16 @@ void MainController::init()
 #endif
     // deviceManager.initDevices(); // Already called in DeviceManager::init()
 
-    if (deviceProgramManager.loadDevicePrograms()) {
-        eventManager.debug("Device programs loaded successfully", 1);
-    } else {
-        eventManager.debug("Failed to load device programs", 0);
-    }
-
     timeManager.registerCommands();
-
     commandManager.generateHelpCommands();
 
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + configManager.getHostname() + "!", 0);
+}
+
+void MainController::addDevices()
+{
+    // Override in subclass to add custom devices
 }
 
 void MainController::loop()
@@ -140,6 +138,12 @@ void MainController::processEvent(String type, String event, std::vector<String>
             deviceManager.processEventDevices(type, event, params);
             return;
         }
+    }
+
+    if (type == "manager" && event == "initialized" && params.size() >= 1 && params[0] == "DeviceManager") {
+        // DeviceManager initialized - now safe to add devices
+        addDevices();
+        return;
     }
 
     // Handle remaining events that need MainController-specific logic

@@ -161,7 +161,11 @@ protected:
      * @brief Mark manager as initialized
      * @param state Initialization state
      */
-    void setInitialized(bool state = true) { initialized = state; }
+    void setInitialized(bool state = true) { 
+        initialized = state; 
+        //send event to indicate the manager is initialized
+        publishEvent("manager", "initialized", {getName()});
+    }
     
     /**
      * @brief Helper to access other services via dependency injection

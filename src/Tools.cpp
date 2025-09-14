@@ -75,3 +75,20 @@ std::vector<String> splitParameters(const String& paramStr)
 
     return params;
 }
+
+String calculateTimeStop(String timeStart, int duration) {
+    int hh = timeStart.substring(0, 2).toInt();
+    int mm = timeStart.substring(3, 5).toInt();
+    int ss = timeStart.substring(6, 8).toInt();
+
+    int totalSeconds = hh * 3600 + mm * 60 + ss + duration;
+
+    int stop_hh = (totalSeconds / 3600) % 24; // modulo 24 pour rester dans la journée
+    int stop_mm = (totalSeconds % 3600) / 60;
+    int stop_ss = totalSeconds % 60;
+
+    char buffer[9];
+    sprintf(buffer, "%02d:%02d:%02d", stop_hh, stop_mm, stop_ss);
+
+    return String(buffer);
+}

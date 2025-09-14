@@ -44,18 +44,18 @@ class TimeManager : public Manager
         std::string sunset;
     };
     std::map<int, SunTime> sunTimes = {
-        {1, {"08:10", "17:30"}},   // January
-        {2, {"07:40", "18:10"}},   // February
+        {1, {"08:10", "18:00"}},   // January
+        {2, {"07:40", "18:30"}},   // February
         {3, {"07:00", "18:45"}},   // March
-        {4, {"06:45", "20:15"}},   // April
-        {5, {"06:10", "20:50"}},   // May
-        {6, {"05:50", "21:15"}},   // June
-        {7, {"06:00", "21:15"}},   // July
-        {8, {"06:30", "20:45"}},   // August
-        {9, {"07:00", "19:55"}},   // September
-        {10, {"07:30", "18:55"}},  // October
-        {11, {"08:00", "17:20"}},  // November
-        {12, {"08:20", "17:05"}}   // December
+        {4, {"06:45", "20:00"}},   // April
+        {5, {"06:10", "21:00"}},   // May
+        {6, {"05:50", "21:30"}},   // June
+        {7, {"06:00", "21:45"}},   // July
+        {8, {"06:30", "21:00"}},   // August
+        {9, {"07:00", "20:00"}},   // September
+        {10, {"07:30", "18:00"}},  // October
+        {11, {"08:00", "17:45"}},  // November
+        {12, {"08:20", "17:30"}}   // December
     };
 
     std::tm timeToDate(const std::string& time, const std::tm& now);
@@ -64,7 +64,7 @@ class TimeManager : public Manager
     {
         String startDate;             // Format "DD/MM"
         String endDate;               // Format "DD/MM"
-        String startTime;             // Format "HH:MM" or "HH:MM:SS"
+        String startTime;             // Format "HH:MM:SS"
         uint16_t duration;            // en secondes
         std::vector<int> daysOfWeek;  // 0=Dimanche, 1=Lundi, ..., 6=Samedi
 

@@ -6,24 +6,26 @@ void DisplayLcdDevice::init()
     Device::init();
 
     debug("DisplayLcdDevice init...", 1);
-    
+
     // Load pin configuration with intelligent defaults
     int defaultSda = getDefaultI2CPin("sda");
     int defaultScl = getDefaultI2CPin("scl");
-    
+
     // Use configured defaults if auto-detection failed
-    if (defaultSda == -1) defaultSda = sdaPin;
-    if (defaultScl == -1) defaultScl = sclPin;
-    
+    if (defaultSda == -1)
+        defaultSda = sdaPin;
+    if (defaultScl == -1)
+        defaultScl = sclPin;
+
     // Load from configuration or use defaults
     sdaPin = loadPin("sda", defaultSda);
     sclPin = loadPin("scl", defaultScl);
     lcdAddress = loadPin("address", lcdAddress);  // Also allow address configuration
-    
+
     // Register pins for listing
     registerPin(sdaPin, "sda", "I2C Data");
     registerPin(sclPin, "scl", "I2C Clock");
-    
+
     debug("Config: " + String(cols) + "x" + String(rows) + " @ 0x" + String(lcdAddress, HEX) + " (SDA:" + String(sdaPin) + ", SCL:" + String(sclPin) + ")", 1);
 
     Wire.begin(sdaPin, sclPin);
@@ -49,20 +51,19 @@ void DisplayLcdDevice::init()
     delay(50);
     lcd->setCursor(0, 0);
     delay(50);
-    
+
     printLine(0, "");
     printLine(1, "");
     printLine(2, "");
     printLine(3, "");
     delay(100);
-    
+
     createChars();
 
     isInitialized = true;
     debug("LCD initialized successfully", 1);
 
     //displayInfo();
-
 
     registerDeviceCommand("clear", "Clear the display", [this](const std::vector<String>& params) {
         clear();
@@ -87,7 +88,7 @@ void DisplayLcdDevice::init()
         displayInitInfo();
         return "Info displayed on LCD";
     });
-    
+
     registerDeviceCommand("setsda", "Set SDA pin", [this](const std::vector<String>& params) -> String {
         if (params.size() < 1)
             return "Usage: setsda <pin>";
@@ -97,7 +98,7 @@ void DisplayLcdDevice::init()
         savePin("sda", newPin);
         return String("SDA pin set to " + String(newPin) + " (restart required)");
     });
-    
+
     registerDeviceCommand("setscl", "Set SCL pin", [this](const std::vector<String>& params) -> String {
         if (params.size() < 1)
             return "Usage: setscl <pin>";
@@ -107,7 +108,7 @@ void DisplayLcdDevice::init()
         savePin("scl", newPin);
         return String("SCL pin set to " + String(newPin) + " (restart required)");
     });
-    
+
     registerDeviceCommand("setaddress", "Set I2C address", [this](const std::vector<String>& params) -> String {
         if (params.size() < 1)
             return "Usage: setaddress <address>";
@@ -118,9 +119,7 @@ void DisplayLcdDevice::init()
         return String("I2C address set to 0x" + String(newAddr, HEX) + " (restart required)");
     });
 
-    timeManager->setInterval([this]() {
-        displayEspInfo();
-    }, 1000);
+    timeManager->setInterval([this]() { displayEspInfo(); }, 1000);
 
     if (wifiManager->isConnected()) {
         displaySystemMessage(DisplayDevice::WIFI_OK);
@@ -205,6 +204,23 @@ void DisplayLcdDevice::createChars()
     lcd->createChar(5, check);
     lcd->createChar(6, cross);
     lcd->createChar(7, retarrow);
+}
+
+void DisplayLcdDevice::clearLine(uint8_t row)
+{
+    if (!isInitialized || !lcd)
+        return;
+
+    if (row >= rows) {
+        debug("Invalid row: " + String(row), 0);
+        return;
+    }
+
+    lcd->setCursor(0, row);
+    for (uint8_t i = 0; i < cols; i++) {
+        lcd->print(' ');
+    }
+    lcd->setCursor(0, row);
 }
 
 void DisplayLcdDevice::displayInitInfo()
@@ -364,24 +380,48 @@ void DisplayLcdDevice::displaySystemMessage(uint8_t messageType)
     }
 }
 
+void DisplayLcdDevice::displaySpecialChar(uint8_t charNum, uint8_t row, uint8_t col)
+{
+    if (!isInitialized || !lcd)
+        return;
+
+    if (col >= cols) {
+        debug("Invalid col: " + String(col) + "/" + String(cols), 0);
+        return;
+    }
+    if (row >= rows) {
+        debug("Invalid row: " + String(row) + "/" + String(rows), 0);
+        return;
+    }
+    if (charNum > 7) {
+        debug("Invalid charNum: " + String(charNum) + " (must be 0-7)", 0);
+        return;
+    }
+
+    lcd->setCursor(col, row);
+    if (charNum == -1) {
+        lcd->print(" ");
+    } else {
+        lcd->write(charNum);
+    }
+}
+
 void DisplayLcdDevice::displayEspInfo()
 {
     if (!isInitialized || !lcd)
         return;
 
-    lcd->setCursor(11, 0);
     if (wifiManager->isConnected()) {
-        lcd->write(4);  // WiFi character
+        displaySpecialChar(4, 0, 11);
     } else {
-        lcd->print(" ");
+        displaySpecialChar(-1, 0, 11);
         printText(0, 1, "WiFi Disconnected");
     }
 
-    lcd->setCursor(10, 0);
     if (mqttManager->isConnected()) {
-        lcd->write(3);  // MQTT character
+        displaySpecialChar(3, 0, 10);
     } else {
-        lcd->print(" ");
+        displaySpecialChar(-1, 0, 10);
         printText(0, 1, "MQTT Disconnected");
     }
 
