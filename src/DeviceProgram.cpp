@@ -9,8 +9,6 @@ DeviceProgram::DeviceProgram(EventManager& eventMgr)
     }
 }
 
-//DeviceProgram::DeviceProgram(const String& name, EventManager& eventMgr,  const TimeManager::Program& program) : name(name), program(new TimeManager::Program(program)) {}
-
 void DeviceProgram::setSettings(const String& json)
 {
     settingsJson = json;
@@ -212,8 +210,12 @@ bool DeviceProgram::fromJson(const String& json, DeviceManager& deviceManager, T
             }
         }
 
+        // Keep a handle on the TimeManager so the destructor can unregister the schedulers
+        // that capture a pointer to `program` (prevents use-after-free on program removal).
+        this->timeManager = &timeManager;
+
         program = timeManager.addProgram(programJson, std::bind(&DeviceProgram::startDevices, this), std::bind(&DeviceProgram::stopDevices, this));
-        
+
         if (!program) {
             errorMsg = "Failed to create program from JSON. Check startTime (format HH:MM or HH:MM:SS) and duration (seconds) fields.";
             eventManager->debug("DeviceProgram FAILED: TimeManager.addProgram failed", 0);

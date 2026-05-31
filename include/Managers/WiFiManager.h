@@ -52,7 +52,10 @@ class WiFiManager : public Manager
     static constexpr uint32_t NETWORK_RETRY_DELAY_MS = 1000;
     static constexpr uint32_t CHECK_DELAY_MS = 100;
     static constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 5000;
-    
+    // Active reconnection backoff bounds (connection lost recovery)
+    static constexpr uint32_t WIFI_RECONNECT_MIN_MS = 5000;
+    static constexpr uint32_t WIFI_RECONNECT_MAX_MS = 30000;
+
     // Legacy constant for backward compatibility (deprecated)
     static const uint CONNECTION_TIMEOUT = CONNECTION_TIMEOUT_MS;
 
@@ -66,6 +69,11 @@ class WiFiManager : public Manager
     uint timeout = 0;
     uint checkDelay = 100;
     uint tryCount = 0;
+
+    // Active reconnection tracking (recovery from "connection lost" + telemetry)
+    unsigned long wifiReconnectCount = 0;   // total reconnection attempts since boot
+    unsigned long lastReconnectAttempt = 0; // millis() of last active reconnect
+    unsigned long reconnectBackoff = WIFI_RECONNECT_MIN_MS; // current backoff (5s -> 30s)
 
     // Configuration and state (moved to private for proper encapsulation)
     wm_ap_mode apMode = WM_AP_MODE_ON_ERROR;
@@ -113,7 +121,8 @@ class WiFiManager : public Manager
     String getCurrentSSID() const { return ssid; }
     String getCurrentPassword() const { return password; } // Note: consider removing for security
     size_t getSavedNetworkCount() const { return savedNetworks.size(); }
-    
+    unsigned long getReconnectCount() const { return wifiReconnectCount; }
+
     bool autoConnect();
     bool connect();
     bool keepConnection();

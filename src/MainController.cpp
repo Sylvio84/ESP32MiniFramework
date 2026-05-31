@@ -2,11 +2,25 @@
 #include <Managers/CommandManager.h>
 #include <Managers/TimeManager.h>
 
+#ifdef ESP32
+#include <esp_task_wdt.h>
+// Task Watchdog timeout (seconds). Must exceed the longest blocking section that runs
+// inside loop() without feeding the dog. The notable blocking callers are bounded:
+//   - MQTT connect: MQTT_SOCKET_TIMEOUT (8s) + diagnostics feed the dog
+//   - WiFi connect (boot/retry): feeds the dog internally
+//   - NTP getLocalTime: capped at 2s
+//   - OTA: unsubscribes from the watchdog for its duration
+// 30s leaves comfortable margin so transient network stalls never cause a false reboot,
+// while a genuine hang still triggers a panic + reboot (and a core dump for the backtrace).
+#define FRAMEWORK_WDT_TIMEOUT_S 30
+#endif
+
 MainController::MainController()
     : context(),
       eventManager(),
       configManager(context),
       systemManager(context),
+      diagnosticsManager(context),
       serialManager(context),
       commandManager(context),
       wiFiManager(context),
@@ -24,6 +38,7 @@ MainController::MainController()
     // Register all managers (including ConfigurationManager which is now a Manager)
     context.registerManager(&configManager);
     context.registerManager(&systemManager);
+    context.registerManager(&diagnosticsManager);
     context.registerManager(&serialManager);
     context.registerManager(&commandManager);
     context.registerManager(&wiFiManager);
@@ -63,6 +78,23 @@ void MainController::init()
 
     eventManager.debug("Init done!", 1);
     eventManager.debug("Welcome on " + configManager.getHostname() + "!", 0);
+
+#ifdef ESP32
+    // Enable the Task Watchdog on the loop task AFTER initialization (so the blocking
+    // boot-time WiFi bootstrap doesn't trip it). A genuine runtime hang now reboots the
+    // device instead of leaving it frozen and untraceable.
+#if ESP_IDF_VERSION_MAJOR >= 5
+    esp_task_wdt_config_t wdtConfig = {};
+    wdtConfig.timeout_ms = FRAMEWORK_WDT_TIMEOUT_S * 1000;
+    wdtConfig.idle_core_mask = 0;
+    wdtConfig.trigger_panic = true;
+    esp_task_wdt_reconfigure(&wdtConfig);
+#else
+    esp_task_wdt_init(FRAMEWORK_WDT_TIMEOUT_S, true);  // panic = true -> reboot on timeout
+#endif
+    esp_task_wdt_add(NULL);  // watch the Arduino loop task
+    eventManager.debug("Task Watchdog enabled (" + String(FRAMEWORK_WDT_TIMEOUT_S) + "s)", 1);
+#endif
 }
 
 void MainController::addDevices()
@@ -72,6 +104,12 @@ void MainController::addDevices()
 
 void MainController::loop()
 {
+#ifdef ESP32
+    // Feed the Task Watchdog once per loop. If any manager loop() or device loop()
+    // hangs longer than FRAMEWORK_WDT_TIMEOUT_S, the watchdog reboots the device.
+    esp_task_wdt_reset();
+#endif
+
     // Call loop on all managers using clean Manager interface
     for (auto* manager : context.getManagers()) {
         manager->loop();

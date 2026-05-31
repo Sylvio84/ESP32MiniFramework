@@ -11,6 +11,7 @@
 #include "TimeManager.h"
 #include <memory>
 #include <vector>
+#include <ctime>
 
 // Forward declarations
 class CommandManager;
@@ -44,6 +45,7 @@ class DeviceProgramManager : public Manager
     void addDeviceProgram(DeviceProgram& deviceProgram);
     DeviceProgram* getDeviceProgramById(const String& id);
     DeviceProgram* getDeviceProgramByName(const String& name);
+    DeviceProgram* getUpcomingDeviceProgram();
     
     bool removeDeviceProgram(const String& id, bool saveAfterRemoval = true);
     const std::vector<DeviceProgram*>& getAllDevicePrograms();

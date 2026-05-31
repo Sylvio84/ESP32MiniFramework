@@ -2,6 +2,7 @@
 #include "Managers/ConfigurationManager.h"
 #include "Managers/EventManager.h"
 #include "Managers/CommandManager.h"
+#include "Program.h"
 #include <algorithm>
 
 
@@ -73,7 +74,7 @@ String TimeManager::getFormattedDateTime(const char* format)
     }
     struct tm timeinfo;
 
-    if (!getLocalTime(&timeinfo)) {
+    if (!getLocalTime(&timeinfo, 2000)) {  // cap blocking at 2s (stays under the 5s task watchdog)
         // logMessage("Failed to obtain time");
         debug("Failed to obtain time", 2, false);
         return String("");
@@ -157,7 +158,7 @@ void TimeManager::checkSchedulers()
     }
 
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) {
+    if (!getLocalTime(&timeinfo, 2000)) {  // cap blocking at 2s (stays under the 5s task watchdog)
         debug("Failed to obtain time", 1);
         return;
     }
@@ -287,24 +288,29 @@ bool TimeManager::isDateInRange(const std::tm& now, const String& startDate, con
 
 void TimeManager::initProgram(Program& program)
 {
-    int hour = program.startTime.substring(0, 2).toInt();
-    int minute = program.startTime.substring(3, 5).toInt();
+    String startTime = program.getStartTime();
+    int hour = startTime.substring(0, 2).toInt();
+    int minute = startTime.substring(3, 5).toInt();
     int second = 0;
     
     // Check if seconds are provided in format HH:MM:SS
-    if (program.startTime.length() >= 8 && program.startTime.charAt(5) == ':') {
-        second = program.startTime.substring(6, 8).toInt();
+    if (startTime.length() >= 8 && startTime.charAt(5) == ':') {
+        second = startTime.substring(6, 8).toInt();
     }
     
-    debug("initProgram: startTime=" + program.startTime + " parsed as " + String(hour) + ":" + String(minute) + ":" + String(second) + " duration=" + String(program.duration), 1);
+    debug("initProgram: startTime=" + startTime + " parsed as " + String(hour) + ":" + String(minute) + ":" + String(second) + " duration=" + String(program.getDuration()), 1);
 
-    uint startId = setScheduler(program.onStart, hour, minute, second, program.daysOfWeek, program.startDate, program.endDate);
+    // Capture the program by explicit pointer. The referenced object is owned by the caller
+    // (e.g. DeviceProgram::program). To avoid a use-after-free, the owner MUST clear these
+    // schedulers (clearScheduler) before destroying the program — see DeviceProgram dtor.
+    Program* p = &program;
+    uint startId = setScheduler([p]() { p->executeOnStart(); }, hour, minute, second, program.getDaysOfWeek(), program.getStartDate(), program.getEndDate());
 
     uint stopId = 0;
-    if (program.duration > 0 && program.onStop) {
+    if (program.getDuration() > 0) {
         int endHour = hour;
         int endMinute = minute;
-        int endSecond = second + program.duration;
+        int endSecond = second + program.getDuration();
         
         // Handle seconds overflow
         endMinute += endSecond / 60;
@@ -319,16 +325,19 @@ void TimeManager::initProgram(Program& program)
         
         debug("initProgram: stop time calculated as " + String(endHour) + ":" + String(endMinute) + ":" + String(endSecond), 1);
 
-        stopId = setScheduler(program.onStop, endHour, endMinute, endSecond, program.daysOfWeek, program.startDate, program.endDate);
+        stopId = setScheduler([p]() { p->executeOnStop(); }, endHour, endMinute, endSecond, program.getDaysOfWeek(), program.getStartDate(), program.getEndDate());
     }
 
-    program.startSchedulerId = startId;
-    program.stopSchedulerId = stopId;
+    program.setStartSchedulerId(startId);
+    program.setStopSchedulerId(stopId);
 
-    programs.push_back(program);
+    // NOTE: previously `programs.push_back(program)` stored a divergent COPY of the program
+    // here. That copy was never referenced by the scheduler (which targets the caller-owned
+    // object above) and accumulated unbounded on every re-import, slowly leaking heap.
+    // It is intentionally removed.
 }
 
-TimeManager::Program* TimeManager::addProgram(const String& json, std::function<void()> onStart, std::function<void()> onStop)
+Program* TimeManager::addProgram(const String& json, std::function<void()> onStart, std::function<void()> onStop)
 {
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, json);
@@ -368,18 +377,20 @@ TimeManager::Program* TimeManager::addProgram(const String& json, std::function<
     String dump;
     serializeJson(doc, dump);
 
-    program->startTime = doc["startTime"].as<String>();
-    program->duration = doc["duration"].as<uint16_t>();
+    program->setStartTime(doc["startTime"].as<String>());
+    program->setDuration(doc["duration"].as<uint16_t>());
 
     // Valeurs par défaut
-    program->startDate = doc["startDate"] | "";
-    program->endDate = doc["endDate"] | "";
-    program->active = doc["active"] | true;
+    program->setStartDate(doc["startDate"] | "");
+    program->setEndDate(doc["endDate"] | "");
+    program->setActive(doc["active"] | true);
 
     if ((doc["days"].isNull() == false) && doc["days"].is<JsonArray>()) {
+        std::vector<int> days;
         for (JsonVariant v : doc["days"].as<JsonArray>()) {
-            program->daysOfWeek.push_back(v.as<int>());
+            days.push_back(v.as<int>());
         }
+        program->setDaysOfWeek(days);
     }
 
     /*if ((doc["onStart"].isNull() == false) && !doc["onStart"].isNull()) {
@@ -396,12 +407,12 @@ TimeManager::Program* TimeManager::addProgram(const String& json, std::function<
         };
     }*/
 
-    program->onStart = onStart;
-    program->onStop = onStop;
+    program->setOnStartCallback(onStart);
+    program->setOnStopCallback(onStop);
 
     initProgram(*program);
     
-    debug("TimeManager addProgram SUCCESS: " + program->startTime + " duration=" + String(program->duration) + "s", 0);
+    debug("TimeManager addProgram SUCCESS: " + program->getStartTime() + " duration=" + String(program->getDuration()) + "s", 0);
 
     return program;
 }
@@ -410,22 +421,23 @@ String TimeManager::exportProgramToJson(const Program& program)
 {
     JsonDocument doc;
 
-    doc["startTime"] = program.startTime;
-    doc["duration"] = program.duration;
+    doc["startTime"] = program.getStartTime();
+    doc["duration"] = program.getDuration();
 
-    if (!program.startDate.isEmpty())
-        doc["startDate"] = program.startDate;
-    if (!program.endDate.isEmpty())
-        doc["endDate"] = program.endDate;
+    if (!program.getStartDate().isEmpty())
+        doc["startDate"] = program.getStartDate();
+    if (!program.getEndDate().isEmpty())
+        doc["endDate"] = program.getEndDate();
 
-    if (!program.daysOfWeek.empty()) {
+    std::vector<int> daysOfWeek = program.getDaysOfWeek();
+    if (!daysOfWeek.empty()) {
         JsonArray days = doc["days"].to<JsonArray>();
-        for (int day : program.daysOfWeek) {
+        for (int day : daysOfWeek) {
             days.add(day);
         }
     }
 
-    doc["active"] = program.active;
+    doc["active"] = program.isActive();
 
     String output;
     serializeJson(doc, output);

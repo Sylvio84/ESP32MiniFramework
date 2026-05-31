@@ -31,16 +31,25 @@ class DeviceProgram
     String name;
     String id;
     bool enabled = true;
-    TimeManager::Program* program = nullptr;
+    Program* program = nullptr;
     std::vector<Device*> devices;
     String settingsJson;
 
+    // Set in fromJson(): needed to unregister the program's time schedulers on destruction.
+    TimeManager* timeManager = nullptr;
+
     DeviceProgram(EventManager& eventMgr);
-    //DeviceProgram(const String& name, EventManager& eventMgr, const TimeManager::Program& program);
 
     ~DeviceProgram()
     {
         if (program) {
+            // CRITICAL: remove the time schedulers that capture a pointer to `program`
+            // BEFORE freeing it. Otherwise a stale scheduler would fire later and call a
+            // method on freed memory (use-after-free) -> crash after days/weeks.
+            if (timeManager) {
+                timeManager->clearScheduler(program->getStartSchedulerId());
+                timeManager->clearScheduler(program->getStopSchedulerId());
+            }
             delete program;
             program = nullptr;
         }

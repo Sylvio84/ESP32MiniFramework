@@ -39,6 +39,81 @@ void DeviceProgramManager::addDeviceProgram(DeviceProgram& deviceProgram)
     return savePrograms(config);
 }*/
 
+DeviceProgram* DeviceProgramManager::getUpcomingDeviceProgram()
+{
+    using namespace std;
+
+    time_t now = time(nullptr);
+    tm local = *localtime(&now);
+
+    DeviceProgram* best = nullptr;
+    time_t bestTime = numeric_limits<time_t>::max();
+
+    for (auto deviceProgram : devicePrograms)
+    {
+        if (!deviceProgram->enabled || !deviceProgram->program) continue;
+        const auto* prog = deviceProgram->program;
+
+        // --- Jour & dates comme avant (mais on va recalculer plus bas si on décale d’un jour)
+        auto currentYear = local.tm_year + 1900;
+        auto makeDate = [&](int d, int m, int y) {
+            tm t{};
+            t.tm_year = y - 1900;
+            t.tm_mon  = m - 1;
+            t.tm_mday = d;
+            return mktime(&t);
+        };
+
+        int hour=0, minute=0, second=0;
+        if (sscanf(prog->startTime.c_str(), "%2d:%2d:%2d", &hour, &minute, &second) != 3)
+            continue;
+
+        // Horaire du jour
+        tm programTime = local;
+        programTime.tm_hour = hour;
+        programTime.tm_min  = minute;
+        programTime.tm_sec  = second;
+
+        time_t programEpoch = mktime(&programTime);
+
+        // Si l’horaire du jour est déjà passé, on décale à demain
+        if (programEpoch < now) {
+            programTime.tm_mday += 1;
+            programEpoch = mktime(&programTime);
+        }
+
+        // --- Vérification du jour de semaine par rapport à programTime
+        if (!prog->daysOfWeek.empty()) {
+            bool match = false;
+            int wday = localtime(&programEpoch)->tm_wday;
+            for (int d : prog->daysOfWeek) {
+                if (d == wday) { match = true; break; }
+            }
+            if (!match) continue;
+        }
+
+        // --- Vérification des dates DD/MM
+        auto todayYear = localtime(&programEpoch)->tm_year + 1900;
+        auto makeDateY = [&](int d,int m){ return makeDate(d,m,todayYear); };
+        int startDay=0, startMonth=0, endDay=0, endMonth=0;
+        bool hasStart = sscanf(prog->startDate.c_str(), "%2d/%2d", &startDay, &startMonth) == 2;
+        bool hasEnd   = sscanf(prog->endDate.c_str(),   "%2d/%2d", &endDay,   &endMonth)   == 2;
+
+        time_t dayCheck = makeDate(localtime(&programEpoch)->tm_mday,
+                                   localtime(&programEpoch)->tm_mon + 1,
+                                   todayYear);
+        if (hasStart && dayCheck < makeDateY(startDay, startMonth)) continue;
+        if (hasEnd   && dayCheck > makeDateY(endDay,   endMonth  )) continue;
+
+        // Retenir le plus proche
+        if (programEpoch < bestTime) {
+            bestTime = programEpoch;
+            best = deviceProgram;
+        }
+    }
+    return best;
+}
+
 DeviceProgram* DeviceProgramManager::getDeviceProgramById(const String& id)
 {
     for (auto deviceProgram : devicePrograms) {
@@ -354,7 +429,7 @@ void DeviceProgramManager::registerCommands()
                     }
                     result += "\n";
                 }
-                result += "    Active: " + String(program->program->active ? "Yes" : "No") + "\n";
+                result += "    Active: " + String(program->program->isActive() ? "Yes" : "No") + "\n";
             }
 
             // Settings if present

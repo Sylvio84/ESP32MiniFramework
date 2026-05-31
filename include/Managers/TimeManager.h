@@ -14,9 +14,11 @@
 #include <ESP8266WiFi.h>
 #endif
 #include <ArduinoJson.h>
+#include <Program.h>
 
 // Forward declarations
 class CommandManager;
+//class Program;
 
 
 /**
@@ -60,22 +62,6 @@ class TimeManager : public Manager
 
     std::tm timeToDate(const std::string& time, const std::tm& now);
 
-    struct Program
-    {
-        String startDate;             // Format "DD/MM"
-        String endDate;               // Format "DD/MM"
-        String startTime;             // Format "HH:MM:SS"
-        uint16_t duration;            // en secondes
-        std::vector<int> daysOfWeek;  // 0=Dimanche, 1=Lundi, ..., 6=Samedi
-
-        std::function<void()> onStart;
-        std::function<void()> onStop;
-
-        bool active = true;
-
-        uint startSchedulerId = -1;
-        uint stopSchedulerId = -1;
-    };
 
     bool isInitialized = false;
 
@@ -108,7 +94,7 @@ class TimeManager : public Manager
     void clearScheduler(uint id);
 
     void initProgram(Program& program);
-    TimeManager::Program* addProgram(const String& json, std::function<void()> onStart, std::function<void()> onStop);
+    Program* addProgram(const String& json, std::function<void()> onStart, std::function<void()> onStop);
     static String exportProgramToJson(const Program& program);
     
 

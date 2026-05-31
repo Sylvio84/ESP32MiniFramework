@@ -2,6 +2,9 @@
 #include "Managers/CommandManager.h"
 #include "Managers/ConfigurationManager.h"
 #include "Managers/EventManager.h"
+#ifdef ESP32
+#include <esp_task_wdt.h>
+#endif
 
 void MQTTManager::init()
 {
@@ -155,6 +158,11 @@ bool MQTTManager::reconnect()
         } else {
             context->getEventManager()->triggerEvent("mqtt", "ConnectionFailed", {});
             logDebug("MQTT error: " + String(mqttClient.state()), 2);
+#ifdef ESP32
+            // The blocking connect above (up to MQTT_SOCKET_TIMEOUT) already consumed part of
+            // the watchdog budget; feed it before the additional DNS + TCP diagnostic probes.
+            esp_task_wdt_reset();
+#endif
             IPAddress serverIP;
             if (WiFi.hostByName(hostname.c_str(), serverIP)) {
                 logDebug("Server IP: " + serverIP.toString(), 2);
@@ -162,12 +170,20 @@ bool MQTTManager::reconnect()
                 logDebug("DNS lookup failed", 1);
             }
             WiFiClient testClient;
-            if (testClient.connect(serverIP, 1883)) {
+#ifdef ESP32
+            if (testClient.connect(serverIP, 1883, 3000)) {  // bounded 3s connect for the probe
+#else
+            testClient.setTimeout(3000);
+            if (testClient.connect(serverIP, 1883)) {        // ESP8266: no timeout-arg overload
+#endif
                 logDebug("TCP connection successful", 2);
                 testClient.stop();
             } else {
                 logDebug("TCP connection failed", 2);
             }
+#ifdef ESP32
+            esp_task_wdt_reset();
+#endif
             return false;
         }
     }
@@ -495,6 +511,13 @@ bool MQTTManager::storePublication(String topic, String payload)
 {
     logDebug("Storing MQTT publication: " + topic + " = " + payload, 3);
     auto it = publications.find(topic);
+    // Bound the buffer: if MQTT stays disconnected, stored publications could otherwise
+    // grow without limit and fragment/exhaust the heap. Drop the oldest when full.
+    static constexpr size_t MAX_STORED_PUBLICATIONS = 10;
+    if (it == publications.end() && publications.size() >= MAX_STORED_PUBLICATIONS) {
+        logDebug("MQTT publication buffer full, discarding oldest entry", 1);
+        publications.erase(publications.begin());
+    }
     publications[topic] = payload;
     return it != publications.end();
 }

@@ -6,6 +6,9 @@
 #include "Managers/TimeManager.h"
 #include "Managers/WiFiManager.h"
 #include <algorithm>
+#ifdef ESP32
+#include <esp_task_wdt.h>
+#endif
 
 void WiFiManager::init()
 {
@@ -154,7 +157,24 @@ void WiFiManager::loop()
         } else if (connectionStatus == 3)  // Connection lost
         {
             if (WiFi.status() == WL_CONNECTED) {
+                // Link came back (driver auto-reconnect or our active retry succeeded)
+                reconnectBackoff = WIFI_RECONNECT_MIN_MS;
                 setConnected(true);
+            } else if (keepConnected && (currentMillis - lastReconnectAttempt >= reconnectBackoff)) {
+                // Actively drive reconnection instead of waiting passively forever.
+                // Without this, a single network outage left the ESP disconnected indefinitely.
+                // Non-blocking on purpose: WiFi.reconnect() kicks a fresh association and the
+                // next loop() iterations detect WL_CONNECTED. We never call the blocking
+                // connect() here, so MQTT/devices/watchdog keep running during recovery.
+                wifiReconnectCount++;
+                lastReconnectAttempt = currentMillis;
+                logDebug("WiFi: lost, active reconnect attempt #" + String(wifiReconnectCount) +
+                             " (backoff " + String(reconnectBackoff / 1000) + "s)", 1);
+                context->getEventManager()->triggerEvent("wifi", "reconnect_attempt",
+                                                         {String(wifiReconnectCount)});
+                WiFi.reconnect();
+                // Exponential backoff, capped (5s -> 10s -> 20s -> 30s)
+                reconnectBackoff = min(reconnectBackoff * 2, (unsigned long)WIFI_RECONNECT_MAX_MS);
             }
         }
         lastMillis = currentMillis;
@@ -250,13 +270,27 @@ bool WiFiManager::connect()
 
     //WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8));
 
+    // Do not persist credentials to flash on every begin() (flash wear) and let the
+    // ESP32 driver auto-reconnect on transient drops. Combined with the active retry
+    // in loop() (state 3), this prevents permanent disconnection after a network outage.
+    WiFi.persistent(false);
+    WiFi.setAutoReconnect(true);
+
     WiFi.begin(this->ssid.c_str(), this->password.c_str());
 
-    // Wait for connection with timeout (10 seconds)
+    // Blocking wait kept ONLY for the boot bootstrap path (initConnection /
+    // connectToSavedNetwork), which relies on the real result to pick a network and
+    // fall back to the Access Point. Runtime recovery uses the non-blocking path in
+    // loop() (state 3) instead, so the main loop is never frozen during normal operation.
     unsigned long startTime = millis();
+    unsigned long lastDot = 0;
     while (WiFi.status() != WL_CONNECTED && millis() - startTime < CONNECTION_TIMEOUT) {
-        delay(50);  // Reduced from 100ms to 50ms
-        if ((millis() - startTime) % 1000 == 0) {
+        delay(50);
+#ifdef ESP32
+        esp_task_wdt_reset();  // keep the watchdog happy during the blocking boot connect
+#endif
+        if (millis() - lastDot >= 1000) {  // one dot per second (the old % 1000 test rarely fired)
+            lastDot = millis();
             logDebug(".", 0);
         }
     }
@@ -818,6 +852,12 @@ bool WiFiManager::otaUpdate()
 
     logDebug("Starting OTA update from " + fullUrl, 1);
 
+    // esp_https_ota() is a BLOCKING call (download + flash, tens of seconds) during which
+    // the main loop() never runs and cannot feed the Task Watchdog. Unsubscribe this task
+    // from the TWDT for the duration, otherwise the watchdog would reboot mid-update and
+    // abort the OTA. On success the device reboots anyway; on failure we re-subscribe.
+    esp_task_wdt_delete(NULL);
+
     // Démarrage de la mise à jour OTA
     esp_err_t ret = esp_https_ota(&ota_config);
     if (ret == ESP_OK) {
@@ -826,6 +866,7 @@ bool WiFiManager::otaUpdate()
         return true;
     } else {
         logDebug("OTA Update failed: " + String(esp_err_to_name(ret)), 1);
+        esp_task_wdt_add(NULL);  // resume watchdog supervision after a failed update
         return false;
     }
 }

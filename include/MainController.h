@@ -21,6 +21,7 @@
 #endif
 #include <Managers/EventManager.h>
 #include <Managers/TimeManager.h>
+#include <Managers/DiagnosticsManager.h>
 #include <DeviceProgram.h>
 #include <Tools.h>
 #include <LittleFS.h>
@@ -29,8 +30,8 @@
 
 #define DEBUG_LOG() debugLog(__FILE__, __LINE__)
 
-#define RELEASE_VERSION "1.2.7"
-#define RELEASE_DATE "2025-09-14"
+#define RELEASE_VERSION "1.3.0"
+#define RELEASE_DATE "2026-05-31"
 
 inline void debugLog( const char* file, int line)
 {
@@ -127,6 +128,7 @@ protected:
     EventManager eventManager;
     ConfigurationManager configManager;
     SystemManager systemManager;
+    DiagnosticsManager diagnosticsManager;
     SerialManager serialManager;
     CommandManager commandManager;
     WiFiManager wiFiManager;

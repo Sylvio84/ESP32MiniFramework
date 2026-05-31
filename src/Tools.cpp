@@ -92,3 +92,35 @@ String calculateTimeStop(String timeStart, int duration) {
 
     return String(buffer);
 }
+
+bool isDateInRange(const std::tm &current, const String &start, const String &end)
+{
+    // Si aucune date définie, tout est valide
+    if (start.isEmpty() && end.isEmpty()) return true;
+
+    int sDay, sMonth, eDay, eMonth;
+    if (std::sscanf(start.c_str(), "%2d/%2d", &sDay, &sMonth) != 2) return false;
+    if (std::sscanf(end.c_str(),   "%2d/%2d", &eDay, &eMonth)   != 2) return false;
+
+    int curDay   = current.tm_mday;
+    int curMonth = current.tm_mon + 1;
+
+    // Convertir en "jour de l'année" pour simplifier
+    auto dayOfYear = [](int d, int m) {
+        static const int daysBeforeMonth[12] =
+            {0,31,59,90,120,151,181,212,243,273,304,334};
+        return daysBeforeMonth[m-1] + d;
+    };
+
+    int cur  = dayOfYear(curDay,  curMonth);
+    int startVal = dayOfYear(sDay, sMonth);
+    int endVal   = dayOfYear(eDay, eMonth);
+
+    if (startVal <= endVal) {
+        // Plage dans la même année
+        return cur >= startVal && cur <= endVal;
+    } else {
+        // Plage qui chevauche la fin d'année
+        return (cur >= startVal) || (cur <= endVal);
+    }
+}
